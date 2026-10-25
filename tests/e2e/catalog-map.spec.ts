@@ -148,7 +148,7 @@ test("expanded map cards are full-card links and keep keyboard focus when opened
       expect(Math.abs(cardBox[dimension] - linkBox[dimension])).toBeLessThanOrEqual(1);
 
     if (activation === 'Space') {
-      const opened = page.waitForEvent('popup');
+      const opened = page.context().waitForEvent('page');
       await link.click({ modifiers: ['ControlOrMeta'] });
       const tab = await opened;
       await expect(tab).toHaveURL(new RegExp(`/catalog/${property.slug}$`));
