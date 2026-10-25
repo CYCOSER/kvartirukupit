@@ -57,7 +57,7 @@ test("admin catalog filters combine, reset and stay usable on mobile", async ({
     }
   });
   await page.setViewportSize({ width: 1440, height: 1050 });
-  await page.goto("/morskoy-kabinet-7q4x/login");
+  await page.goto("/admin-console-9Xk6uiIs/login");
   await page.waitForFunction(() => !!(document.querySelector('#__nuxt') as any)?.__vue_app__);
   await page.getByLabel("Email", { exact: true }).fill("test@example.com");
   await page.getByLabel("Пароль", { exact: true }).fill("fixture-password");
@@ -69,12 +69,12 @@ test("admin catalog filters combine, reset and stay usable on mobile", async ({
   await expect(rows).toHaveCount(3);
   await expect(
     page.getByRole("link", { name: "Импорт из CRM", exact: true }),
-  ).toHaveAttribute("href", "/morskoy-kabinet-7q4x/properties/import");
+  ).toHaveAttribute("href", "/admin-console-9Xk6uiIs/properties/import");
   await expect(
     page.getByRole("link", { name: "Импорт из Нмаркета", exact: true }),
   ).toHaveAttribute(
     "href",
-    "/morskoy-kabinet-7q4x/properties/import?source=nmarket",
+    "/admin-console-9Xk6uiIs/properties/import?source=nmarket",
   );
   await expect(
     page.locator(".admin-property-thumb img").first(),

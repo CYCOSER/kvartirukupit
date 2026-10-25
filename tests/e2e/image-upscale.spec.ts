@@ -54,7 +54,7 @@ test('upscale button protects drafts, follows background progress and refreshes 
       currentFile = image.file;
       return route.fulfill({ json: { ...originalMetadata, file: currentFile } });
     });
-    await page.goto('/morskoy-kabinet-7q4x/properties/' + property.id);
+    await page.goto('/admin-console-9Xk6uiIs/properties/' + property.id);
     const trigger = page.getByRole('button', { name: 'Редактировать фото: Тест апскейла', exact: true });
     await trigger.click();
     const dialog = page.getByRole('dialog', { name: 'Редактировать фото', exact: true });

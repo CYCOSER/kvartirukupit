@@ -3,7 +3,8 @@ import { chooseExternalComplex, isBuildingCard, matchesLocalApartment, missingSo
 import { lockPropertyRelations } from '../../../../utils/property-relations';
 import { fetchNmarketObjects, fetchNmarketSnapshot } from '../../../../utils/nmarket';
 import { fetchRf39Objects } from '../../../../utils/rf39';
-import { fetchRf39Developments } from '../../../../utils/rf39-developments';
+import { fetchRf39Developments, snapshotRf39Developments } from '../../../../utils/rf39-developments';
+import { getRf39Snapshot } from '../../../../utils/rf39-snapshot';
 import { rf39IsComplex, rf39Supported } from '../../../../utils/rf39-data';
 import { cacheApartmentMatches, matchNmarketApartments, nmarketApartmentKeys, rf39ApartmentIdentity } from '../../../../utils/apartment-matching';
 import { rememberExistingImportSources } from '../../../../utils/import-sources';
@@ -14,7 +15,7 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!;
   const target = await db.property.findUnique({ where: { id } });
   if (!target || target.type !== 'complex') throw createError({ statusCode: 400, data: { message: 'Поиск квартир доступен только для сохранённого ЖК.' } });
-  const result = { candidates: [] as { id: string | number; layoutId?: number; preferredNmarketId?: string; matchedNmarketIds?: string[] }[], matchedBy: '', warnings: [] as string[] };
+  const result = { candidates: [] as { id: string | number; layoutId?: number; preferredNmarketId?: string; matchedNmarketIds?: string[] }[], matchedBy: '', warnings: [] as string[], snapshotDate: undefined as string | undefined };
 
   if (body.data.source === 'local') return db.$transaction(async tx => {
     await lockPropertyRelations(tx);
@@ -69,8 +70,13 @@ export default defineEventHandler(async (event) => {
     return { ...result, count: result.candidates.length, ...(snapshot ? { snapshotDate: snapshot.snapshotDate } : {}) };
   }
 
+  const snapshot = body.data.snapshot === 'saved' ? await getRf39Snapshot(config.rf39Token, config.rf39SnapshotPath, 'saved') : null;
+  if (snapshot) {
+    result.snapshotDate = snapshot.snapshotDate;
+    result.warnings.push(`Используется сохранённая выгрузка CRM от ${snapshot.snapshotDate}. Проверьте цены и наличие.`);
+  }
   const parentId = target.sourceId?.match(/^rf39:(\d+)$/)?.[1];
-  const parent = parentId ? (await fetchRf39Objects(config.rf39Token, 0, Number(parentId))).find(item => String(item.id) === parentId) : undefined;
+  const parent = parentId ? (snapshot?.items || await fetchRf39Objects(config.rf39Token, 0, Number(parentId))).find(item => String(item.id) === parentId) : undefined;
   if (parent && !rf39IsComplex(parent)) return { ...result, warnings: ['Исходный объект CRM является квартирой. Проверьте тип и ID карточки ЖК.'] };
   if (parent && ((target.rf39ComplexId && parent.development?.id && target.rf39ComplexId !== String(parent.development.id)) ||
       (target.rf39BuildingId && parent.complex?.id && target.rf39BuildingId !== String(parent.complex.id))))
@@ -79,17 +85,18 @@ export default defineEventHandler(async (event) => {
   const buildingId = target.rf39BuildingId || (parent?.complex?.id ? String(parent.complex.id) : undefined);
   if (parentId && !parent && !buildingId)
     return { ...result, warnings: ['Исходный корпус недоступен в опубликованной выгрузке CRM. Укажите ID корпуса или проверьте публикацию в CRM.'] };
-  const developments = parent && !developmentId ? [] : await fetchRf39Developments(config.rf39Token, developmentId);
+  const developments = parent && !developmentId ? [] : snapshot
+    ? snapshotRf39Developments(snapshot.items) : await fetchRf39Developments(config.rf39Token, developmentId);
   const match = chooseExternalComplex(target, developments, developmentId);
   result.matchedBy = parentId ? 'исходный корпус CRM' : match.matchedBy;
   result.warnings.push(...match.warnings);
   if (!match.item && !parent) return result;
   const items = new Map(parent ? [[parent.id, parent]] : []);
   const objectIds = match.item?.objectIds || [];
-  // Development lists include archived/unpublished records; re-fetch through the eligibility filter.
+  // Saved objects already passed eligibility filters; live development lists need filtered object requests.
   for (let offset = 0; offset < objectIds.length; offset += 100) {
     const ids = objectIds.slice(offset, offset + 100);
-    for (const item of await fetchRf39Objects(config.rf39Token, 0, ids.join(',')))
+    for (const item of snapshot?.items || await fetchRf39Objects(config.rf39Token, 0, ids.join(',')))
       if (ids.includes(item.id)) items.set(item.id, item);
   }
   const building = isBuildingCard(target);

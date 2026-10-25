@@ -16,7 +16,7 @@ async function login() {
   error.value = "";
   try {
     await $fetch("/api/admin/login", { method: "POST", body: form });
-    await navigateTo("/morskoy-kabinet-7q4x/properties");
+    await navigateTo("/admin-console-9Xk6uiIs/properties");
   } catch (e: any) {
     error.value =
       e.status === 429

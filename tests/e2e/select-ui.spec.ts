@@ -42,7 +42,7 @@ test('select menus join their field on both sides and preserve keyboard control'
     else await route.fulfill({ status: 404, json: { message: 'Unexpected fixture request' } });
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto('/morskoy-kabinet-7q4x/login');
+  await page.goto('/admin-console-9Xk6uiIs/login');
   await page.getByLabel('Email', { exact: true }).fill('fixture@example.com');
   await page.getByLabel('Пароль', { exact: true }).fill('fixture-password');
   await page.getByRole('button', { name: 'Войти', exact: true }).click();

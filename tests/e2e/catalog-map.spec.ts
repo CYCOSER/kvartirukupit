@@ -118,6 +118,49 @@ test("property pages open the matching catalog map with the requested object exp
   }
 });
 
+test("expanded map cards are full-card links and keep keyboard focus when opened", async ({ page }) => {
+  const property = fixtures[14];
+  for (const activation of ['click', 'Enter', 'Space']) {
+    await page.goto(`/catalog?view=map&location=${encodeURIComponent(location)}#homes`);
+    const row = page.locator(`[data-testid="catalog-map-item"][data-property-id="${property.id}"]`);
+    const card = row.locator('.property-card');
+    const toggle = row.getByTestId('catalog-map-toggle');
+    await expect(toggle).toHaveAttribute('role', 'button');
+    await expect(toggle).toHaveAttribute('aria-controls', `catalog-map-panel-${property.id}`);
+    await expect(toggle).not.toHaveAttribute('href');
+    const originalCard = (await card.elementHandle())!;
+    const originalAction = (await toggle.elementHandle())!;
+    if (activation === 'click') await toggle.click();
+    else await toggle.press(activation === 'Space' ? ' ' : 'Enter');
+
+    await expect(row).toHaveAttribute('data-expanded', 'true');
+    const link = row.getByTestId('catalog-map-detail');
+    await expect(link).toHaveAttribute('href', `/catalog/${property.slug}`);
+    await expect(link).toBeFocused();
+    await expect(row.getByRole('link')).toHaveCount(1);
+    await expect(row.getByRole('button')).toHaveCount(0);
+    await expect(row.getByText('Подробнее об объекте')).toHaveCount(0);
+    expect(await card.evaluate((element, previous) => element === previous, originalCard)).toBe(true);
+    expect(await link.evaluate((element, previous) => element === previous, originalAction)).toBe(true);
+    const cardBox = (await card.boundingBox())!;
+    const linkBox = (await link.boundingBox())!;
+    for (const dimension of ['x', 'y', 'width', 'height'] as const)
+      expect(Math.abs(cardBox[dimension] - linkBox[dimension])).toBeLessThanOrEqual(1);
+
+    if (activation === 'Space') {
+      const opened = page.waitForEvent('popup');
+      await link.click({ modifiers: ['ControlOrMeta'] });
+      const tab = await opened;
+      await expect(tab).toHaveURL(new RegExp(`/catalog/${property.slug}$`));
+      await tab.close();
+      await expect(page).toHaveURL(/view=map/);
+    }
+    if (activation === 'click') await card.click({ position: { x: cardBox.width / 2, y: cardBox.height / 2 } });
+    else await link.press('Enter');
+    await expect(page).toHaveURL(new RegExp(`/catalog/${property.slug}$`));
+  }
+});
+
 test("map is lazy, keeps filters, synchronizes selection, and survives returning from cards", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -149,7 +192,7 @@ test("map is lazy, keeps filters, synchronizes selection, and survives returning
   await expect(rows.locator(".property-card")).toHaveCount(3);
   await expect(rows.locator("h3")).toHaveCount(3);
   await expect(rows.locator(".card-price")).toHaveCount(3);
-  await expect(rows.locator('button[aria-expanded="false"]')).toHaveCount(3);
+  await expect(rows.getByRole('button', { expanded: false })).toHaveCount(3);
   const collapsed = await rows.evaluateAll((nodes) => nodes.map((node) => {
     const card = node.querySelector(".property-card")!.getBoundingClientRect();
     const bodyNode = node.querySelector(".card-body")!;
@@ -186,8 +229,7 @@ test("map is lazy, keeps filters, synchronizes selection, and survives returning
   await expect(targetRow).toHaveAttribute("data-selected", "true");
   await expect(targetRow).toHaveAttribute("data-expanded", "true");
   expect(await listedOrder(page)).toEqual(originalOrder);
-  await expect(targetRow.getByTestId("catalog-map-toggle")).toHaveAttribute("aria-controls", `catalog-map-panel-${targetId}`);
-  await expect(targetRow.getByTestId("catalog-map-toggle")).toHaveAttribute("aria-expanded", "true");
+  await expect(targetRow.getByTestId("catalog-map-toggle")).toHaveCount(0);
   await expect(targetRow.getByTestId("catalog-map-detail")).toHaveAttribute("href", `/catalog/${data.items[1].slug}`);
   expect(await targetRow.locator(".property-card").evaluate((node, original) => node === original, originalCard)).toBe(true);
   await expect.poll(async () => (await targetRow.locator(".property-card").boundingBox())!.height).toBeGreaterThan(collapsedHeight + 100);
@@ -210,11 +252,11 @@ test("map is lazy, keeps filters, synchronizes selection, and survives returning
   await expect(rows.locator(".property-card")).toHaveCount(3);
   await expect(page.locator('[data-testid="catalog-map-item"][data-expanded="true"]')).toHaveCount(1);
   expect(await listRow.locator(".property-card").evaluate((node, original) => node === original, listCard)).toBe(true);
-  await listRow.getByTestId("catalog-map-toggle").click();
+  await targetRow.getByTestId("catalog-map-toggle").click();
   await expect(listRow.getByTestId("catalog-map-toggle")).toHaveAttribute("aria-expanded", "false");
   expect(await listedOrder(page)).toEqual(originalOrder);
   await expect(rows.locator(".property-card")).toHaveCount(3);
-  await expect(page.locator('[data-testid="catalog-map-item"][data-expanded="true"]')).toHaveCount(0);
+  await expect(page.locator('[data-testid="catalog-map-item"][data-expanded="true"]')).toHaveCount(1);
   expect(await listRow.locator(".property-card").evaluate((node, original) => node === original, listCard)).toBe(true);
 
   await page.getByRole("button", { name: "Карточки", exact: true }).click();

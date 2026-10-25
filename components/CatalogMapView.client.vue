@@ -196,11 +196,6 @@ function scrollExpandedIntoView() {
   if (Math.abs(offset) > 1) list.scrollBy({ top: offset, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
 }
 
-function toggleItem(id: string) {
-  if (expandedId.value === id) expandedId.value = undefined;
-  else selectItem(id);
-}
-
 function applyRequestedSelection() {
   const id = props.selectedPropertyId;
   if (!id || id === appliedSelection || !props.items.some(item => item.id === id)) return;
@@ -366,7 +361,7 @@ onBeforeUnmount(() => {
         <p v-if="!items.length" class="catalog-map-empty">Попробуйте изменить фильтры.</p>
         <PropertyPanels class="catalog-map-panels">
           <article v-for="item in visibleItems" :key="item.id" class="catalog-map-item" :class="{ 'is-selected': item.id === selectedId }" data-testid="catalog-map-item" :data-property-id="item.id" :data-selected="item.id === selectedId" :data-expanded="item.id === expandedId" @transitionend="$event.propertyName === 'min-height' && scrollExpandedIntoView()">
-            <PropertyCard :property="item" :show-arrow="false" :disclosure="{ expanded: item.id === expandedId, id: 'catalog-map-panel-' + item.id }" class="catalog-panel" @toggle="toggleItem(item.id)">
+            <PropertyCard :property="item" :show-arrow="false" :disclosure="{ expanded: item.id === expandedId, id: 'catalog-map-panel-' + item.id }" class="catalog-panel" @toggle="selectItem(item.id)">
               <template #details><p v-if="!hasCoordinates(item)" class="catalog-map-unlocated">Местоположение уточняется</p></template>
             </PropertyCard>
           </article>

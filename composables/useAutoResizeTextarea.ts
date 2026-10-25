@@ -9,7 +9,9 @@ export function useAutoResizeTextarea(value: () => string) {
   }
 
   watch(value, () => nextTick(resize));
-  onMounted(() => {
+  watch(field, () => {
+    observer?.disconnect();
+    if (!field.value) return;
     resize();
     let width = 0;
     observer = new ResizeObserver(([entry]) => {
@@ -18,8 +20,8 @@ export function useAutoResizeTextarea(value: () => string) {
         resize();
       }
     });
-    if (field.value) observer.observe(field.value);
-  });
+    observer.observe(field.value);
+  }, { flush: 'post' });
   onBeforeUnmount(() => observer?.disconnect());
 
   return field;

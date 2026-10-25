@@ -13,7 +13,7 @@ test("admin editor saves a manually added elite apartment", async ({ page }) => 
     data: { email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD },
   });
   expect(login.ok()).toBe(true);
-  await page.goto("/morskoy-kabinet-7q4x/properties/new");
+  await page.goto("/admin-console-9Xk6uiIs/properties/new");
   const type = page.getByRole("combobox", { name: "Тип объекта", exact: true });
   await type.click();
   await page.getByRole("option", { name: "Элитная квартира", exact: true }).click();

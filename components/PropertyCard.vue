@@ -13,8 +13,18 @@ const props = withDefaults(defineProps<{
 }>(), {
   showArrow: true,
 });
-defineEmits<{ toggle: [] }>();
+const emit = defineEmits<{ toggle: [] }>();
 const linkComponent = resolveComponent("NuxtLink");
+function activateCard(event: MouseEvent, navigate: (event: MouseEvent) => unknown) {
+  if (props.disclosure?.expanded) return navigate(event);
+  event.preventDefault();
+  emit('toggle');
+}
+function expandFromKeyboard(event: KeyboardEvent) {
+  if (props.disclosure?.expanded) return;
+  event.preventDefault();
+  emit('toggle');
+}
 const readiness = computed(() => formatReadiness(props.property.readiness, props.property.constructionStatus));
 const development = computed(() => props.property.type === 'apartment'
   ? props.property.complex && 'ЖК ' + props.property.complex.title.replace(/^ЖК\s+/i, '')
@@ -32,16 +42,26 @@ const constructionStatus = computed(() => {
     class="property-card"
     :class="{ 'card-disclosure': !!disclosure, 'is-expanded': disclosure?.expanded }"
   >
-    <button
+    <NuxtLink
       v-if="disclosure"
-      type="button"
-      class="card-toggle"
-      data-testid="catalog-map-toggle"
-      :aria-expanded="disclosure.expanded"
-      :aria-controls="disclosure.id"
-      :aria-labelledby="disclosure.id + '-title ' + disclosure.id + '-price'"
-      @click="$emit('toggle')"
-    />
+      v-slot="{ href, navigate }"
+      :to="'/catalog/' + property.slug"
+      custom
+    >
+      <a
+        class="card-toggle"
+        :href="disclosure.expanded ? href ?? undefined : undefined"
+        :role="disclosure.expanded ? undefined : 'button'"
+        tabindex="0"
+        :data-testid="disclosure.expanded ? 'catalog-map-detail' : 'catalog-map-toggle'"
+        :aria-expanded="disclosure.expanded ? undefined : false"
+        :aria-controls="disclosure.expanded ? undefined : disclosure.id"
+        :aria-labelledby="disclosure.id + '-title ' + disclosure.id + '-price'"
+        @click="activateCard($event, navigate)"
+        @keydown.enter="expandFromKeyboard"
+        @keydown.space="expandFromKeyboard"
+      />
+    </NuxtLink>
     <div class="card-image-link">
       <img
         v-if="property.images[0]"
@@ -109,7 +129,6 @@ const constructionStatus = computed(() => {
             Наличие и цену нужно уточнить
           </p>
           <slot name="details" />
-          <NuxtLink v-if="disclosure" :to="'/catalog/' + property.slug" class="card-details-link" data-testid="catalog-map-detail" :tabindex="disclosure.expanded ? undefined : -1">Подробнее об объекте</NuxtLink>
         </div>
       </div>
     </div>
@@ -142,7 +161,7 @@ const constructionStatus = computed(() => {
   background: linear-gradient(145deg, #245fbd, #102f50);
 }
 .card-disclosure { position: relative; isolation: isolate; }
-.card-toggle { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; border: 0; background: transparent; }
+.card-toggle { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; border: 0; background: transparent; cursor: pointer; }
 .property-card.card-disclosure .card-body { z-index: 3; pointer-events: none; }
 .card-toggle:focus-visible { outline: 2px solid #dce7f3; outline-offset: -4px; }
 .card-disclosure .card-reveal { display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden; transition: grid-template-rows .3s ease, opacity .22s ease, visibility .22s; }
@@ -151,7 +170,5 @@ const constructionStatus = computed(() => {
 .card-disclosure:not(.is-expanded) .empty-image { color: transparent; }
 .card-disclosure .card-type, .card-disclosure .card-status, .card-disclosure .card-price > span { opacity: 0; visibility: hidden; transition: opacity .22s ease, visibility .22s; }
 .card-disclosure.is-expanded .card-type, .card-disclosure.is-expanded .card-status, .card-disclosure.is-expanded .card-price > span { opacity: 1; visibility: visible; }
-.card-details-link { display: inline-block; margin-top: 18px; color: #dce7f3; font-size: 12px; text-decoration: underline; text-underline-offset: 4px; pointer-events: auto; }
-.card-details-link:hover { color: #fff; }
 @media (prefers-reduced-motion: reduce) { .card-disclosure .card-reveal, .card-disclosure .card-type, .card-disclosure .card-status, .card-disclosure .card-price > span { transition: none; } }
 </style>

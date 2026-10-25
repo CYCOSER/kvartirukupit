@@ -3,6 +3,6 @@ export default defineNuxtRouteMiddleware(async () => {
   try {
     await request('/api/admin/me');
   } catch {
-    return navigateTo('/morskoy-kabinet-7q4x/login');
+    return navigateTo('/admin-console-9Xk6uiIs/login');
   }
 });

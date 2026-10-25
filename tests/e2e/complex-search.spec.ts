@@ -17,7 +17,7 @@ async function openEditor(page: Page, handle: (route: Route, path: string) => Pr
     else if (path === '/api/admin/properties/' + complex.id) await route.fulfill({ json: complex });
     else await route.fulfill({ status: 404, json: { message: 'Unexpected fixture request' } });
   });
-  await page.goto('/morskoy-kabinet-7q4x/login');
+  await page.goto('/admin-console-9Xk6uiIs/login');
   await page.waitForFunction(() => !!(document.querySelector('#__nuxt') as any)?.__vue_app__);
   await page.getByLabel('Email', { exact: true }).fill('fixture@example.com');
   await page.getByLabel('Пароль', { exact: true }).fill('fixture-password');
@@ -126,7 +126,7 @@ test('three sources run together, one failure does not stop others and an explic
   expect(savedBody).toHaveProperty('rf39BuildingId', 'manual-building');
   expect(savedBody).not.toHaveProperty('rf39ComplexId');
 
-  await page.getByRole('combobox', { name: 'Данные Нмаркета для поиска квартир', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Данные Нмаркета и CRM RF39 для поиска квартир', exact: true }).click();
   await page.getByRole('option', { name: 'Сохранённая выгрузка', exact: true }).click();
   await expect(page.getByText('Сохранённая выгрузка может быть устаревшей.', { exact: false })).toBeVisible();
   await search.click();
@@ -137,6 +137,8 @@ test('three sources run together, one failure does not stop others and an explic
   await expect(rf39.locator('[data-count="errors"]')).toHaveText('0');
   await expect(nmarket.locator('[data-count="created"]')).toHaveText('1');
   expect(imports.find((item) => item.source === 'nmarket')).toMatchObject({ id: 'n100', snapshot: 'saved', complexId: complex.id });
+  expect(imports.slice(3).filter((item) => item.source === 'rf39')).toHaveLength(3);
+  expect(imports.slice(3).every((item) => item.snapshot === 'saved')).toBe(true);
   await page.getByTestId('complex-apartment-search').screenshot({ path: testInfo.outputPath('complex-search-desktop.png') });
   await page.setViewportSize({ width: 390, height: 1700 });
   await page.locator('.complex-search-top h3').click();
@@ -256,7 +258,7 @@ test('both source searches finish before Nmarket imports and CRM receives the pr
     return false;
   });
   await expect(page.getByRole('navigation', { name: 'Источник при совпадении квартиры' }).getByRole('button', { name: 'Нмаркет', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('combobox', { name: 'Данные Нмаркета для поиска квартир', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Данные Нмаркета и CRM RF39 для поиска квартир', exact: true }).click();
   await page.getByRole('option', { name: 'Сохранённая выгрузка', exact: true }).click();
   const search = page.getByRole('button', { name: 'Найти и привязать квартиры', exact: true });
   await search.click();
@@ -267,7 +269,7 @@ test('both source searches finish before Nmarket imports and CRM receives the pr
   await expect(search).toBeEnabled();
   expect(imports.map(value => value.source)).toEqual(['nmarket', 'rf39']);
   expect(imports[0]!.body).toMatchObject({ id: 'apartment:99', complexId: complex.id, snapshot: 'saved' });
-  expect(imports[1]!.body).toMatchObject({ id: 100, layoutId: 20, complexId: complex.id, preferredNmarketId: 'apartment:99', nmarketSnapshot: 'saved', preferredSource: 'nmarket' });
+  expect(imports[1]!.body).toMatchObject({ id: 100, layoutId: 20, complexId: complex.id, preferredNmarketId: 'apartment:99', snapshot: 'saved', preferredSource: 'nmarket' });
   await expect(page.locator('[data-source="nmarket"] [data-count="created"]')).toHaveText('1');
   await expect(page.locator('[data-source="rf39"] [data-count="created"]')).toHaveText('0');
   await expect(page.locator('[data-source="rf39"] [data-count="existing"]')).toHaveText('1');

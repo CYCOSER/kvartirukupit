@@ -5,9 +5,20 @@ import type { Property } from "../../shared/property";
 
 const env = { ...parseEnv(await readFile(".env", "utf8")), ...process.env };
 const origin = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3100";
-const admin = "/morskoy-kabinet-7q4x";
+const admin = "/admin-console-9Xk6uiIs";
 const headers = { Origin: origin };
 const credentials = { email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD };
+
+test('admin console uses the new address and keeps authentication', async ({ page, request }) => {
+  await page.goto(admin);
+  await expect(page).toHaveURL(admin + '/login');
+  await expect(page.getByRole('button', { name: 'Войти', exact: true })).toBeVisible();
+  const login = await request.get(admin + '/login');
+  expect(login.headers()['x-robots-tag']).toBe('noindex, nofollow');
+  expect((await request.get('/morskoy-kabinet-7q4x/login')).status()).toBe(404);
+  expect((await request.get('/api/admin/properties')).status()).toBe(401);
+  expect(await (await request.get('/robots.txt')).text()).not.toContain(admin);
+});
 
 async function cleanTestProperty(request: APIRequestContext, id: string) {
   const response = await request.get("/api/admin/properties/" + id);
@@ -296,7 +307,7 @@ test("authorization, temporary property CRUD, gallery and validation", async ({
   expect((await request.get("/api/admin/me")).status()).toBe(401);
   expect((await request.get("/sitemap.xml")).ok()).toBe(true);
   expect(await (await request.get("/robots.txt")).text()).not.toContain(
-    "morskoy-kabinet-7q4x",
+    "admin-console-9Xk6uiIs",
   );
   expect((await request.get("/admin")).status()).toBe(404);
 });
@@ -308,7 +319,7 @@ test("manager creates, previews and removes a temporary object", async ({
   await page.getByLabel("Email", { exact: true }).fill(env.ADMIN_EMAIL!);
   await page.getByLabel("Пароль", { exact: true }).fill(env.ADMIN_PASSWORD!);
   await page.getByRole("button", { name: "Войти", exact: true }).click();
-  await expect(page).toHaveURL(/morskoy-kabinet-7q4x\/properties/);
+  await expect(page).toHaveURL(/admin-console-9Xk6uiIs\/properties/);
   await page.getByRole("link", { name: "Добавить объект" }).click();
   const slug = "e2e-interface-" + Date.now();
   await page
@@ -329,7 +340,7 @@ test("manager creates, previews and removes a temporary object", async ({
   const { id } = await response.json();
   try {
     await expect(page).toHaveURL(
-      /morskoy-kabinet-7q4x\/properties\/[a-z0-9]+$/,
+      /admin-console-9Xk6uiIs\/properties\/[a-z0-9]+$/,
     );
     await page
       .getByLabel(/Добавить фото/)

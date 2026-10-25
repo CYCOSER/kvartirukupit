@@ -144,18 +144,18 @@ async function publish(p: Property) {
       </div>
       <div class="admin-heading-actions">
         <NuxtLink
-          to="/morskoy-kabinet-7q4x/properties/import"
+          to="/admin-console-9Xk6uiIs/properties/import"
           class="btn-secondary"
           ><Download :size="17" aria-hidden="true" />Импорт из CRM</NuxtLink
         >
         <NuxtLink
-          to="/morskoy-kabinet-7q4x/properties/import?source=nmarket"
+          to="/admin-console-9Xk6uiIs/properties/import?source=nmarket"
           class="btn-secondary"
           ><Download :size="17" aria-hidden="true" />Импорт из
           Нмаркета</NuxtLink
         >
         <Button as-child
-          ><NuxtLink to="/morskoy-kabinet-7q4x/properties/new"
+          ><NuxtLink to="/admin-console-9Xk6uiIs/properties/new"
             ><Plus :size="18" aria-hidden="true" />Добавить объект</NuxtLink
           ></Button
         >
@@ -379,7 +379,7 @@ async function publish(p: Property) {
                   </div>
                   <div class="admin-property-info">
                     <NuxtLink
-                      :to="'/morskoy-kabinet-7q4x/properties/' + p.id"
+                      :to="'/admin-console-9Xk6uiIs/properties/' + p.id"
                       class="admin-property-name"
                       >{{ p.title }}</NuxtLink
                     ><small

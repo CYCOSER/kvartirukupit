@@ -85,15 +85,16 @@ function refreshSnapshot(path: string, token: string, tokenHash: string) {
   return promise;
 }
 
-export async function getRf39Snapshot(token: string, path: string, refresh = false): Promise<Snapshot> {
+export async function getRf39Snapshot(token: string, path: string, refresh: boolean | 'saved' = false): Promise<Snapshot> {
   if (!token) throw createError({ statusCode: 503, data: { message: 'Подключение CRM не настроено. Добавьте NUXT_RF39_TOKEN на сервере.' } });
   if (!path) throw createError({ statusCode: 503, data: { message: 'Хранилище выгрузки CRM не настроено на сервере.' } });
   const filePath = resolve(path), tokenHash = createHash('sha256').update(token).digest('hex');
-  if (!refresh) {
+  if (!refresh || refresh === 'saved') {
     let snapshot;
     try { snapshot = await readSnapshot(filePath, tokenHash); }
     catch { throw createError({ statusCode: 502, data: { message: 'Не удалось прочитать сохранённую выгрузку CRM. Нажмите «Обновить из CRM».' } }); }
     if (snapshot) return snapshot;
+    if (refresh === 'saved') throw createError({ statusCode: 503, data: { message: 'Сохранённая выгрузка CRM не найдена. Сначала обновите выгрузку из CRM.' } });
   }
   return refreshSnapshot(filePath, token, tokenHash);
 }

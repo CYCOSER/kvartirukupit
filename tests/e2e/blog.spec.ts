@@ -14,12 +14,12 @@ test("articles: authenticated editor, draft, SEO, publish, unpublish and delete"
   const slug = "qa-article-" + Date.now();
   const title = "Проверочная статья " + Date.now();
   let id = "";
-  await page.goto("/morskoy-kabinet-7q4x/login");
+  await page.goto("/admin-console-9Xk6uiIs/login");
   await page.getByLabel("Email", { exact: true }).fill(env.ADMIN_EMAIL!);
   await page.getByLabel("Пароль", { exact: true }).fill(env.ADMIN_PASSWORD!);
   await page.getByRole("button", { name: "Войти", exact: true }).click();
-  await expect(page).toHaveURL(/morskoy-kabinet-7q4x\/properties/);
-  await page.goto("/morskoy-kabinet-7q4x/articles");
+  await expect(page).toHaveURL(/admin-console-9Xk6uiIs\/properties/);
+  await page.goto("/admin-console-9Xk6uiIs/articles");
   try {
     await page.getByRole("button", { name: "Новая статья" }).click();
     await page.getByLabel("Заголовок статьи", { exact: true }).fill(title);
@@ -37,6 +37,12 @@ test("articles: authenticated editor, draft, SEO, publish, unpublish and delete"
       .setInputFiles("public/images/journal-dunes.webp");
     await page.getByText("SEO-настройки", { exact: true }).click();
     await page.getByLabel("SEO-заголовок").fill("Проверочный SEO заголовок");
+    const seoDescription = page.getByLabel("SEO-описание", { exact: true });
+    const initialHeight = (await seoDescription.boundingBox())!.height;
+    await seoDescription.fill(Array(12).fill("Описание статьи").join("\n"));
+    await expect.poll(async () => (await seoDescription.boundingBox())!.height).toBeGreaterThan(initialHeight);
+    await seoDescription.fill("Проверочное описание статьи.");
+    await expect.poll(async () => (await seoDescription.boundingBox())!.height).toBeLessThanOrEqual(initialHeight);
     await page.getByRole("button", { name: "Предпросмотр" }).click();
     await expect(page.locator(".article-preview h2").last()).toHaveText(
       "Выбор квартиры",
@@ -62,6 +68,7 @@ test("articles: authenticated editor, draft, SEO, publish, unpublish and delete"
     await expect(page.getByRole("status")).toHaveText("Статья сохранена.");
     await page.goto("/blog/" + slug);
     await expect(page).toHaveTitle(/Проверочный SEO заголовок/);
+    await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", "Проверочное описание статьи.");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(title);
     await expect(page.locator(".article-page .scene-photo")).toBeVisible();
     await expect(page.locator(".article-body li")).toHaveCount(2);
@@ -82,7 +89,7 @@ test("articles: authenticated editor, draft, SEO, publish, unpublish and delete"
         ).toBeTruthy();
       }
     }
-    await page.goto("/morskoy-kabinet-7q4x/articles");
+    await page.goto("/admin-console-9Xk6uiIs/articles");
     await page
       .getByRole("row")
       .filter({ hasText: title })

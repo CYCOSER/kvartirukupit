@@ -69,3 +69,37 @@ test('property page keeps words intact and gallery actions usable without mobile
     complexTitle = 'Тихий дом — жилой квартал на побережье';
   }
 });
+
+test('complex hero shows its city, overlapping label and a nearby down arrow', async ({ page }, testInfo) => {
+  const response = await page.request.get('/api/properties', { params: { type: 'complex' } });
+  expect(response.ok()).toBe(true);
+  const { items } = await response.json();
+  const property = items.find((item: Property) => item.status !== 'sold') as Property;
+  expect(property).toBeTruthy();
+  for (const width of [320, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/catalog/' + property.slug);
+    const hero = page.locator('.detail-hero');
+    await expect(hero.locator('.eyebrow')).toHaveText(property.location);
+    await expect(hero.locator('.detail-hero-script')).toHaveText('Жилой комплекс');
+    const action = hero.getByRole('link', { name: 'Записаться на просмотр' });
+    await expect(action).toHaveAttribute('href', '#property-enquiry');
+    await expect(action.locator('.lucide-arrow-down')).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const geometry = await hero.evaluate(element => {
+      const title = element.querySelector('h1')!.getBoundingClientRect();
+      const script = element.querySelector('.detail-hero-script')!.getBoundingClientRect();
+      const action = element.querySelector('.detail-hero-cta')!;
+      return { titleBottom: title.bottom, scriptTop: script.top,
+        scriptRight: script.right, width: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth, gap: parseFloat(getComputedStyle(action).gap) };
+    });
+    expect(geometry.scriptTop).toBeLessThan(geometry.titleBottom);
+    expect(geometry.scriptRight).toBeLessThanOrEqual(geometry.width);
+    expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.width);
+    expect(geometry.gap).toBeLessThanOrEqual(16);
+    await hero.screenshot({ path: testInfo.outputPath(`complex-hero-${width}.png`) });
+    await action.click();
+    await expect(page.locator('#property-enquiry')).toBeInViewport();
+  }
+});

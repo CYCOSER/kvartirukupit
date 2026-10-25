@@ -65,6 +65,20 @@ test('concurrent refreshes share one complete download and readers keep the last
   assert.deepEqual(await readdir(resolve(path, '..')), ['snapshot.json']);
 });
 
+test('explicit saved mode never downloads when the snapshot is absent or belongs to another account', async t => {
+  const path = await temporary(t);
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => { calls++; return response([object(1)]); });
+  await assert.rejects(getRf39Snapshot('ACCOUNT_A', path, 'saved'), { statusCode: 503 });
+  assert.equal(calls, 0);
+  const snapshot = await getRf39Snapshot('ACCOUNT_A', path);
+  assert.equal(calls, 1);
+  assert.deepEqual(await getRf39Snapshot('ACCOUNT_A', path, 'saved'), snapshot);
+  await assert.rejects(getRf39Snapshot('ACCOUNT_B', path, 'saved'), { statusCode: 503 });
+  assert.equal(calls, 1);
+  assert.deepEqual(await getRf39Snapshot('ACCOUNT_A', path, 'saved'), snapshot);
+});
+
 test('a failed later page never replaces or deletes the complete saved snapshot', async t => {
   const path = await temporary(t);
   t.mock.method(globalThis, 'fetch', async () => response([object(1)]));

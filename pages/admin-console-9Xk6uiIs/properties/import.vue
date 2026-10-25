@@ -266,7 +266,7 @@ async function importSelected() {
 
 <template>
   <div class="import-page">
-    <NuxtLink to="/morskoy-kabinet-7q4x/properties" class="import-back"
+    <NuxtLink to="/admin-console-9Xk6uiIs/properties" class="import-back"
       ><ArrowLeft :size="16" /> Все объекты</NuxtLink
     >
     <header class="import-heading">
@@ -282,7 +282,7 @@ async function importSelected() {
     <ImportSourceToggle
       :model-value="isNmarket ? 'nmarket' : 'rf39'"
       :disabled="!ready || loading || importing"
-      @update:model-value="navigateTo('/morskoy-kabinet-7q4x/properties/import' + ($event === 'nmarket' ? '?source=nmarket' : ''))"
+      @update:model-value="navigateTo('/admin-console-9Xk6uiIs/properties/import' + ($event === 'nmarket' ? '?source=nmarket' : ''))"
     />
     <section class="import-source-card">
       <div class="import-source-icon"><ArrowDownToLine :size="24" /></div>
@@ -551,7 +551,7 @@ async function importSelected() {
       </h2>
       <ul>
         <li v-for="result in results" :key="result.sourceId">
-          <NuxtLink :to="'/morskoy-kabinet-7q4x/properties/' + result.id"
+          <NuxtLink :to="'/admin-console-9Xk6uiIs/properties/' + result.id"
             >{{ result.title }} —
             {{
               result.created ? "открыть черновик" : "уже добавлен, открыть"
@@ -624,7 +624,7 @@ async function importSelected() {
             <td>
               <NuxtLink
                 v-if="item.existingId"
-                :to="'/morskoy-kabinet-7q4x/properties/' + item.existingId"
+                :to="'/admin-console-9Xk6uiIs/properties/' + item.existingId"
                 class="import-existing"
                 >Уже добавлен — открыть</NuxtLink
               ><span v-else-if="!item.supported" class="import-unavailable"

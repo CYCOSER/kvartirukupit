@@ -24,7 +24,7 @@ async function editor(page: Page) {
     return route.fulfill({ status: 404, json: {} });
   });
   await page.route('https://tile.openstreetmap.org/**', route => route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==', 'base64') }));
-  await page.goto('/morskoy-kabinet-7q4x/login');
+  await page.goto('/admin-console-9Xk6uiIs/login');
   await page.waitForFunction(() => !!(document.querySelector('#__nuxt') as any)?.__vue_app__);
   await page.getByLabel('Email', { exact: true }).fill('fixture@example.com');
   await page.getByLabel('Пароль', { exact: true }).fill('fixture-password');
@@ -35,12 +35,23 @@ async function editor(page: Page) {
 }
 
 test('address search selects coordinates, preserves short address, clears stale points and allows map correction', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
   const saved = await editor(page);
   const map = page.getByTestId('property-address-map');
+  const canvas = page.getByTestId('property-address-map-canvas');
+  const bounds = await canvas.boundingBox();
+  expect((await map.boundingBox())!.width).toBeLessThanOrEqual(960);
+  expect(bounds!.width / bounds!.height).toBeCloseTo(16 / 9, 1);
+  await expect(map.locator('.leaflet-tile-loaded').first()).toBeAttached();
+  const zoom = () => map.locator('.leaflet-tile').evaluateAll(images => Math.max(...images.map(image => Number(new URL((image as HTMLImageElement).src).pathname.split('/')[1]))));
+  const initialZoom = await zoom();
+  await canvas.hover();
+  await page.mouse.wheel(0, -500);
+  await expect.poll(zoom).toBeGreaterThan(initialZoom);
   await expect(page.getByLabel('Широта (для карты)', { exact: true })).toHaveCount(0);
   await expect(page.getByLabel('Долгота (для карты)', { exact: true })).toHaveCount(0);
   await expect(map.locator('.property-address-pin')).toHaveCount(1);
-  await expect(page.getByRole('link', { name: 'Карточка ЖК', exact: true })).toHaveAttribute('href', '/morskoy-kabinet-7q4x/properties/' + complex.id);
+  await expect(page.getByRole('link', { name: 'Карточка ЖК', exact: true })).toHaveAttribute('href', '/admin-console-9Xk6uiIs/properties/' + complex.id);
   let query = '';
   await page.route('**/api/map/search?**', route => {
     query = new URL(route.request().url()).searchParams.get('q') || '';
@@ -65,8 +76,36 @@ test('address search selects coordinates, preserves short address, clears stale 
   await page.getByRole('button', { name: 'Сохранить объект', exact: true }).click();
   await expect.poll(() => saved()?.latitude).not.toBeNull();
   await page.setViewportSize({ width: 360, height: 800 });
-  await expect(page.locator('body')).toHaveJSProperty('scrollWidth', await page.locator('body').evaluate(element => element.clientWidth));
   await map.screenshot({ path: testInfo.outputPath('address-map-mobile.png') });
+  await expect(page.locator('body')).toHaveJSProperty('scrollWidth', await page.locator('body').evaluate(element => element.clientWidth));
+});
+
+test('property textareas grow and shrink with the content and save the full text', async ({ page }) => {
+  const saved = await editor(page);
+  const utilities = Array.from({ length: 18 }, (_, index) => `Особенность ЖК ${index + 1}`);
+  const description = Array.from({ length: 24 }, (_, index) => `Абзац ${index + 1}. Подробное описание квартиры и жилого комплекса.`).join('\n');
+  const fields = [
+    { field: page.getByLabel('Особенности ЖК (по одной на строку)', { exact: true }), value: utilities.join('\n') },
+    { field: page.getByLabel('Описание', { exact: true }), value: description },
+  ];
+  const initialHeights: number[] = [];
+  for (const { field, value } of fields) {
+    initialHeights.push((await field.boundingBox())!.height);
+    await field.fill(value);
+    await expect.poll(async () => (await field.boundingBox())!.height).toBeGreaterThan(initialHeights.at(-1)!);
+    await expect.poll(() => field.evaluate(element => element.scrollHeight <= element.clientHeight + 1)).toBe(true);
+  }
+  await page.getByRole('button', { name: 'Сохранить объект', exact: true }).click();
+  await expect.poll(saved).toMatchObject({ utilities, description });
+  await page.setViewportSize({ width: 360, height: 800 });
+  for (const { field } of fields) {
+    await expect.poll(() => field.evaluate(element => element.scrollHeight <= element.clientHeight + 1)).toBe(true);
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
+  for (const [index, { field }] of fields.entries()) {
+    await field.fill('Короткий текст');
+    await expect.poll(async () => (await field.boundingBox())!.height).toBeLessThanOrEqual(initialHeights[index]! + 1);
+  }
 });
 
 async function presentation(card: Locator) {

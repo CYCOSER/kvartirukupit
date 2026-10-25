@@ -104,7 +104,7 @@ test("Nmarket import filters the received list and imports only selected new obj
     });
   });
 
-  await page.goto("/morskoy-kabinet-7q4x/properties/import?source=nmarket");
+  await page.goto("/admin-console-9Xk6uiIs/properties/import?source=nmarket");
   await expect(
     page.getByRole("heading", { name: /Импорт.*Нмаркет/ }),
   ).toBeVisible();
@@ -115,7 +115,7 @@ test("Nmarket import filters the received list and imports only selected new obj
   await expect(page.getByRole("checkbox")).toHaveCount(3);
   await expect(
     page.getByRole("link", { name: "Уже добавлен — открыть" }),
-  ).toHaveAttribute("href", "/morskoy-kabinet-7q4x/properties/existing-draft");
+  ).toHaveAttribute("href", "/admin-console-9Xk6uiIs/properties/existing-draft");
 
   await page.getByRole("combobox", { name: "Сортировка", exact: true }).click();
   await page
@@ -200,7 +200,7 @@ test("Nmarket import filters the received list and imports only selected new obj
     .click();
   await expect(
     page.getByRole("link", { name: "Студия у моря — открыть черновик" }),
-  ).toHaveAttribute("href", "/morskoy-kabinet-7q4x/properties/draft-n-studio");
+  ).toHaveAttribute("href", "/admin-console-9Xk6uiIs/properties/draft-n-studio");
   expect(imported).toEqual([studio.id]);
   await expect(page.getByRole("checkbox")).toHaveCount(0);
 
@@ -244,7 +244,7 @@ test("Nmarket import filters the received list and imports only selected new obj
     }),
   ).toHaveAttribute(
     "href",
-    "/morskoy-kabinet-7q4x/properties/draft-n-apartment",
+    "/admin-console-9Xk6uiIs/properties/draft-n-apartment",
   );
   expect(imported).toEqual([studio.id, apartment.id]);
   await expect(page.getByRole("checkbox")).toHaveCount(0);
@@ -273,7 +273,7 @@ test("Nmarket selection and search cover all pages of the received list", async 
   await page.route("**/api/admin/nmarket/objects?*", (route) =>
     route.fulfill({ json: { items, nextOffset: null } }),
   );
-  await page.goto("/morskoy-kabinet-7q4x/properties/import?source=nmarket");
+  await page.goto("/admin-console-9Xk6uiIs/properties/import?source=nmarket");
   await expect(page.getByRole("checkbox")).toHaveCount(50);
   const pagination = page.getByRole("navigation", { name: "Страницы списка" });
   await expect(pagination).toContainText("Страница 1 из 2");
@@ -371,7 +371,7 @@ test("Nmarket opens the saved export automatically and keeps live refresh explic
       json: { id: "saved-draft", created: true, warnings: [] },
     });
   });
-  await page.goto("/morskoy-kabinet-7q4x/properties/import?source=nmarket");
+  await page.goto("/admin-console-9Xk6uiIs/properties/import?source=nmarket");
   await expect(
     page.getByRole("button", {
       name: "Открыть сохранённую выгрузку",
@@ -399,7 +399,7 @@ test("Nmarket opens the saved export automatically and keeps live refresh explic
     .click();
   await expect(
     page.getByRole("link", { name: `${items[0].title} — открыть черновик` }),
-  ).toHaveAttribute("href", "/morskoy-kabinet-7q4x/properties/saved-draft");
+  ).toHaveAttribute("href", "/admin-console-9Xk6uiIs/properties/saved-draft");
   expect(imported).toEqual([{ id: items[0].id, snapshot: "saved" }]);
 
   await page.getByRole("checkbox").check();
@@ -438,7 +438,7 @@ test("Nmarket reports an unavailable saved export without silently making a live
     snapshots.push(new URL(route.request().url()).searchParams.get('snapshot'));
     await route.fulfill({ status: 503, json: { data: { message: 'Сохранённая выгрузка недоступна' } } });
   });
-  await page.goto('/morskoy-kabinet-7q4x/properties/import?source=nmarket');
+  await page.goto('/admin-console-9Xk6uiIs/properties/import?source=nmarket');
   await expect(page.getByRole('alert')).toContainText('Сохранённая выгрузка недоступна');
   expect(snapshots).toEqual(['saved']);
   await expect(page.getByRole('button', { name: 'Обновить из Нмаркета', exact: true })).toBeEnabled();

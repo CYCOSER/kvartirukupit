@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowUpRight, ArrowLeft, ArrowRight, MapPin } from "lucide-vue-next";
+import { ArrowUpRight, ArrowDown, ArrowLeft, ArrowRight, MapPin } from "lucide-vue-next";
 import {
   types,
   statuses,
@@ -187,10 +187,10 @@ useHead({
         ><span aria-hidden="true">/</span
         ><span aria-current="page">Объект</span>
       </nav>
-      <p class="eyebrow">{{ types[p.type] }} · {{ p.location }}</p>
+      <p class="eyebrow">{{ p.location }}</p>
       <h1 class="detail-title">{{ p.title }}</h1>
       <p class="detail-hero-script" :class="{ 'is-complex-name': p.type === 'apartment' && p.complex }">
-        {{ p.type === 'apartment' && p.complex ? 'ЖК ' + p.complex.title.replace(/^ЖК\s+/i, '') : 'Своё место' }}
+        {{ p.type === 'apartment' && p.complex ? 'ЖК ' + p.complex.title.replace(/^ЖК\s+/i, '') : types[p.type] }}
       </p>
       <p v-if="seaDistance" class="detail-hero-location">{{ seaDistance }}</p>
       <a
@@ -199,7 +199,7 @@ useHead({
         >{{
           p.status === "sold" ? "Узнать о комплексе" : "Записаться на просмотр"
         }}
-        <ArrowUpRight :size="20" aria-hidden="true"
+        <ArrowDown :size="20" aria-hidden="true"
       /></a>
       <template #aside>
         <small
@@ -601,7 +601,7 @@ useHead({
 .detail-hero :deep(.scene-panel .detail-hero-script) {
   position: relative;
   z-index: 1;
-  max-width: none;
+  max-width: calc(100% - 0.35em);
   width: fit-content;
   margin: -0.2em 0 0 0.35em;
   font-family: var(--font-script);
@@ -615,14 +615,12 @@ useHead({
   color: #d6e1ef;
 }
 .detail-hero :deep(.scene-panel .detail-hero-script.is-complex-name) {
-  max-width: calc(100% - 0.35em);
   overflow-wrap: anywhere;
 }
 .detail-hero-cta {
   display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 42px;
+  gap: 12px;
   width: fit-content;
   margin-top: 28px;
   padding: 12px 0;
@@ -636,6 +634,9 @@ useHead({
 }
 .detail-hero-cta:hover svg {
   transform: translate(3px, -3px);
+}
+.detail-hero-cta[href^="#"]:hover svg {
+  transform: translateY(3px);
 }
 .detail-hero :deep(.scene-aside .detail-hero-price) {
   font-family: var(--font-display);

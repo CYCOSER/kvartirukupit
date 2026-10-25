@@ -99,7 +99,7 @@ test("CRM import resumes listing, keeps drafts and reuses saved lists with an an
     });
   });
 
-  await page.goto("/morskoy-kabinet-7q4x/properties/import");
+  await page.goto("/admin-console-9Xk6uiIs/properties/import");
   await expect(
     page.getByRole("heading", { name: "Импорт из CRM RF39" }),
   ).toBeVisible();
@@ -113,7 +113,7 @@ test("CRM import resumes listing, keeps drafts and reuses saved lists with an an
   await expect(page.getByRole("checkbox")).toHaveCount(1);
   await expect(
     page.getByRole("link", { name: "Уже добавлен — открыть" }),
-  ).toHaveAttribute("href", "/morskoy-kabinet-7q4x/properties/existing-draft");
+  ).toHaveAttribute("href", "/admin-console-9Xk6uiIs/properties/existing-draft");
 
   await page.getByRole("button", { name: "Продолжить загрузку" }).click();
   await expect(
@@ -142,7 +142,7 @@ test("CRM import resumes listing, keeps drafts and reuses saved lists with an an
   expect(imported).toEqual([101, 102]);
   await expect(
     page.getByRole("link", { name: "Первый корпус — открыть черновик" }),
-  ).toHaveAttribute("href", "/morskoy-kabinet-7q4x/properties/draft-101");
+  ).toHaveAttribute("href", "/admin-console-9Xk6uiIs/properties/draft-101");
   await expect(
     page.getByText("Проверьте цену перед публикацией."),
   ).toBeVisible();
@@ -154,7 +154,7 @@ test("CRM import resumes listing, keeps drafts and reuses saved lists with an an
     .click();
   await expect(
     page.getByRole("link", { name: "Второй корпус — открыть черновик" }),
-  ).toHaveAttribute("href", "/morskoy-kabinet-7q4x/properties/draft-102");
+  ).toHaveAttribute("href", "/admin-console-9Xk6uiIs/properties/draft-102");
   expect(imported).toEqual([101, 102, 102]);
   await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(

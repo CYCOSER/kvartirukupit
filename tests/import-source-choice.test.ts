@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rmdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdtemp, rmdir, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createError } from 'h3';
@@ -27,6 +28,7 @@ test('duplicate import validates source choice, defaults to Nmarket and preserve
   const names = ['defineEventHandler', 'readBody', 'useRuntimeConfig', 'createError'];
   const originals = names.map(name => globals[name]);
   const dir = await mkdtemp(join(tmpdir(), 'newh-source-choice-'));
+  const crmPath = join(dir, 'rf39.json'), nmarketPath = join(dir, 'nmarket.xml');
   process.env.UPLOAD_DIR = dir;
   let body: Record<string, unknown> = {};
   let properties: any[] = [], aliases: any[] = [];
@@ -80,10 +82,33 @@ test('duplicate import validates source choice, defaults to Nmarket and preserve
     body = { id: 100, complexId: 'expired', preferredNmarketId: 'apartment:99', preferredSource: 'rf39' };
     await assert.rejects(handler({} as any), { statusCode: 409 });
     assert.equal(properties.length, 0);
+    const snapshotDate = '2026-10-19T10:00:00.000Z';
+    await writeFile(crmPath, JSON.stringify({ version: 1, tokenHash: createHash('sha256').update('fixture').digest('hex'), snapshotDate, items: [rawCrm] }));
+    await writeFile(nmarketPath, xml.replace('<offer ', `<generation-date>${snapshotDate}</generation-date><offer `));
+    globals.useRuntimeConfig = () => ({ rf39Token: 'fixture', rf39SnapshotPath: crmPath, nmarketFeedUrl: 'https://ecatalog-service.nmarket.pro/source-choice-test', nmarketSnapshotPath: nmarketPath });
+    let requests = 0;
+    globalThis.fetch = async () => { requests++; throw new Error('Saved mode must not request either feed'); };
+    for (const preferredSource of ['nmarket', 'rf39']) {
+      properties = []; aliases = [];
+      cacheApartmentMatches('saved-complex', true, matches);
+      body = { id: 100, complexId: 'saved-complex', preferredNmarketId: 'apartment:99', preferredSource, snapshot: 'saved' };
+      const result = await handler({} as any);
+      assert.equal(result.created, true);
+      assert.equal(properties[0].sourceId, preferredSource === 'rf39' ? 'rf39:100' : 'nmarket:apartment:99');
+      assert.equal(properties[0].sourceFetchedAt.toISOString(), snapshotDate);
+      assert.ok(result.warnings.some((warning: string) => warning.toLowerCase().includes('сохранённая выгрузка')));
+      assert.deepEqual(new Set(aliases.map(alias => alias.sourceId)), new Set(['rf39:100', 'nmarket:apartment:99']));
+    }
+    properties = []; aliases = [];
+    body = { id: 100, snapshot: 'saved' };
+    assert.equal((await handler({} as any)).created, true);
+    assert.equal(properties[0].sourceFetchedAt.toISOString(), snapshotDate);
+    assert.equal(requests, 0);
   } finally {
     db.$transaction = transaction; globalThis.fetch = fetch;
     names.forEach((name, index) => { if (originals[index] === undefined) delete globals[name]; else globals[name] = originals[index]; });
     if (originalDir === undefined) delete process.env.UPLOAD_DIR; else process.env.UPLOAD_DIR = originalDir;
+    await Promise.all([crmPath, nmarketPath].map(path => unlink(path).catch(() => {})));
     await rmdir(dir);
   }
 });

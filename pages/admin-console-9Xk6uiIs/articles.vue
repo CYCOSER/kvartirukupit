@@ -30,6 +30,7 @@ const empty = (): ArticleInput => ({
 const form = reactive(empty());
 const excerptField = useAutoResizeTextarea(() => form.excerpt);
 const contentField = useAutoResizeTextarea(() => form.content);
+const seoDescriptionField = useAutoResizeTextarea(() => form.seoDescription);
 function clearPreview() {
   if (imagePreview.value) URL.revokeObjectURL(imagePreview.value);
   imagePreview.value = "";
@@ -211,7 +212,9 @@ async function remove(article: Article) {
               placeholder="По умолчанию — заголовок статьи" /></label
           ><label
             >SEO-описание<textarea
+              ref="seoDescriptionField"
               v-model="form.seoDescription"
+              class="auto-resize"
               maxlength="300"
               rows="3"
               placeholder="По умолчанию — краткий анонс"

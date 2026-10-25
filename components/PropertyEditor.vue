@@ -48,6 +48,8 @@ const form = reactive<PropertyInput & { seaDistance: number | null }>({
   seaDistance: props.initial?.seaDistance ?? null,
 });
 const utils = ref(form.utilities.join("\n"));
+const utilitiesField = useAutoResizeTextarea(() => utils.value);
+const descriptionField = useAutoResizeTextarea(() => form.description);
 const selectedType = computed({
   get: () => adminPropertyType(form),
   set: (value: string) => {
@@ -185,7 +187,7 @@ async function save() {
       if (form.type === 'complex') await refreshLinkedApartments();
     }
     else {
-      await navigateTo("/morskoy-kabinet-7q4x/properties/" + p.id);
+      await navigateTo("/admin-console-9Xk6uiIs/properties/" + p.id);
       return;
     }
     notice.value = "Объект сохранён.";
@@ -244,7 +246,7 @@ function move(index: number, offset: number) {
 <template>
   <div>
     <div class="admin-actions mb-5">
-      <NuxtLink to="/morskoy-kabinet-7q4x/properties" class="btn-secondary"
+      <NuxtLink to="/admin-console-9Xk6uiIs/properties" class="btn-secondary"
         >← Все объекты</NuxtLink
       ><button class="btn-secondary" @click="preview = !preview">
         {{ preview ? "Закрыть предпросмотр" : "Предпросмотр карточки" }}</button
@@ -315,7 +317,7 @@ function move(index: number, offset: number) {
           </AppSelectOption>
         </AppSelect></label
       ><label v-if="form.type === 'apartment'">
-        <span class="property-complex-label">Жилой комплекс квартиры<NuxtLink v-if="form.complexId" :to="'/morskoy-kabinet-7q4x/properties/' + form.complexId" target="_blank" rel="noopener" class="property-complex-link"><Building2 :size="14" aria-hidden="true" />Карточка ЖК<ArrowUpRight :size="14" aria-hidden="true" /></NuxtLink></span>
+        <span class="property-complex-label">Жилой комплекс квартиры<NuxtLink v-if="form.complexId" :to="'/admin-console-9Xk6uiIs/properties/' + form.complexId" target="_blank" rel="noopener" class="property-complex-link"><Building2 :size="14" aria-hidden="true" />Карточка ЖК<ArrowUpRight :size="14" aria-hidden="true" /></NuxtLink></span>
         <AppSelect v-model="selectedComplexId" :disabled="complexesPending" aria-label="Жилой комплекс квартиры">
           <AppSelectOption value="">Без привязки к ЖК</AppSelectOption>
           <AppSelectOption v-for="complex in complexes" :key="complex.id" :value="complex.id">
@@ -399,11 +401,13 @@ function move(index: number, offset: number) {
           max="100000" /></label
       ><label
         >Особенности ЖК (по одной на строку)<textarea
+          ref="utilitiesField"
           v-model="utils"
           rows="3"
         /></label
       ><label class="full"
         >Описание<textarea
+          ref="descriptionField"
           v-model="form.description"
           maxlength="30000"
           rows="7"
@@ -513,7 +517,7 @@ function move(index: number, offset: number) {
         <table class="admin-table">
           <thead><tr><th>Квартира</th><th>Цена</th><th>Площадь</th><th>Публикация</th></tr></thead>
           <tbody><tr v-for="apartment in linkedApartments" :key="apartment.id">
-            <td><NuxtLink :to="'/morskoy-kabinet-7q4x/properties/' + apartment.id" class="underline">{{ apartment.title }}</NuxtLink></td>
+            <td><NuxtLink :to="'/admin-console-9Xk6uiIs/properties/' + apartment.id" class="underline">{{ apartment.title }}</NuxtLink></td>
             <td>{{ money(apartment.price) }}</td><td>{{ apartment.area == null ? '—' : apartment.area + ' м²' }}</td>
             <td>{{ apartment.published ? 'На сайте' : 'Черновик' }}</td>
           </tr></tbody>
@@ -524,6 +528,7 @@ function move(index: number, offset: number) {
   </div>
 </template>
 <style scoped>
+.admin-form textarea { resize: none; overflow: hidden; }
 .property-card-preview.property-grid { grid-template-columns: minmax(0, 1fr); width: min(100%, 320px); }
 .property-complex-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 5px; }
 .property-complex-link { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 6px; background: #edf3fc; color: #345d96; font-size: 11px; font-weight: 600; }.property-complex-link:hover { background: #dfeafa; color: #245fbd; }

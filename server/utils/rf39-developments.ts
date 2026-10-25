@@ -1,6 +1,21 @@
 import { z } from 'zod';
 import { createError } from 'h3';
 import { rf39ReadBody } from './rf39';
+import type { Rf39Object } from './rf39-data';
+
+export function snapshotRf39Developments(items: Rf39Object[]) {
+  const groups = new Map<number, { id: number; title: string; location: string; address: string; objectIds: number[] }>();
+  for (const item of items) {
+    const source = item.development;
+    if (!source?.id) continue;
+    const group = groups.get(source.id) || { id: source.id, title: '', location: '', address: '', objectIds: [] };
+    group.title ||= source.title || '';
+    group.location ||= item.city || '';
+    group.objectIds.push(item.id);
+    groups.set(source.id, group);
+  }
+  return [...groups.values()];
+}
 
 const id = z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 const development = z.object({

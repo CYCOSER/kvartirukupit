@@ -75,7 +75,7 @@ async function initialize() {
   try {
     L = await import('leaflet');
     if (disposed || !canvas.value) return;
-    map = L.map(canvas.value, { scrollWheelZoom: false }).setView(
+    map = L.map(canvas.value, { scrollWheelZoom: true }).setView(
       selected.value ? [props.latitude!, props.longitude!] : [54.7104, 20.4522], selected.value ? 16 : 10);
     map.attributionControl.setPrefix(false);
     tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -102,11 +102,11 @@ onBeforeUnmount(() => { disposed = true; resetSearch(); observer?.disconnect(); 
 </template>
 
 <style scoped>
-.address-map { min-width: 0; padding: 16px; border: 1px solid #dce4f0; border-radius: 12px; background: #fafcfe; }
+.address-map { width: 100%; max-width: 960px; min-width: 0; padding: 16px; border: 1px solid #dce4f0; border-radius: 12px; background: #fafcfe; }
 .address-map-toolbar,.address-map-toolbar strong { display: flex; align-items: center; gap: 8px; }.address-map-toolbar { justify-content: space-between; gap: 16px; margin-bottom: 12px; }.address-map-toolbar strong { color: #345475; font-size: 13px; }
-.address-map-canvas { position: relative; height: 260px; border-radius: 8px; overflow: hidden; z-index: 0; background: #e9eef3; }
+.address-map-canvas { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 260px; border-radius: 8px; overflow: hidden; z-index: 0; background: #e9eef3; }
 .address-map-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 11px; color: #66768f; }.address-map-center { color: #345d96; text-decoration: underline; text-underline-offset: 3px; }
 .address-results { display: grid; gap: 4px; margin-bottom: 12px; }.address-results button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px; border-radius: 7px; text-align: left; color: #345475; font-size: 12px; }.address-results button:hover { background: #e8f0fb; }.address-results svg { flex-shrink: 0; }
 :deep(.property-address-pin) { display: grid; place-items: center; border: 2px solid #fff; border-radius: 50%; background: #245fbd; box-shadow: 0 2px 8px #102f5066; }:deep(.property-address-pin span) { width: 8px; height: 8px; border-radius: 50%; background: #fff; }
-@media(max-width: 540px) { .address-map { padding: 12px; }.address-map-toolbar { flex-wrap: wrap; gap: 8px; }.address-map-canvas { height: 220px; } }
+@media(max-width: 540px) { .address-map { padding: 12px; }.address-map-toolbar { flex-wrap: wrap; gap: 8px; }.address-map-canvas { min-height: 220px; } }
 </style>

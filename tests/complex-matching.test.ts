@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chooseExternalComplex, complexName, isBuildingCard, matchesLocalApartment, missingSourceMappings, numberedAddress, rf39ApartmentCandidate, sameCity, sameNumberedAddress } from '../server/utils/complex-matching';
-import { fetchRf39Developments, parseRf39Developments } from '../server/utils/rf39-developments';
+import { fetchRf39Developments, parseRf39Developments, snapshotRf39Developments } from '../server/utils/rf39-developments';
 import { fetchRf39Objects } from '../server/utils/rf39';
 
 const target = { title: 'ЖК «Светлогорск-3»', location: 'Светлогорск', address: '' };
@@ -108,4 +108,21 @@ test('RF39 relations requests preserve eligibility filters and never expose cred
     globalThis.fetch = async () => { throw new Error('upstream leaked PRIVATE_TOKEN'); };
     await assert.rejects(fetchRf39Developments('PRIVATE_TOKEN'), error => !JSON.stringify(error).includes('PRIVATE_TOKEN'));
   } finally { globalThis.fetch = original; }
+});
+
+test('saved CRM development relations retain only each development’s objects and exact name/city matching', () => {
+  const base = { type: 'Квартиры в новостройках', deal_type: 'sale', city: target.location };
+  const developments = snapshotRf39Developments([
+    { ...base, id: 1, development: { id: 293 } },
+    { ...base, id: 2, development: { id: 293, title: target.title } },
+    { ...base, id: 3, development: { id: 294, title: 'Другой ЖК' } },
+    { ...base, id: 4 },
+  ]);
+  assert.deepEqual(developments, [
+    { id: 293, title: target.title, location: target.location, address: '', objectIds: [1, 2] },
+    { id: 294, title: 'Другой ЖК', location: target.location, address: '', objectIds: [3] },
+  ]);
+  assert.deepEqual(chooseExternalComplex(target, developments).item?.objectIds, [1, 2]);
+  assert.equal(chooseExternalComplex({ ...target, location: 'Калининград' }, developments).item, undefined);
+  assert.equal(chooseExternalComplex({ ...target, title: 'Светлогорск-4' }, developments).item, undefined);
 });

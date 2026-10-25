@@ -33,7 +33,7 @@ export default defineNuxtConfig({
     },
   },
   routeRules: {
-    '/morskoy-kabinet-7q4x/**': {
+    '/admin-console-9Xk6uiIs/**': {
       headers: { 'X-Robots-Tag': 'noindex, nofollow' },
     },
   },

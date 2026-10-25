@@ -107,7 +107,7 @@ async function importCandidates(source: 'nmarket' | 'rf39', result: SearchResult
         const crm = source === 'nmarket' && preference === 'rf39' ? crmMatches.get(String(candidate.id)) : undefined;
         const importSource = crm ? 'rf39' : source;
         const { id, layoutId, preferredNmarketId } = crm || candidate;
-        const snapshot = saved ? importSource === 'nmarket' ? { snapshot: 'saved' as const } : { nmarketSnapshot: 'saved' as const } : {};
+        const snapshot = saved ? { snapshot: 'saved' as const } : {};
         const imported = await $fetch<{ id: string; created: boolean; linked: boolean; warnings: string[] }>(`/api/admin/${importSource}/import`, {
           method: 'POST', body: { id, layoutId, preferredNmarketId, complexId: propertyId, ...snapshot, ...(importSource === 'rf39' ? { preferredSource: preference } : {}) },
         });
@@ -162,8 +162,8 @@ onBeforeUnmount(() => { cancelled.value = true; });
       <div>
         <h3>Найти квартиры во всех базах</h3>
       </div>
-      <label class="complex-search-mode">Данные Нмаркета
-        <AppSelect v-model="snapshotMode" :disabled="pending" aria-label="Данные Нмаркета для поиска квартир">
+      <label class="complex-search-mode">Данные Нмаркета и CRM RF39
+        <AppSelect v-model="snapshotMode" :disabled="pending" aria-label="Данные Нмаркета и CRM RF39 для поиска квартир">
           <AppSelectOption value="live">Свежая выгрузка</AppSelectOption>
           <AppSelectOption value="saved">Сохранённая выгрузка</AppSelectOption>
         </AppSelect>

@@ -87,7 +87,7 @@ test('apartments link to a complex, draft relations stay private and deleting a 
     await expect(page.locator('#about-property .detail-parent-link')).toHaveAttribute('href', '/catalog/' + complex.slug);
     await expect(page.locator(`a[href="/catalog/${complex.slug}"]`)).toBeVisible();
 
-    await page.goto('/morskoy-kabinet-7q4x/properties/' + apartment.id);
+    await page.goto('/admin-console-9Xk6uiIs/properties/' + apartment.id);
     const selector = page.getByRole('combobox', { name: 'Жилой комплекс квартиры', exact: true });
     await expect(selector).toContainText(complex.title);
     await page.getByRole('button', { name: 'Предпросмотр карточки', exact: true }).click();
@@ -105,9 +105,9 @@ test('apartments link to a complex, draft relations stay private and deleting a 
     await page.getByRole('button', { name: 'Сохранить объект', exact: true }).click();
     expect((await saved).ok()).toBe(true);
     expect((await (await request.get(apartmentUrl)).json()).complexId).toBe(complex.id);
-    await page.goto('/morskoy-kabinet-7q4x/properties/' + complex.id);
+    await page.goto('/admin-console-9Xk6uiIs/properties/' + complex.id);
     await expect(page.getByRole('heading', { name: 'Квартиры в этом ЖК · 2', exact: true })).toBeVisible();
-    await expect(page.locator(`a[href="/morskoy-kabinet-7q4x/properties/${draft.id}"]`)).toBeVisible();
+    await expect(page.locator(`a[href="/admin-console-9Xk6uiIs/properties/${draft.id}"]`)).toBeVisible();
     expect((await request.delete(complexUrl, { headers })).ok()).toBe(true);
     ids.splice(ids.indexOf(complex.id), 1);
     expect((await (await request.get(apartmentUrl)).json()).complexId).toBeNull();

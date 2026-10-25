@@ -35,7 +35,7 @@ test('property status cards keep keyboard semantics and the Russian photo picker
     } else await route.fulfill({ status: 404, json: { message: 'Unexpected fixture request' } });
   });
   await page.setViewportSize({ width: 1440, height: 1100 });
-  await page.goto('/morskoy-kabinet-7q4x/login');
+  await page.goto('/admin-console-9Xk6uiIs/login');
   await page.waitForFunction(() => !!(document.querySelector('#__nuxt') as any)?.__vue_app__);
   await page.getByLabel('Email', { exact: true }).fill('fixture@example.com');
   await page.getByLabel('Пароль', { exact: true }).fill('fixture-password');

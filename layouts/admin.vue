@@ -12,12 +12,12 @@ import "~/assets/css/admin.css";
 const route = useRoute();
 const sections = [
   {
-    to: "/morskoy-kabinet-7q4x/properties",
+    to: "/admin-console-9Xk6uiIs/properties",
     label: "ЖК и квартиры",
     icon: Building2,
   },
-  { to: "/morskoy-kabinet-7q4x/leads", label: "Заявки", icon: Inbox },
-  { to: "/morskoy-kabinet-7q4x/articles", label: "Блог", icon: BookOpen },
+  { to: "/admin-console-9Xk6uiIs/leads", label: "Заявки", icon: Inbox },
+  { to: "/admin-console-9Xk6uiIs/articles", label: "Блог", icon: BookOpen },
 ];
 const sectionTitle = computed(
   () =>
@@ -30,7 +30,7 @@ useHead({
 });
 async function logout() {
   await $fetch("/api/admin/logout", { method: "POST" });
-  await navigateTo("/morskoy-kabinet-7q4x/login");
+  await navigateTo("/admin-console-9Xk6uiIs/login");
 }
 </script>
 <template>

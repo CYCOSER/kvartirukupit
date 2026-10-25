@@ -30,7 +30,7 @@ test('photo editor previews colour, crops original pixels, keeps edits on failur
     expect(await sharp(original).metadata()).toMatchObject({ width: 2400, height: 1600 });
     expect(await sharp(original).ensureAlpha().raw().toBuffer()).toEqual(await sharp(source).ensureAlpha().raw().toBuffer());
     const editorUrl = propertyUrl + `/images/${image.id}`;
-    await page.goto('/morskoy-kabinet-7q4x/properties/' + property.id);
+    await page.goto('/admin-console-9Xk6uiIs/properties/' + property.id);
     await expect(page.getByText('Синяя планировка', { exact: true })).toHaveCount(0);
     const trigger = page.getByRole('button', { name: 'Редактировать фото: Фото для проверки редактора' });
     await trigger.click();
