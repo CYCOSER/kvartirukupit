@@ -1,0 +1,4 @@
+ALTER TABLE "PropertyImage"
+ADD COLUMN "originalFile" TEXT,
+ADD COLUMN "crop" JSONB,
+ADD COLUMN "hueShift" INTEGER NOT NULL DEFAULT 0;

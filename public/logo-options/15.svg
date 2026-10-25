@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" color="#102f50" fill="currentColor">
+  <title>Адрес</title>
+  <path fill-rule="evenodd" d="M24 3A17 17 0 0 0 7 20c0 11 17 25 17 25s17-14 17-25A17 17 0 0 0 24 3Zm-7 10h14v20H17V13Z"/>
+  <path d="M21 17h6v4h-6v-4Zm0 8h6v8h-6v-8Z"/>
+</svg>

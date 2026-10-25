@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Property {
+  id          String          @id @default(cuid())
+  title       String
+  slug        String          @unique
+  type        String
+  complexId   String?
+  complex     Property?       @relation("ComplexApartments", fields: [complexId], references: [id], onDelete: SetNull)
+  apartments  Property[]      @relation("ComplexApartments")
+  nmarketComplexId String?
+  rf39ComplexId String?
+  rf39BuildingId String?
+  location    String
+  address     String          @default("")
+  latitude    Float?
+  longitude   Float?
+  price       Int?
+  status      String          @default("available")
+  area        Float?
+  landArea    Float?
+  bedrooms    Int?
+  floors      Int?
+  readiness   String
+  finish      String
+  seaDistance Float?
+  description String
+  utilities   String[]
+  published   Boolean         @default(false)
+  featured    Boolean         @default(false)
+  elite       Boolean         @default(false)
+  demo        Boolean         @default(false)
+  sourceId    String?          @unique
+  sourceUrl   String?
+  sourceName  String?
+  sourceMode  String?
+  sourceNote  String?
+  sourceFetchedAt DateTime?
+  developer   String?
+  district    String?
+  completionDate String?
+  constructionStatus String?
+  priceKind   String?
+  priceSourceUrl String?
+  priceArea   Float?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  images      PropertyImage[]
+  leads       Lead[]
+  importSources PropertyImportSource[]
+
+  @@index([published, status])
+  @@index([complexId])
+}
+
+model PropertyImportSource {
+  sourceId     String   @id
+  propertyId   String
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  apartmentKey String?
+
+  @@index([propertyId])
+  @@index([apartmentKey])
+}
+
+model PropertyImage {
+  id         String   @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  file       String
+  originalFile String?
+  crop       Json?
+  hueShift   Int      @default(0)
+  alt        String
+  kind       String   @default("photo")
+  order      Int      @default(0)
+  upscale    ImageUpscale?
+}
+
+model ImageUpscale {
+  imageId    String        @id
+  image      PropertyImage @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  sourceFile String
+  outputFile String?
+  mode       String
+  status     String
+  error      String?
+  token      String?
+  attempts   Int           @default(0)
+  updatedAt  DateTime      @updatedAt
+
+  @@index([status, updatedAt])
+}
+
+model Lead {
+  id             String    @id @default(cuid())
+  propertyId     String?
+  property       Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  name           String
+  phone          String
+  comment        String    @default("")
+  consent        Boolean
+  consentVersion String    @default("2026-09-14")
+  status         String    @default("new")
+  createdAt      DateTime  @default(now())
+
+  @@index([status, createdAt])
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  sessions     Session[]
+}
+
+model Session {
+  id        String    @id
+  userId    String
+  user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+}
+
+model Article {
+  id             String    @id @default(cuid())
+  slug           String    @unique
+  title          String
+  excerpt        String
+  content        String
+  image          String    @default("")
+  seoTitle       String    @default("")
+  seoDescription String    @default("")
+  published      Boolean   @default(false)
+  publishedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([published, publishedAt])
+}

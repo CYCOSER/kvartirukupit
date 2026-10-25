@@ -1,0 +1,78 @@
+{
+  "title": "Ратсхоф Дом",
+  "slug": "zhk-ratskhof-dom",
+  "type": "complex",
+  "location": "Калининград",
+  "address": "Калининград, Красносельская ул., д. 31/А",
+  "latitude": 54.7123921053,
+  "longitude": 20.4409782989,
+  "price": 5764000,
+  "status": "available",
+  "area": null,
+  "landArea": null,
+  "bedrooms": null,
+  "floors": 6,
+  "readiness": "II кв. 2022",
+  "finish": "Подготовка под чистовую отделку",
+  "seaDistance": null,
+  "description": "Жилой комплекс расположен в Центральном районе города Калининграда по Красносельской улице.\n\nШестиэтажный кирпичный жилой дом с закрытой территорией. В непосредственной близости есть вся необходимая инфраструктура: детские сады, школа, продовольственные магазины, аптеки, банки, остановки общественного транспорта.\n\nВ доме предусмотрена гостевая парковка.\n\nСпроектированы квартиры различной комнатности и метража: от одно- до четырёхкомнатных квартир общей площадью от 34,26 до 171,99 кв. м.\n\nБлагоустройство прилегающей территории включает в себя организацию детских игровых и спортивных площадок, а также озеленение.",
+  "utilities": [],
+  "published": true,
+  "featured": true,
+  "demo": false,
+  "sourceId": "curated:zhk-ratskhof-dom",
+  "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+  "sourceName": "НМаркет.ПРО",
+  "sourceMode": "curated",
+  "sourceNote": "Сведения, изображения и планировки получены из XML-выгрузки НМаркет.ПРО по Калининградской области. Минимальная цена рассчитана по всем 16 предложениям квартир в продаже в полной выгрузке. Изображения могут включать рендеры; планировки показаны выборочно.",
+  "sourceFetchedAt": "2026-10-19T14:21:13.680361+00:00",
+  "developer": "Компонент",
+  "district": "Центральный район",
+  "completionDate": "2022-06-30",
+  "constructionStatus": "сдан",
+  "priceKind": "from",
+  "priceSourceUrl": "https://klg.nmarket.pro/novostroyki",
+  "priceArea": null,
+  "images": [
+    {
+      "file": "/images/projects/zhk-ratskhof-dom/480fc062e0f1eb6110f5e670a8b820fb.jpg",
+      "alt": "Ратсхоф Дом — изображение комплекса",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 800,
+      "height": 600,
+      "kind": "image"
+    },
+    {
+      "file": "/images/projects/zhk-ratskhof-dom/86677677ed8d9617b2b816662ac5b496.jpg",
+      "alt": "Ратсхоф Дом — изображение комплекса 1",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 800,
+      "height": 600,
+      "kind": "image"
+    },
+    {
+      "file": "/images/projects/zhk-ratskhof-dom/d48b8b4769de34efb39c6dcefcb2b23b.jpg",
+      "alt": "Ратсхоф Дом — изображение комплекса 2",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 800,
+      "height": 600,
+      "kind": "image"
+    },
+    {
+      "file": "/images/projects/zhk-ratskhof-dom/95deebaab737173b189855c2e20b28c3.jpg",
+      "alt": "Ратсхоф Дом — планировка квартиры 66,3 м², пример 1",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 305,
+      "height": 600,
+      "kind": "floorplan"
+    },
+    {
+      "file": "/images/projects/zhk-ratskhof-dom/187094578ca20bc7d1d28b15bf3f3de7.jpg",
+      "alt": "Ратсхоф Дом — планировка квартиры 66,3 м², пример 2",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 301,
+      "height": 600,
+      "kind": "floorplan"
+    }
+  ]
+}

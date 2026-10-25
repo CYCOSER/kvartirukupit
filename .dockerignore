@@ -1,0 +1,16 @@
+node_modules
+dist
+.nuxt
+.output
+.data
+.tmp
+data/projects.json
+data/images
+data/SOURCES.md
+uploads
+.env
+.git
+test-results
+playwright-report
+*.log
+preview.png

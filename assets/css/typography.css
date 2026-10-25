@@ -1,0 +1,77 @@
+@font-face {
+  font-family: 'Anticva';
+  src: url('/fonts/anticva-regular.otf') format('opentype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Miama Nueva';
+  src: url('/fonts/miama-nueva.otf') format('opentype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+:root {
+  --font-display: 'Anticva', Georgia, serif;
+  --font-script: 'Miama Nueva', 'Segoe Script', cursive;
+  --font-body: 'Manrope Variable', sans-serif;
+  --font-brand: 'Anticva', Georgia, serif;
+}
+.glass-home-layout :is(h1, h2) {
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-wrap: balance;
+}
+/* Both lines remain in the document flow, including the calligraphic descenders. */
+.glass-home-layout .type-pair {
+  --script-scale: 1.25;
+  --script-indent: 0.6em;
+  --script-overlap: -0.35em;
+  --script-color: #7098c8;
+  display: block;
+  position: relative;
+  isolation: isolate;
+  padding-bottom: 0.28em;
+  overflow: visible;
+  text-wrap: initial;
+}
+.glass-home-layout .type-pair > .type-upright {
+  display: block;
+  font-family: var(--font-display);
+  font-style: normal;
+  font-weight: 400;
+  font-size: 1em;
+  line-height: 1.18;
+  letter-spacing: 0.015em;
+  text-transform: uppercase;
+}
+.glass-home-layout .type-pair > em.type-script {
+  display: block;
+  position: relative;
+  z-index: 1;
+  width: fit-content;
+  max-width: calc(100% - var(--script-indent));
+  margin-top: var(--script-overlap);
+  margin-left: var(--script-indent);
+  font-family: var(--font-script);
+  font-size: calc(1em * var(--script-scale));
+  font-weight: 400;
+  font-style: normal;
+  font-synthesis: none;
+  line-height: 0.9;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--script-color);
+  overflow-wrap: normal;
+}
+.glass-home-layout :is(.hero-stage, .scene-hero, .location-section, .contact-story, .catalog-page, .seller-enquiry) .type-pair {
+  --script-color: #d4e6ff;
+}
+@media (max-width: 540px) {
+  .glass-home-layout .type-pair {
+    --script-indent: 0.25em;
+    --script-scale: 1.25;
+    --script-overlap: -0.3em;
+  }
+}

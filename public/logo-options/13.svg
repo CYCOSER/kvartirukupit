@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" color="#102f50">
+  <title>Две башни</title>
+  <circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" stroke-width="2.5"/>
+  <path fill="currentColor" d="M13 19h9v17h-9V19Zm13-8h9v25h-9V11Z"/>
+</svg>

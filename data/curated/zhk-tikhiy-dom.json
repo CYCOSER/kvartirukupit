@@ -1,0 +1,110 @@
+{
+  "title": "Тихий дом",
+  "slug": "zhk-tikhiy-dom",
+  "type": "complex",
+  "location": "Калининград",
+  "address": "Калининград, Сержанта Мишина ул., д. 81",
+  "latitude": 54.7252189182,
+  "longitude": 20.4314633886,
+  "price": 7900000,
+  "status": "available",
+  "area": null,
+  "landArea": null,
+  "bedrooms": null,
+  "floors": 4,
+  "readiness": "II кв. 2024",
+  "finish": "Подготовка под чистовую отделку",
+  "seaDistance": null,
+  "description": "ЖК расположен в Центральном районе и состоит из четырёх малоэтажных домов со встроенными нежилыми помещениями и хозяйственными кладовыми для каждой квартиры.\n\nКомплекс расположен в окружении парков, водоёмов и частных домов. Здесь можно наслаждаться свежим воздухом, пением птиц и прогулками со всей семьёй по лесопарку имени Теодора Кроне. Центральный район Калининграда соединяет в себе богатую историю и развитую инфраструктуру.\n\nВ ближайшем окружении есть всё для удобства жизни: супермаркеты, аптеки, заправочные станции, салоны красоты, фитнес-центры и всё остальное для комфортной жизни.",
+  "utilities": [],
+  "published": true,
+  "featured": true,
+  "demo": false,
+  "sourceId": "curated:zhk-tikhiy-dom",
+  "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+  "sourceName": "НМаркет.ПРО",
+  "sourceMode": "curated",
+  "sourceNote": "Сведения, изображения и планировки получены из XML-выгрузки НМаркет.ПРО по Калининградской области. Минимальная цена рассчитана по всем 4 предложениям квартир в продаже в полной выгрузке. Изображения могут включать рендеры; планировки показаны выборочно.",
+  "sourceFetchedAt": "2026-10-19T14:21:13.680361+00:00",
+  "developer": "Интер-Инвест",
+  "district": "Центральный район",
+  "completionDate": "2024-06-30",
+  "constructionStatus": "сдан",
+  "priceKind": "from",
+  "priceSourceUrl": "https://klg.nmarket.pro/novostroyki",
+  "priceArea": null,
+  "images": [
+    {
+      "file": "/images/projects/zhk-tikhiy-dom/f2ad08e448b62efd9a3d4ed40d9cf14f.jpg",
+      "alt": "Тихий дом — изображение комплекса",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 800,
+      "height": 600,
+      "kind": "image"
+    },
+    {
+      "file": "/images/projects/zhk-tikhiy-dom/68c75dfff23789149b2c27a84921d812.jpg",
+      "alt": "Тихий дом — изображение комплекса 1",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 943,
+      "height": 600,
+      "kind": "image"
+    },
+    {
+      "file": "/images/projects/zhk-tikhiy-dom/19084a1937360fdc9e2023094a2b9d0d.jpg",
+      "alt": "Тихий дом — изображение комплекса 2",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 1067,
+      "height": 600,
+      "kind": "image"
+    },
+    {
+      "file": "/images/projects/zhk-tikhiy-dom/29f62d2da72d1daeb86f7b49e2303b90.jpg",
+      "alt": "Тихий дом — изображение комплекса 3",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 1067,
+      "height": 600,
+      "kind": "image"
+    },
+    {
+      "file": "/images/projects/zhk-tikhiy-dom/f413861f60cc1b320bbb2d98174104db.jpg",
+      "alt": "Тихий дом — изображение комплекса 4",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 1067,
+      "height": 600,
+      "kind": "image"
+    },
+    {
+      "file": "/images/projects/zhk-tikhiy-dom/63496bbdd46e75868211a0a17e25dc56.jpg",
+      "alt": "Тихий дом — изображение комплекса 5",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 1067,
+      "height": 600,
+      "kind": "image"
+    },
+    {
+      "file": "/images/projects/zhk-tikhiy-dom/413ae7afe97b0c1805bdae6d0322bb9b.jpg",
+      "alt": "Тихий дом — изображение комплекса 6",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 1067,
+      "height": 600,
+      "kind": "image"
+    },
+    {
+      "file": "/images/projects/zhk-tikhiy-dom/9e6a7a291611814ce71ea6be64eeee4c.jpg",
+      "alt": "Тихий дом — планировка квартиры 60,6 м², пример 1",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 787,
+      "height": 600,
+      "kind": "floorplan"
+    },
+    {
+      "file": "/images/projects/zhk-tikhiy-dom/bba9de11cc6873272585468e98274225.jpg",
+      "alt": "Тихий дом — планировка квартиры 55,4 м², пример 2",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 741,
+      "height": 600,
+      "kind": "floorplan"
+    }
+  ]
+}

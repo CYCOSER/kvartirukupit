@@ -1,0 +1,102 @@
+{
+  "title": "Адрес счастья",
+  "slug": "zhk-adres-schastya",
+  "type": "complex",
+  "location": "Калининград",
+  "address": "Калининград, Молодой гвардии ул., д. 34/3; Молодой гвардии ул., д. 34/4",
+  "latitude": 54.7210383103,
+  "longitude": 20.5648134003,
+  "price": 9460000,
+  "status": "available",
+  "area": null,
+  "landArea": null,
+  "bedrooms": null,
+  "floors": 14,
+  "readiness": "III кв. 2023",
+  "finish": "Подготовка под чистовую отделку",
+  "seaDistance": null,
+  "description": "Микрорайон экокомфорт-класса с полноценной жилой средой. На 20 гектарах хорошо организованы жилые кварталы и центральные общественные зоны. Застройка сочетает разнообразные типы жилья, общественные пространства и социальную инфраструктуру. Каскадная застройка. Крыши домов станут зонами отдыха на свежем воздухе.\n\nВ комплексе объединена архитектурная стилистика городов России и соседних европейских стран. Создана совершенно новая среда, где здания и природный ландшафт становятся единым целым. Это положительно скажется не только на архитектурном облике всего комплекса, но и позволит в будущем каждому жителю почувствовать тесную связь и единение с природой. Жильё экокомфорт-класса сочетает гармоничный облик, практичность и удобство эксплуатации в течение долгих десятилетий.\n\nКаждая квартира — индивидуальный проект, выполненный по европейским стандартам эргономики жилья. В 2/3 квартир предусмотрено помещение для установки сауны или бани. Высота потолков — 3 метра.\n\nБудут возведены объекты высокой социальной значимости для региона, а также школа на 1150 мест, детский сад на 350 мест, детская поликлиника. Для автовладельцев предусмотрены 472 парковочных места и 38 парковочных мест для мотоциклов. Спортивные и парковые зоны. Современная дорожная сеть. Комфорт и безопасность жителей.",
+  "utilities": [],
+  "published": true,
+  "featured": true,
+  "demo": false,
+  "sourceId": "curated:zhk-adres-schastya",
+  "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+  "sourceName": "НМаркет.ПРО",
+  "sourceMode": "curated",
+  "sourceNote": "Сведения, изображения и планировки получены из XML-выгрузки НМаркет.ПРО по Калининградской области. Минимальная цена рассчитана по всем 5 предложениям квартир в продаже в полной выгрузке. Изображения могут включать рендеры; планировки показаны выборочно.",
+  "sourceFetchedAt": "2026-10-19T14:21:13.680361+00:00",
+  "developer": "РусскаЯ ЕвропА",
+  "district": "Ленинградский район",
+  "completionDate": "2023-09-30",
+  "constructionStatus": "сдан",
+  "priceKind": "from",
+  "priceSourceUrl": "https://klg.nmarket.pro/novostroyki",
+  "priceArea": null,
+  "images": [
+    {
+      "file": "/images/projects/zhk-adres-schastya/f8beae1201af4350faab5d6da5dca96f.jpg",
+      "alt": "Адрес счастья — изображение комплекса",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 1066,
+      "height": 600,
+      "kind": "image"
+    },
+    {
+      "file": "/images/projects/zhk-adres-schastya/06d2b2c3c7d7cd0e7c0d4921d4fe10c4.jpg",
+      "alt": "Адрес счастья — изображение комплекса 1",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 1066,
+      "height": 600,
+      "kind": "image"
+    },
+    {
+      "file": "/images/projects/zhk-adres-schastya/d49a46215b7ee6352dfc102af0589a9a.jpg",
+      "alt": "Адрес счастья — изображение комплекса 2",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 1066,
+      "height": 600,
+      "kind": "image"
+    },
+    {
+      "file": "/images/projects/zhk-adres-schastya/f76f4f90804392c5d4ee94ae47372a7e.jpg",
+      "alt": "Адрес счастья — изображение комплекса 3",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 1066,
+      "height": 600,
+      "kind": "image"
+    },
+    {
+      "file": "/images/projects/zhk-adres-schastya/d752647c7265857014a761102c0f0504.jpg",
+      "alt": "Адрес счастья — изображение комплекса 4",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 1066,
+      "height": 600,
+      "kind": "image"
+    },
+    {
+      "file": "/images/projects/zhk-adres-schastya/ee960ae4c3a557d763a0ad2b7498dbb1.jpg",
+      "alt": "Адрес счастья — изображение комплекса 5",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 1066,
+      "height": 600,
+      "kind": "image"
+    },
+    {
+      "file": "/images/projects/zhk-adres-schastya/8a0b364e38dc8bdf96b6a24a359f266b.jpg",
+      "alt": "Адрес счастья — планировка квартиры 58 м², пример 1",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 552,
+      "height": 600,
+      "kind": "floorplan"
+    },
+    {
+      "file": "/images/projects/zhk-adres-schastya/c9f1f13cbb29e9c2b14c53c68ec593df.jpg",
+      "alt": "Адрес счастья — планировка квартиры 76 м², пример 2",
+      "sourceUrl": "https://klg.nmarket.pro/novostroyki",
+      "width": 1000,
+      "height": 439,
+      "kind": "floorplan"
+    }
+  ]
+}

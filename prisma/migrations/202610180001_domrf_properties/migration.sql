@@ -1,0 +1,20 @@
+ALTER TABLE "Property"
+  ALTER COLUMN "area" DROP NOT NULL,
+  ALTER COLUMN "landArea" DROP NOT NULL,
+  ALTER COLUMN "bedrooms" DROP NOT NULL,
+  ALTER COLUMN "floors" DROP NOT NULL,
+  ADD COLUMN "address" TEXT NOT NULL DEFAULT '',
+  ADD COLUMN "sourceId" TEXT,
+  ADD COLUMN "sourceUrl" TEXT,
+  ADD COLUMN "sourceName" TEXT,
+  ADD COLUMN "sourceMode" TEXT,
+  ADD COLUMN "sourceNote" TEXT,
+  ADD COLUMN "sourceFetchedAt" TIMESTAMP(3),
+  ADD COLUMN "developer" TEXT,
+  ADD COLUMN "district" TEXT,
+  ADD COLUMN "completionDate" TEXT,
+  ADD COLUMN "constructionStatus" TEXT,
+  ADD COLUMN "priceKind" TEXT,
+  ADD COLUMN "priceSourceUrl" TEXT,
+  ADD COLUMN "priceArea" DOUBLE PRECISION;
+CREATE UNIQUE INDEX "Property_sourceId_key" ON "Property"("sourceId");

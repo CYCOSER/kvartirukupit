@@ -1,0 +1,1 @@
+ALTER TABLE "Property" ALTER COLUMN "seaDistance" DROP NOT NULL;
