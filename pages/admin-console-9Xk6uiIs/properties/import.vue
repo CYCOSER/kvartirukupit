@@ -56,10 +56,12 @@ const filters = reactive(emptyImportFilters());
 const nextOffset = ref<number | null>(0);
 const loading = ref(false),
   importing = ref(false);
-const listError = ref(""),
-  importError = ref("");
+const listError = ref("");
+const importErrors = ref<string[]>([]);
 const completed = ref(0),
   importTotal = ref(0),
+  createdCount = ref(0),
+  existingCount = ref(0),
   activeTitle = ref("");
 const results = ref<
   (ImportResult & { sourceId: string | number; title: string })[]
@@ -82,8 +84,10 @@ watch(source, () => {
   nextOffset.value = 0;
   page.value = 1;
   loading.value = importing.value = false;
-  listError.value = importError.value = activeTitle.value = "";
+  listError.value = activeTitle.value = "";
+  importErrors.value = [];
   completed.value = importTotal.value = 0;
+  createdCount.value = existingCount.value = 0;
   Object.assign(filters, emptyImportFilters());
   if (ready.value) void loadObjects(isNmarket.value ? "saved" : null);
 });
@@ -133,7 +137,7 @@ async function loadObjects(requestedSnapshot: "saved" | null = null, refresh = f
   if (snapshot.value !== requestedSnapshot) {
     results.value = [];
     importTotal.value = 0;
-    importError.value = "";
+    importErrors.value = [];
     Object.assign(filters, emptyImportFilters());
   }
   if (refresh || nextOffset.value === null || snapshot.value !== requestedSnapshot) {
@@ -224,37 +228,37 @@ async function importSelected() {
       selected.value.includes(item.id) && item.supported && !item.existingId,
   );
   importing.value = true;
-  importError.value = "";
-  completed.value = 0;
+  importErrors.value = [];
+  completed.value = createdCount.value = existingCount.value = 0;
   importTotal.value = pending.length;
   try {
     for (const item of pending) {
       if (disposed || version !== requestVersion) break;
       activeTitle.value = item.title;
-      const result = await $fetch<ImportResult>(requestEndpoint + "/import", {
-        method: "POST",
-        body: {
-          id: item.id,
-          ...(snapshot.value ? { snapshot: snapshot.value } : {}),
-        },
-        retry: 0,
-      });
-      if (disposed || version !== requestVersion) break;
-      results.value.push({ ...result, sourceId: item.id, title: item.title });
-      item.existingId = result.id;
-      selected.value = selected.value.filter((id) => id !== item.id);
+      try {
+        const result = await $fetch<ImportResult>(requestEndpoint + "/import", {
+          method: "POST",
+          body: {
+            id: item.id,
+            ...(snapshot.value ? { snapshot: snapshot.value } : {}),
+          },
+          retry: 0,
+        });
+        if (disposed || version !== requestVersion) break;
+        results.value.push({ ...result, sourceId: item.id, title: item.title });
+        item.existingId = result.id;
+        selected.value = selected.value.filter((id) => id !== item.id);
+        if (result.created) createdCount.value++;
+        else existingCount.value++;
+      } catch (error: any) {
+        if (disposed || version !== requestVersion) break;
+        importErrors.value.push(
+          `Не удалось импортировать «${item.title}» (ID ${item.id}). ` +
+          (error.data?.data?.message || error.data?.message || "Попробуйте ещё раз."),
+        );
+      }
       completed.value++;
     }
-  } catch (error: any) {
-    if (disposed || version !== requestVersion) return;
-    importError.value =
-      "Не удалось импортировать «" +
-      activeTitle.value +
-      "». " +
-      (error.data?.data?.message ||
-        error.data?.message ||
-        "Попробуйте ещё раз.") +
-      " Уже созданные карточки сохранены. Остальные объекты остаются выбранными.";
   } finally {
     if (version === requestVersion) {
       importing.value = false;
@@ -532,15 +536,26 @@ async function importSelected() {
       <span
         >Обработано: {{ completed }} из {{ importTotal
         }}{{ activeTitle ? " · " + activeTitle : "" }}</span
-      ><progress
+      >
+      <p>
+        Создано: {{ createdCount }} · Уже добавлены: {{ existingCount }} ·
+        Пропущено: {{ importErrors.length }}
+      </p>
+      <progress
         :value="completed"
         :max="importTotal"
         aria-label="Ход импорта"
       />
     </div>
-    <p v-if="importError" class="import-error" role="alert">
-      {{ importError }}
-    </p>
+    <div v-if="importErrors.length" class="import-error" role="alert">
+      <p>
+        Пропущено: {{ importErrors.length }}. Объекты с ошибками остаются
+        выбранными для повторного импорта.
+      </p>
+      <ul>
+        <li v-for="message in importErrors" :key="message">{{ message }}</li>
+      </ul>
+    </div>
     <section
       v-if="results.length"
       class="import-results"
@@ -990,7 +1005,8 @@ async function importSelected() {
   margin-top: 12px;
   accent-color: #2b8a66;
 }
-.import-results ul {
+.import-results ul,
+.import-error ul {
   display: grid;
   gap: 12px;
   margin-top: 14px;

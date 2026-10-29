@@ -4,6 +4,73 @@ import { parseEnv } from "node:util";
 
 const env = { ...parseEnv(await readFile(".env", "utf8")), ...process.env };
 
+for (const source of ["rf39", "nmarket"] as const) {
+  test(`${source} bulk import skips failed objects and retries only failures`, async ({ page }) => {
+    expect((await page.request.post("/api/admin/login", {
+      headers: { Origin: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3100" },
+      data: { email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD },
+    })).ok()).toBe(true);
+    const items = Array.from({ length: 5 }, (_, index) => ({
+      id: source === "rf39" ? 201 + index : `n-bulk-${index}`,
+      title: `Квартира ${index + 1}`, category: "Квартиры", location: "Калининград",
+      address: `Тестовый адрес ${index + 1}`, price: 5000000, area: 45, bedrooms: 1, floors: 5,
+      layoutCount: 0, supported: true, existingId: null,
+    }));
+    const failures = [
+      { item: items[1], reason: "Не удалось загрузить фото" },
+      { item: items[3], reason: "Некорректная площадь объекта" },
+    ];
+    const imported: (string | number)[] = [];
+    await page.route(`**/api/admin/${source}/objects?*`, (route) => route.fulfill({
+      json: { items, nextOffset: null },
+    }));
+    await page.route(`**/api/admin/${source}/import`, async (route) => {
+      const { id, snapshot } = route.request().postDataJSON();
+      expect(snapshot).toBe(source === "nmarket" ? "saved" : undefined);
+      const failure = failures.find(({ item }) => item.id === id);
+      const firstAttempt = !imported.includes(id);
+      imported.push(id);
+      if (failure && firstAttempt) {
+        await route.fulfill({ status: 503, json: { data: { message: failure.reason } } });
+      } else {
+        await route.fulfill({ json: { id: `draft-${id}`, created: id !== items[4].id, warnings: [] } });
+      }
+    });
+
+    await page.goto(`/admin-console-9Xk6uiIs/properties/import?source=${source}`);
+    await page.getByRole("button", { name: "Выбрать все найденные", exact: true }).click();
+    await page.getByRole("button", { name: "Создать черновики (5)", exact: true }).click();
+    await expect(page.locator(".import-progress")).toContainText("Обработано: 5 из 5");
+    await expect(page.locator(".import-progress")).toContainText("Создано: 2 · Уже добавлены: 1 · Пропущено: 2");
+    expect(imported).toEqual(items.map(({ id }) => id));
+    await expect(page.getByRole("progressbar", { name: "Ход импорта" })).toHaveAttribute("value", "5");
+    await expect(page.getByRole("checkbox")).toHaveCount(2);
+    await expect(page.getByRole("alert")).toContainText("Пропущено: 2.");
+    for (const { item, reason } of failures) {
+      await expect(page.getByRole("alert")).toContainText(`«${item.title}» (ID ${item.id})`);
+      await expect(page.getByRole("alert")).toContainText(reason);
+      await expect(page.getByRole("checkbox", { name: `Выбрать ${item.title} (ID ${item.id})`, exact: true })).toBeChecked();
+    }
+    for (const item of items.filter((_, index) => index % 2 === 0)) {
+      const action = item.id === items[4].id ? "уже добавлен, открыть" : "открыть черновик";
+      await expect(page.getByRole("link", { name: `${item.title} — ${action}`, exact: true }))
+        .toHaveAttribute("href", `/admin-console-9Xk6uiIs/properties/draft-${item.id}`);
+    }
+
+    await page.getByRole("button", { name: "Создать черновики (2)", exact: true }).click();
+    await expect(page.locator(".import-progress")).toContainText("Обработано: 2 из 2");
+    await expect(page.locator(".import-progress")).toContainText("Создано: 2 · Уже добавлены: 0 · Пропущено: 0");
+    expect(imported).toEqual([...items.map(({ id }) => id), ...failures.map(({ item }) => item.id)]);
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    await expect(page.getByRole("checkbox")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Создать черновики (0)", exact: true })).toBeDisabled();
+    for (const item of items) {
+      const action = item.id === items[4].id ? "уже добавлен, открыть" : "открыть черновик";
+      await expect(page.getByRole("link", { name: `${item.title} — ${action}`, exact: true })).toBeVisible();
+    }
+  });
+}
+
 test("CRM import resumes listing, keeps drafts and reuses saved lists with an animated source switch", async ({
   page,
 }, testInfo) => {
