@@ -1,4 +1,6 @@
 import { test, expect } from "@playwright/test";
+import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { parseEnv } from "node:util";
 
@@ -113,4 +115,71 @@ test("manual elite apartment stays in its own catalog through publication and ed
     expect((await request.delete(url, { headers })).ok()).toBe(true);
   }
   expect((await (await request.get(eliteQuery)).json()).items).toHaveLength(0);
+});
+
+test("imported apartment can change types in the editor without losing its CRM metadata", async ({ page }) => {
+  const request = page.request;
+  expect((await request.post("/api/admin/login", {
+    headers,
+    data: { email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD },
+  })).ok()).toBe(true);
+  const suffix = randomUUID();
+  const property = {
+    title: "Проверка смены типа импортированной квартиры", slug: "e2e-imported-type-" + suffix,
+    type: "apartment", location: "Калининград", address: "Тестовый адрес",
+    price: 25000000, status: "available", area: 120, landArea: null, bedrooms: 3, floors: 5,
+    readiness: "Готова", finish: "Чистовая", seaDistance: null,
+    description: "Временная карточка проверки, удаляется после теста.", utilities: [],
+    published: false, featured: false, elite: false, demo: true,
+  };
+  const created = await request.post("/api/admin/properties", { headers, data: property });
+  expect(created.ok()).toBe(true);
+  const item = await created.json();
+  const url = "/api/admin/properties/" + item.id;
+  const source = {
+    sourceId: "rf39:e2e-" + suffix, sourceMode: "rf39-copy", sourceName: "CRM RF39",
+    sourceUrl: "https://crm.rf39.ru", sourceNote: "Копия из CRM RF39.",
+    sourceFetchedAt: new Date().toISOString(),
+  };
+  try {
+    // Import metadata is read-only in the admin API; seed it in the local Compose database.
+    execFileSync("docker", ["compose", "exec", "-T", "web", "node", "--input-type=module", "-e", `
+      import { PrismaClient } from '@prisma/client';
+      import { readFileSync } from 'node:fs';
+      const { id, source } = JSON.parse(readFileSync(0, 'utf8'));
+      const db = new PrismaClient();
+      try { await db.property.update({ where: { id }, data: source }); }
+      finally { await db.$disconnect(); }
+    `], { input: JSON.stringify({ id: item.id, source }), timeout: 15000 });
+    await page.goto("/admin-console-9Xk6uiIs/properties/" + item.id);
+    const type = page.getByRole("combobox", { name: "Тип объекта", exact: true });
+    await expect(type).toHaveText("Квартира");
+    for (const next of [
+      { label: "Элитная квартира", type: "apartment", elite: true },
+      { label: "Жилой комплекс", type: "complex", elite: false },
+      { label: "Квартира", type: "apartment", elite: false },
+      { label: "Элитная квартира", type: "apartment", elite: true },
+    ]) {
+      await type.click();
+      await page.getByRole("option", { name: next.label, exact: true }).click();
+      const saving = page.waitForResponse((response) =>
+        response.url().endsWith(url) && response.request().method() === "PUT",
+      );
+      await page.getByRole("button", { name: "Сохранить объект", exact: true }).click();
+      const saved = await saving;
+      expect(saved.status(), await saved.text()).toBe(200);
+      const expected = { type: next.type, elite: next.elite, ...source };
+      expect(await saved.json()).toMatchObject(expected);
+      await expect(page.getByText("Объект сохранён.", { exact: true })).toBeVisible();
+      await page.reload();
+      await expect(type).toHaveText(next.label);
+      expect(await (await request.get(url)).json()).toMatchObject(expected);
+    }
+    expect((await request.put(url, {
+      headers, data: { ...property, type: "complex", elite: true },
+    })).status()).toBe(400);
+    expect(await (await request.get(url)).json()).toMatchObject({ type: "apartment", elite: true, ...source });
+  } finally {
+    expect((await request.delete(url, { headers })).ok()).toBe(true);
+  }
 });
