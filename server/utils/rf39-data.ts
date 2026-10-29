@@ -10,6 +10,7 @@ const layoutSchema = z.object({
   id: idSchema,
   title: z.string().nullish(),
   description: z.string().nullish(),
+  external_description: z.string().nullish(),
   apartment: z.string().nullish(),
   price: z.union([z.number(), z.string()]).nullish(),
   images: z.array(z.string()).nullish(),
@@ -21,6 +22,9 @@ const objectSchema = z.object({
   type: z.string(),
   deal_type: z.string(),
   description: z.string().nullish(),
+  external_description: z.string().nullish(),
+  stickers: z.array(z.union([idSchema, z.object({ id: idSchema })])).nullish(),
+  object_stickers: z.array(z.object({ sticker_id: idSchema })).nullish(),
   address: z.string().nullish(),
   apartment: z.string().nullish(),
   city: z.string().nullish(),
@@ -53,6 +57,20 @@ export function parseRf39Response(input: unknown): Rf39Object[] {
 export function rf39Supported(item: Rf39Object) {
   return item.deal_type === 'sale' &&
     ['Квартиры в новостройках', 'Квартиры - вторичное жильё'].includes(item.type);
+}
+
+export function rf39HasSticker(item: Rf39Object, stickerId: number) {
+  return !!item.stickers?.some(sticker => (typeof sticker === 'number' ? sticker : sticker.id) === stickerId) ||
+    !!item.object_stickers?.some(sticker => sticker.sticker_id === stickerId);
+}
+
+export function rf39Description(item: Pick<Rf39Object, 'description' | 'external_description'>, missingPolicy: 'main' | 'draft' = 'main') {
+  const clean = (value: string | null | undefined) => (value || '').replace(/<br\s*\/?\s*>/gi, '\n')
+    .replace(/<\/(?:p|div)>/gi, '\n\n').replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;|&#160;|&#x0*a0;/gi, ' ').replace(/&amp;/g, '&').trim();
+  const external = clean(item.external_description);
+  const description = external || (missingPolicy === 'main' ? clean(item.description) : '');
+  return { description, requiresDraft: !description };
 }
 
 export function rf39Number(value: unknown): number | null {
@@ -103,7 +121,7 @@ export function rf39ImageUrl(value: string): string | null {
   } catch { return null; }
 }
 
-export function rf39Draft(item: Rf39Object, type: 'complex' | 'apartment' = rf39IsComplex(item) ? 'complex' : 'apartment') {
+export function rf39Draft(item: Rf39Object, type: 'complex' | 'apartment' = rf39IsComplex(item) ? 'complex' : 'apartment', missingPolicy: 'main' | 'draft' = 'main') {
   if (!rf39Supported(item)) throw new Error('Сайт поддерживает только продажу квартир и корпусов ЖК.');
   const param = (key: string) => item.params?.[key]?.value;
   const layoutCount = Object.keys(item.layouts || {}).length;
@@ -123,9 +141,8 @@ export function rf39Draft(item: Rf39Object, type: 'complex' | 'apartment' = rf39
   const price = number(item.price, 2000000000, true);
   if (price === null || price === 0) warnings.push('Цена не указана или требует проверки.');
   if (!validCoords && item.coordinates) warnings.push('Координаты CRM не распознаны.');
-  const description = (item.description || '').replace(/<br\s*\/?\s*>/gi, '\n')
-    .replace(/<\/(?:p|div)>/gi, '\n\n').replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').trim();
+  const { description, requiresDraft } = rf39Description(item, missingPolicy);
+  if (requiresDraft) warnings.push('Описание отсутствует. Объект должен остаться черновиком.');
   if (type === 'complex' && layoutCount) warnings.push(`Импортирован корпус/ЖК. ${layoutCount} планировок остаются в CRM; отдельные квартиры не создавались.`);
   const area = type === 'apartment' ? number(param('area'), 10000) || null : null;
   const bedrooms = type === 'apartment' ? number(param('rooms'), 100, true) : null;
@@ -152,7 +169,7 @@ export function rf39Draft(item: Rf39Object, type: 'complex' | 'apartment' = rf39
       rf39ComplexId: item.development?.id ? String(item.development.id) : null,
       rf39BuildingId: item.complex?.id ? String(item.complex.id) : null,
     },
-    imageUrls: imageUrls.slice(0, 100), planImageUrls: [] as string[], warnings,
+    imageUrls: imageUrls.slice(0, 100), planImageUrls: [] as string[], warnings, requiresDraft,
   };
 }
 
@@ -165,7 +182,7 @@ export function rf39LayoutDraft(parent: Rf39Object, layoutId: number) {
   for (const key of ['area', 'rooms', 'floor']) if (!layout.params?.[key]) delete params[key];
   const draft = rf39Draft({
     ...parent, layouts: null,
-    apartment: layout.apartment, description: layout.description, price: layout.price,
+    apartment: layout.apartment, description: layout.description, external_description: layout.external_description, price: layout.price,
     images: layout.images, params,
   }, 'apartment');
   draft.data.sourceId = `rf39-layout:${parent.id}:${id}`;
