@@ -4,7 +4,7 @@ dist/
 .output/
 .data/
 .tmp/
-uploads/
+/uploads/
 .env
 .env.*
 !.env.example
