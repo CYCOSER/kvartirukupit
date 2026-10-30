@@ -18,21 +18,21 @@ import {
 } from "lucide-vue-next";
 import Button from "~/components/ui/button/Button.vue";
 import ConfirmDialog from "~/components/ui/alert-dialog/ConfirmDialog.vue";
+import { statuses, housingMarkets, money } from "~/shared/property";
 import {
-  statuses,
-  housingMarkets,
-  money,
-  type Property,
-} from "~/shared/property";
-import { adminPropertyTypes, adminPropertyType } from "~/shared/admin-property";
+  adminPropertyTypes,
+  adminPropertyType,
+  type AdminPropertyListItem,
+} from "~/shared/admin-property";
 import {
   sortAdminProperties,
   type AdminSortField,
   type AdminSortDirection,
 } from "~/shared/admin-property-sort";
 definePageMeta({ middleware: "admin", layout: "admin" });
-const { data, refresh, error } = await useFetch<Property[]>(
+const { data, refresh, error } = await useFetch<AdminPropertyListItem[]>(
   "/api/admin/properties",
+  { query: { view: "list" } },
 );
 const filters = reactive({
   query: "",
@@ -47,7 +47,7 @@ const filters = reactive({
   areaMin: "" as string | number,
   areaMax: "" as string | number,
 });
-const deleting = ref<Property | null>(null),
+const deleting = ref<AdminPropertyListItem | null>(null),
   confirm = ref(false),
   notice = ref("");
 const totals = computed(() => ({
@@ -112,6 +112,23 @@ const filtered = computed(
 const sorted = computed(() =>
   sortAdminProperties(filtered.value, sortField.value, sortDirection.value),
 );
+const page = ref(1);
+const pageSize = ref(20);
+const pageCount = computed(() =>
+  Math.max(1, Math.ceil(filtered.value.length / pageSize.value)),
+);
+const pageItems = computed(() =>
+  sorted.value.slice(
+    (page.value - 1) * pageSize.value,
+    page.value * pageSize.value,
+  ),
+);
+watch([filters, pageSize, sortField, sortDirection], () => {
+  page.value = 1;
+});
+watch(pageCount, (count) => {
+  page.value = Math.min(page.value, count);
+});
 const selectedIds = ref(new Set<string>());
 const bulkBusy = ref(false);
 const confirmBulkDelete = ref(false);
@@ -189,11 +206,11 @@ async function remove() {
     notice.value = "Не удалось удалить объект.";
   }
 }
-async function publish(p: Property) {
+async function publish(p: AdminPropertyListItem) {
   try {
-    await $fetch("/api/admin/properties/" + p.id, {
-      method: "PUT",
-      body: { ...p, published: !p.published },
+    await $fetch("/api/admin/properties/bulk", {
+      method: "POST",
+      body: { action: p.published ? "unpublish" : "publish", ids: [p.id] },
     });
     await refresh();
   } catch {
@@ -451,6 +468,41 @@ async function publish(p: Property) {
         </button>
         <span v-if="bulkBusy" role="status">Обработка объектов…</span>
       </div>
+      <nav class="admin-pagination" aria-label="Страницы объектов">
+        <label
+          >Объектов на странице<AppSelect
+            :model-value="String(pageSize)"
+            aria-label="Объектов на странице"
+            @update:model-value="pageSize = Number($event)"
+          >
+            <AppSelectOption
+              v-for="size in [10, 20, 50]"
+              :key="size"
+              :value="String(size)"
+              >{{ size }}</AppSelectOption
+            >
+          </AppSelect></label
+        >
+        <div>
+          <button
+            type="button"
+            class="btn-secondary"
+            :disabled="page === 1"
+            @click="page--"
+          >
+            Назад
+          </button>
+          <span role="status">Страница {{ page }} из {{ pageCount }}</span>
+          <button
+            type="button"
+            class="btn-secondary"
+            :disabled="page === pageCount"
+            @click="page++"
+          >
+            Далее
+          </button>
+        </div>
+      </nav>
       <div
         class="admin-table-wrap"
         tabindex="0"
@@ -505,7 +557,7 @@ async function publish(p: Property) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="p in sorted" :key="p.id">
+            <tr v-for="p in pageItems" :key="p.id">
               <td>
                 <input
                   v-model="selectedIds"

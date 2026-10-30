@@ -27,6 +27,9 @@ async function catalog(page: Page, initial: Item[], failFirst = false) {
     if (path === "/api/admin/login" || path === "/api/admin/me") {
       await route.fulfill({ json: { ok: true } });
     } else if (path === "/api/admin/properties") {
+      expect(new URL(route.request().url()).searchParams.get("view")).toBe(
+        "list",
+      );
       await route.fulfill({ json: items });
     } else if (path === "/api/admin/properties/bulk") {
       const body = route.request().postDataJSON();
@@ -241,28 +244,163 @@ test("homepage and apartment market filters combine and limit bulk selection", a
   ).toBe(true);
 });
 
+test("catalog pages preserve selection and apply actions across all filtered pages", async ({
+  page,
+}) => {
+  const items = Array.from({ length: 55 }, (_, i) => ({
+    ...base,
+    id: `item-${i}`,
+    title: `Квартира ${String(i + 1).padStart(3, "0")}`,
+    featured: i % 2 === 0,
+  }));
+  const requests = await catalog(page, items);
+  const pagination = page.getByRole("navigation", {
+    name: "Страницы объектов",
+  });
+  const actions = page.getByRole("group", { name: "Массовые действия" });
+  const rows = page.locator(".admin-properties-table tbody tr");
+  const names = page.locator(".admin-property-name");
+  async function pageSize(size: string) {
+    await page
+      .getByRole("combobox", { name: "Объектов на странице", exact: true })
+      .click();
+    await page.getByRole("option", { name: size, exact: true }).click();
+  }
+  await expect(rows).toHaveCount(20);
+  await expect(pagination).toContainText("Страница 1 из 3");
+  await expect(
+    pagination.getByRole("button", { name: "Назад", exact: true }),
+  ).toBeDisabled();
+  await rows
+    .first()
+    .getByRole("button", { name: "Черновик", exact: true })
+    .click();
+  await expect(
+    rows.first().getByRole("button", { name: "Опубликован", exact: true }),
+  ).toBeVisible();
+  expect(requests.at(-1)).toEqual({ action: "publish", ids: ["item-0"] });
+  await pagination.getByRole("button", { name: "Далее", exact: true }).click();
+  await expect(names.first()).toHaveText("Квартира 021");
+  await rows.first().getByRole("checkbox").check();
+  await pagination.getByRole("button", { name: "Назад", exact: true }).click();
+  await expect(actions).toContainText("Выбрано: 1");
+  await actions
+    .getByRole("button", { name: "Выбрать все", exact: true })
+    .click();
+  await expect(actions).toContainText("Выбрано: 55");
+  await pageSize("10");
+  await expect(rows).toHaveCount(10);
+  await expect(pagination).toContainText("Страница 1 из 6");
+  await pageSize("50");
+  await expect(rows).toHaveCount(50);
+  await pagination.getByRole("button", { name: "Далее", exact: true }).click();
+  await expect(rows).toHaveCount(5);
+  await expect(pagination).toContainText("Страница 2 из 2");
+  await expect(
+    pagination.getByRole("button", { name: "Далее", exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByRole("checkbox", { checked: true })).toHaveCount(5);
+  await actions
+    .getByRole("button", { name: "Снять с публикации", exact: true })
+    .click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Снято с публикации: 55." }),
+  ).toBeVisible();
+  expect(requests.at(-1)).toEqual({
+    action: "unpublish",
+    ids: items.map((item) => item.id),
+  });
+  await expect(actions).toContainText("Выбрано: 0");
+  for (const checkbox of await rows.getByRole("checkbox").all())
+    await checkbox.check();
+  await actions
+    .getByRole("button", { name: "Удалить выбранные", exact: true })
+    .click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Удалить", exact: true })
+    .click();
+  await expect(pagination).toContainText("Страница 1 из 1");
+  await expect(rows).toHaveCount(50);
+  expect(requests.at(-1)).toEqual({
+    action: "delete",
+    ids: items.slice(50).map((item) => item.id),
+  });
+  await pageSize("10");
+  await pagination.getByRole("button", { name: "Далее", exact: true }).click();
+  await page.getByRole("combobox", { name: "На главной", exact: true }).click();
+  await page.getByRole("option", { name: "Да", exact: true }).click();
+  await expect(pagination).toContainText("Страница 1 из 3");
+  await actions
+    .getByRole("button", { name: "Выбрать все", exact: true })
+    .click();
+  await expect(actions).toContainText("Выбрано: 25");
+  await pagination.getByRole("button", { name: "Далее", exact: true }).click();
+  await expect(page.getByRole("checkbox", { checked: true })).toHaveCount(10);
+  await page
+    .getByRole("button", {
+      name: "Сортировать по названию по возрастанию",
+      exact: true,
+    })
+    .click();
+  await page
+    .getByRole("button", {
+      name: "Сортировать по названию по убыванию",
+      exact: true,
+    })
+    .click();
+  await expect(pagination).toContainText("Страница 1 из 3");
+  await expect(names.first()).toHaveText("Квартира 049");
+  await actions
+    .getByRole("button", { name: "Опубликовать", exact: true })
+    .click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Опубликовано: 25." }),
+  ).toBeVisible();
+  expect(requests.at(-1)!.ids).toEqual(
+    items
+      .slice(0, 50)
+      .filter((item) => item.featured)
+      .map((item) => item.id),
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    pagination.getByRole("button", { name: "Далее", exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+});
+
 test("large selections continue after a failed batch and retain failures for retry", async ({
   page,
 }) => {
   const requests = await catalog(
     page,
-    Array.from({ length: 501 }, (_, i) => ({ ...base, id: `item-${i}` })),
+    Array.from({ length: 1001 }, (_, i) => ({ ...base, id: `item-${i}` })),
     true,
   );
   const actions = page.getByRole("group", { name: "Массовые действия" });
   await actions
     .getByRole("button", { name: "Выбрать все", exact: true })
     .click();
-  await expect(actions).toContainText("Выбрано: 501");
+  await expect(actions).toContainText(/Выбрано: 1\s001/);
+  await expect(page.locator(".admin-properties-table tbody tr")).toHaveCount(
+    20,
+  );
   await actions
     .getByRole("button", { name: "Опубликовать", exact: true })
     .click();
   await expect(
     page
       .getByRole("status")
-      .filter({ hasText: "Опубликовано: 1. Не удалось обработать: 500." }),
+      .filter({ hasText: "Опубликовано: 501. Не удалось обработать: 500." }),
   ).toBeVisible();
-  expect(requests.map((request) => request.ids.length)).toEqual([500, 1]);
+  expect(requests.map((request) => request.ids.length)).toEqual([500, 500, 1]);
   await expect(actions).toContainText("Выбрано: 500");
   await actions
     .getByRole("button", { name: "Опубликовать", exact: true })
@@ -270,6 +408,6 @@ test("large selections continue after a failed batch and retain failures for ret
   await expect(
     page.getByRole("status").filter({ hasText: "Опубликовано: 500." }),
   ).toBeVisible();
-  expect(requests[2]!.ids).toEqual(requests[0]!.ids);
+  expect(requests[3]!.ids).toEqual(requests[0]!.ids);
   await expect(actions).toContainText("Выбрано: 0");
 });

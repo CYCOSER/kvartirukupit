@@ -376,6 +376,30 @@
   height: 18px;
   accent-color: #245fbd;
 }
+.admin-pagination,
+.admin-pagination > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.admin-pagination {
+  justify-content: space-between;
+  margin-bottom: 14px;
+  font-size: 12px;
+}
+.admin-pagination > label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.admin-pagination .select-field {
+  width: 80px;
+}
+.admin-pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .admin-workspace .admin-table-wrap {
   border-color: #e2e8f1;
   border-radius: 13px;
