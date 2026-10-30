@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 test('property status cards keep keyboard semantics and the Russian photo picker supports multiple files', async ({ page }, testInfo) => {
   const item = {
     id: 'property-ui-fixture', title: 'Квартира для проверки интерфейса', slug: 'property-ui-fixture', type: 'apartment',
+    housingMarket: 'newbuild',
     location: 'Калининград', address: 'Тестовый адрес', price: 6000000, status: 'available',
     area: 45, landArea: null, bedrooms: 1, floors: 5, latitude: null, longitude: null,
     readiness: 'Готов', finish: 'Чистовая', seaDistance: null, description: '', utilities: [],
@@ -41,6 +42,16 @@ test('property status cards keep keyboard semantics and the Russian photo picker
   await page.getByLabel('Пароль', { exact: true }).fill('fixture-password');
   await page.getByRole('button', { name: 'Войти', exact: true }).click();
   await page.getByRole('link', { name: item.title, exact: true }).click();
+  const market = page.getByRole('combobox', { name: 'Рынок квартиры', exact: true });
+  await expect(market).toHaveText('Новостройка');
+  await page.getByRole('combobox', { name: 'Тип объекта', exact: true }).click();
+  await page.getByRole('option', { name: 'Жилой комплекс', exact: true }).click();
+  await expect(market).toHaveCount(0);
+  await page.getByRole('combobox', { name: 'Тип объекта', exact: true }).click();
+  await page.getByRole('option', { name: 'Квартира', exact: true }).click();
+  await expect(market).toHaveText('Не указан');
+  await market.click();
+  await page.getByRole('option', { name: 'Вторичка', exact: true }).click();
   const options = page.getByTestId('property-options');
   const published = page.getByRole('checkbox', { name: 'Опубликован', exact: true });
   await published.focus();
@@ -69,7 +80,7 @@ test('property status cards keep keyboard semantics and the Russian photo picker
   await expect(media).not.toContainText('Choose Files');
   await page.getByRole('button', { name: 'Сохранить объект', exact: true }).click();
   await expect(page.getByText('Объект сохранён.', { exact: true })).toBeVisible();
-  expect(saved).toMatchObject({ published: true, featured: true, demo: true, elite: true, type: 'apartment' });
+  expect(saved).toMatchObject({ published: true, featured: true, demo: true, elite: true, type: 'apartment', housingMarket: 'secondary' });
 
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1800 });

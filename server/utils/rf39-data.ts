@@ -147,6 +147,7 @@ export function rf39Draft(item: Rf39Object, type: 'complex' | 'apartment' = rf39
   const area = type === 'apartment' ? number(param('area'), 10000) || null : null;
   const bedrooms = type === 'apartment' ? number(param('rooms'), 100, true) : null;
   const data = propertySchema.parse({
+    housingMarket: type === 'apartment' ? (item.type === 'Квартиры в новостройках' ? 'newbuild' : 'secondary') : null,
     title: type === 'apartment' ? apartmentTitle(bedrooms, area) : item.title?.trim() || `Объект CRM №${item.id}`,
     slug: `rf39-${item.id}`, type,
     location: item.city?.trim() || 'Уточняется', address: item.address || '',

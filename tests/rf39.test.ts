@@ -20,6 +20,8 @@ test('RF39 maps a real response shape into an unpublished editable card without 
   const draft = rf39Draft(item);
   assert.equal(draft.data.title, '3-к кв. 90.5 м²');
   assert.equal(draft.data.type, 'apartment');
+  assert.equal(draft.data.housingMarket, 'secondary');
+  assert.equal(rf39Draft({ ...item, type: 'Квартиры в новостройках' }).data.housingMarket, 'newbuild');
   assert.equal(draft.data.price, 9200000);
   assert.equal(draft.data.area, 90.5);
   assert.equal(draft.data.bedrooms, 3);
@@ -47,6 +49,7 @@ test('RF39 corpus remains a complex without borrowing characteristics from an ar
   });
   const draft = rf39Draft(item);
   assert.equal(draft.data.type, 'complex');
+  assert.equal(draft.data.housingMarket, null);
   assert.equal(draft.data.area, null);
   assert.equal(draft.data.bedrooms, null);
   assert.equal(draft.data.price, 9200000);

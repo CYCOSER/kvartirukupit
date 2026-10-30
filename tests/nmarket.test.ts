@@ -36,6 +36,7 @@ test('NMarket streams UTF-8 XML into filled drafts and strips agent/private fiel
   const item = objects.find(item => item.id === 'apartment:123')!;
   const draft = nmarketDraft(item);
   assert.equal(draft.data.type, 'apartment');
+  assert.equal(draft.data.housingMarket, 'newbuild');
   assert.equal(draft.data.title, '2-к кв. 58.5 м²');
   assert.equal(nmarketDraft({ ...item, title: 'Старое длинное название · Тестовый ЖК' }).data.title, '2-к кв. 58.5 м²');
   assert.equal(draft.data.price, 9200000);
@@ -71,6 +72,7 @@ test('NMarket groups a complex across all offers with minimum price and latest c
   const draft = nmarketDraft(complex);
   assert.equal(objects.length, 3);
   assert.equal(complex.offerCount, 2);
+  assert.equal(draft.data.housingMarket, null);
   assert.equal(draft.data.price, 8000000);
   assert.equal(draft.data.priceKind, 'from');
   assert.equal(draft.data.area, null);

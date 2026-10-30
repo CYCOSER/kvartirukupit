@@ -12,6 +12,7 @@ model Property {
   title       String
   slug        String          @unique
   type        String
+  housingMarket String?
   complexId   String?
   complex     Property?       @relation("ComplexApartments", fields: [complexId], references: [id], onDelete: SetNull)
   apartments  Property[]      @relation("ComplexApartments")

@@ -6,6 +6,7 @@ import { Eye, Star, FlaskConical, ImagePlus, Building2, ArrowUpRight } from "luc
 import { adminPropertyType, adminPropertyTypes } from "~/shared/admin-property";
 import {
   statuses,
+  housingMarkets,
   isCoastalLocation,
   propertySchema,
   money,
@@ -18,6 +19,7 @@ const defaults: PropertyInput = {
   title: "",
   slug: "",
   type: "complex",
+  housingMarket: null,
   complexId: null,
   nmarketComplexId: null,
   rf39ComplexId: null,
@@ -57,10 +59,17 @@ const selectedType = computed({
     form.elite = value === 'elite_apartment';
   },
 });
+const selectedHousingMarket = computed({
+  get: () => form.housingMarket || "",
+  set: (value: string) => {
+    form.housingMarket = (value as PropertyInput["housingMarket"]) || null;
+  },
+});
 watch(() => form.type, (type) => {
   if (type !== "apartment") {
     form.elite = false;
     form.complexId = null;
+    form.housingMarket = null;
   }
 });
 const pending = ref(false),
@@ -315,6 +324,10 @@ function move(index: number, offset: number) {
           >
             {{ label }}
           </AppSelectOption>
+        </AppSelect></label
+      ><label v-if="form.type === 'apartment'">Рынок квартиры<AppSelect v-model="selectedHousingMarket" aria-label="Рынок квартиры">
+          <AppSelectOption value="">Не указан</AppSelectOption>
+          <AppSelectOption v-for="(label, value) in housingMarkets" :key="value" :value="value">{{ label }}</AppSelectOption>
         </AppSelect></label
       ><label v-if="form.type === 'apartment'">
         <span class="property-complex-label">Жилой комплекс квартиры<NuxtLink v-if="form.complexId" :to="'/admin-console-9Xk6uiIs/properties/' + form.complexId" target="_blank" rel="noopener" class="property-complex-link"><Building2 :size="14" aria-hidden="true" />Карточка ЖК<ArrowUpRight :size="14" aria-hidden="true" /></NuxtLink></span>

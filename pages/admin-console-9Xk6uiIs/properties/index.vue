@@ -18,7 +18,12 @@ import {
 } from "lucide-vue-next";
 import Button from "~/components/ui/button/Button.vue";
 import ConfirmDialog from "~/components/ui/alert-dialog/ConfirmDialog.vue";
-import { statuses, money, type Property } from "~/shared/property";
+import {
+  statuses,
+  housingMarkets,
+  money,
+  type Property,
+} from "~/shared/property";
 import { adminPropertyTypes, adminPropertyType } from "~/shared/admin-property";
 import {
   sortAdminProperties,
@@ -35,6 +40,8 @@ const filters = reactive({
   catalog: "",
   type: "",
   publication: "",
+  featured: "",
+  housingMarket: "",
   priceMin: "" as string | number,
   priceMax: "" as string | number,
   areaMin: "" as string | number,
@@ -89,6 +96,12 @@ const filtered = computed(
         (!filters.type || adminPropertyType(p) === filters.type) &&
         (!filters.publication ||
           p.published === (filters.publication === "published")) &&
+        (!filters.featured || p.featured === (filters.featured === "yes")) &&
+        (!filters.housingMarket ||
+          (p.type === "apartment" &&
+            (filters.housingMarket === "unknown"
+              ? !p.housingMarket
+              : p.housingMarket === filters.housingMarket))) &&
         inRange(p.price, filters.priceMin, filters.priceMax) &&
         inRange(p.area, filters.areaMin, filters.areaMax) &&
         (p.title + " " + p.location + " " + p.address)
@@ -99,6 +112,56 @@ const filtered = computed(
 const sorted = computed(() =>
   sortAdminProperties(filtered.value, sortField.value, sortDirection.value),
 );
+const selectedIds = ref(new Set<string>());
+const bulkBusy = ref(false);
+const confirmBulkDelete = ref(false);
+watch(filtered, (items) => {
+  selectedIds.value = new Set(
+    items.filter((p) => selectedIds.value.has(p.id)).map((p) => p.id),
+  );
+});
+
+async function bulkAction(action: "publish" | "unpublish" | "delete") {
+  if (bulkBusy.value || !selectedIds.value.size) return;
+  const ids = [...selectedIds.value];
+  let completed = 0;
+  let failed = 0;
+  bulkBusy.value = true;
+  notice.value = "";
+  try {
+    // Keep each request within the API body size limit.
+    for (let offset = 0; offset < ids.length; offset += 500) {
+      const batch = ids.slice(offset, offset + 500);
+      try {
+        const result = await $fetch<{ count: number }>(
+          "/api/admin/properties/bulk",
+          {
+            method: "POST",
+            body: { action, ids: batch },
+          },
+        );
+        completed += result.count;
+        batch.forEach((id) => selectedIds.value.delete(id));
+      } catch {
+        failed += batch.length;
+      }
+    }
+    const label = {
+      publish: "Опубликовано",
+      unpublish: "Снято с публикации",
+      delete: "Удалено",
+    }[action];
+    notice.value =
+      `${label}: ${completed}.` +
+      (action === "delete" && completed ? " Связанные заявки сохранены." : "") +
+      (failed
+        ? ` Не удалось обработать: ${failed}. Повторите действие для оставшихся выбранных объектов.`
+        : "");
+    await refresh();
+  } finally {
+    bulkBusy.value = false;
+  }
+}
 function resetFilters() {
   Object.assign(filters, {
     query: "",
@@ -106,6 +169,8 @@ function resetFilters() {
     catalog: "",
     type: "",
     publication: "",
+    featured: "",
+    housingMarket: "",
     priceMin: "",
     priceMax: "",
     areaMin: "",
@@ -257,6 +322,31 @@ async function publish(p: Property) {
             ></AppSelect
           ></label
         >
+        <label class="admin-filter-wide"
+          >На главной<AppSelect
+            v-model="filters.featured"
+            aria-label="На главной"
+          >
+            <AppSelectOption value="">Все объекты</AppSelectOption>
+            <AppSelectOption value="yes">Да</AppSelectOption>
+            <AppSelectOption value="no">Нет</AppSelectOption>
+          </AppSelect></label
+        >
+        <label class="admin-filter-wide"
+          >Рынок квартиры<AppSelect
+            v-model="filters.housingMarket"
+            aria-label="Рынок квартиры"
+          >
+            <AppSelectOption value="">Любой</AppSelectOption>
+            <AppSelectOption
+              v-for="(label, value) in housingMarkets"
+              :key="value"
+              :value="value"
+              >{{ label }}</AppSelectOption
+            >
+            <AppSelectOption value="unknown">Не указан</AppSelectOption>
+          </AppSelect></label
+        >
         <fieldset class="admin-range">
           <legend>Цена, ₽</legend>
           <div>
@@ -314,6 +404,54 @@ async function publish(p: Property) {
         >
       </div>
       <div
+        class="admin-bulk-actions"
+        role="group"
+        aria-label="Массовые действия"
+      >
+        <Button
+          type="button"
+          :disabled="bulkBusy || !filtered.length"
+          @click="selectedIds = new Set(filtered.map((p) => p.id))"
+          >Выбрать все</Button
+        >
+        <button
+          type="button"
+          class="btn-secondary"
+          :disabled="bulkBusy || !selectedIds.size"
+          @click="selectedIds.clear()"
+        >
+          Снять выбор
+        </button>
+        <span role="status"
+          >Выбрано: {{ selectedIds.size.toLocaleString("ru-RU") }}</span
+        >
+        <button
+          type="button"
+          class="btn-secondary"
+          :disabled="bulkBusy || !selectedIds.size"
+          @click="bulkAction('publish')"
+        >
+          Опубликовать
+        </button>
+        <button
+          type="button"
+          class="btn-secondary"
+          :disabled="bulkBusy || !selectedIds.size"
+          @click="bulkAction('unpublish')"
+        >
+          Снять с публикации
+        </button>
+        <button
+          type="button"
+          class="btn-danger"
+          :disabled="bulkBusy || !selectedIds.size"
+          @click="confirmBulkDelete = true"
+        >
+          Удалить выбранные
+        </button>
+        <span v-if="bulkBusy" role="status">Обработка объектов…</span>
+      </div>
+      <div
         class="admin-table-wrap"
         tabindex="0"
         role="region"
@@ -322,6 +460,7 @@ async function publish(p: Property) {
         <table class="admin-table admin-properties-table">
           <thead>
             <tr>
+              <th scope="col"><span class="sr-only">Выбор объектов</span></th>
               <th
                 v-for="column in columns"
                 :key="column[0]!.field"
@@ -368,6 +507,15 @@ async function publish(p: Property) {
           <tbody>
             <tr v-for="p in sorted" :key="p.id">
               <td>
+                <input
+                  v-model="selectedIds"
+                  type="checkbox"
+                  :value="p.id"
+                  :aria-label="`Выбрать объект «${p.title}»`"
+                  :disabled="bulkBusy"
+                />
+              </td>
+              <td>
                 <div class="admin-property-cell">
                   <div class="admin-property-thumb">
                     <img
@@ -413,6 +561,7 @@ async function publish(p: Property) {
               <td>
                 <button
                   class="admin-publication"
+                  :disabled="bulkBusy"
                   :class="{ 'is-published': p.published }"
                   :title="
                     p.published ? 'Снять с публикации' : 'Опубликовать объект'
@@ -427,6 +576,7 @@ async function publish(p: Property) {
               <td>
                 <button
                   class="admin-delete"
+                  :disabled="bulkBusy"
                   @click="
                     deleting = p;
                     confirm = true;
@@ -437,7 +587,7 @@ async function publish(p: Property) {
               </td>
             </tr>
             <tr v-if="!filtered.length">
-              <td colspan="5" class="admin-empty">
+              <td colspan="6" class="admin-empty">
                 <Search :size="28" aria-hidden="true" /><strong
                   >Объекты не найдены.</strong
                 ><span>{{
@@ -451,6 +601,12 @@ async function publish(p: Property) {
         </table>
       </div>
     </template>
+    <ConfirmDialog
+      v-model:open="confirmBulkDelete"
+      title="Удалить выбранные объекты?"
+      :description="`Объектов к удалению: ${selectedIds.size.toLocaleString('ru-RU')}. Они исчезнут из каталога. Связанные заявки сохранятся. Восстановление возможно из резервной копии.`"
+      @confirm="bulkAction('delete')"
+    />
     <ConfirmDialog
       v-model:open="confirm"
       title="Удалить объект?"

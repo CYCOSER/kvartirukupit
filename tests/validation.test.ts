@@ -107,6 +107,11 @@ test("property rejects invalid slug, price and missing attributes", () => {
   };
   assert.equal(propertySchema.safeParse(p).success, true);
   assert.equal(propertySchema.parse(p).elite, false);
+  for (const housingMarket of ["newbuild", "secondary", null, undefined]) {
+    assert.equal(propertySchema.safeParse({ ...p, housingMarket }).success, true);
+  }
+  assert.equal(propertySchema.safeParse({ ...p, housingMarket: "other" }).success, false);
+  assert.equal(propertySchema.safeParse({ ...p, type: "complex", housingMarket: "newbuild" }).success, false);
   assert.equal(propertySchema.safeParse({ ...p, elite: true }).success, true);
   assert.equal(
     propertySchema.safeParse({ ...p, type: "complex", elite: true }).success,

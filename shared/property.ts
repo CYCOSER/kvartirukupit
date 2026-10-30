@@ -3,6 +3,7 @@ export const types = {
   complex: "Жилой комплекс",
   apartment: "Квартира",
 };
+export const housingMarkets = { newbuild: "Новостройка", secondary: "Вторичка" };
 export const statuses = {
   available: "В продаже",
   reserved: "Забронирован",
@@ -93,6 +94,7 @@ export const propertySchema = z.object({
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
     .max(120),
   type: z.enum(["complex", "apartment"]),
+  housingMarket: z.enum(["newbuild", "secondary"]).nullish(),
   complexId: z.string().trim().min(1).max(100).nullable().optional(),
   nmarketComplexId: sourceComplexId,
   rf39ComplexId: sourceComplexId,
@@ -116,6 +118,8 @@ export const propertySchema = z.object({
   featured: z.boolean(),
   elite: z.boolean().default(false),
   demo: z.boolean(),
+}).refine((property) => !property.housingMarket || property.type === "apartment", {
+  path: ["housingMarket"], message: "Рынок жилья можно указать только для квартиры",
 }).refine((property) => (property.latitude === null) === (property.longitude === null), {
   path: ["latitude"],
   message: "Укажите широту и долготу вместе или оставьте оба поля пустыми",

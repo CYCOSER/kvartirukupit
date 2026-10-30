@@ -184,6 +184,7 @@ export function nmarketDraft(item: NmarketObject, snapshotDate?: string) {
   if (item.rejectedImages) warnings.push('Некоторые адреса фотографий отклонены или превышают лимит.');
   if (item.type === 'complex') warnings.push(`ЖК собран по ${item.offerCount} предложениям. Отдельные квартиры не создавались; адреса и сроки корпусов нужно проверить.`);
   const data = propertySchema.parse({
+    housingMarket: item.type === 'apartment' ? 'newbuild' : null,
     title: item.type === 'apartment' ? apartmentTitle(item.bedrooms, item.area) : item.title,
     slug: `nmarket-${item.id.replace(':', '-')}`, type: item.type,
     location: item.location || 'Уточняется', address: item.address,
