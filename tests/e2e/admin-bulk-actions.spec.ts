@@ -267,7 +267,10 @@ test("catalog pages preserve selection and apply actions across all filtered pag
     await page.getByRole("option", { name: size, exact: true }).click();
   }
   await expect(rows).toHaveCount(20);
-  await expect(pagination).toContainText("Страница 1 из 3");
+  await expect(
+    pagination.getByRole("spinbutton", { name: "Номер страницы" }),
+  ).toHaveValue("1");
+  await expect(pagination).toContainText("из 3");
   await expect(
     pagination.getByRole("button", { name: "Назад", exact: true }),
   ).toBeDisabled();
@@ -290,12 +293,18 @@ test("catalog pages preserve selection and apply actions across all filtered pag
   await expect(actions).toContainText("Выбрано: 55");
   await pageSize("10");
   await expect(rows).toHaveCount(10);
-  await expect(pagination).toContainText("Страница 1 из 6");
+  await expect(
+    pagination.getByRole("spinbutton", { name: "Номер страницы" }),
+  ).toHaveValue("1");
+  await expect(pagination).toContainText("из 6");
   await pageSize("50");
   await expect(rows).toHaveCount(50);
   await pagination.getByRole("button", { name: "Далее", exact: true }).click();
   await expect(rows).toHaveCount(5);
-  await expect(pagination).toContainText("Страница 2 из 2");
+  await expect(
+    pagination.getByRole("spinbutton", { name: "Номер страницы" }),
+  ).toHaveValue("2");
+  await expect(pagination).toContainText("из 2");
   await expect(
     pagination.getByRole("button", { name: "Далее", exact: true }),
   ).toBeDisabled();
@@ -320,7 +329,10 @@ test("catalog pages preserve selection and apply actions across all filtered pag
     .getByRole("alertdialog")
     .getByRole("button", { name: "Удалить", exact: true })
     .click();
-  await expect(pagination).toContainText("Страница 1 из 1");
+  await expect(
+    pagination.getByRole("spinbutton", { name: "Номер страницы" }),
+  ).toHaveValue("1");
+  await expect(pagination).toContainText("из 1");
   await expect(rows).toHaveCount(50);
   expect(requests.at(-1)).toEqual({
     action: "delete",
@@ -330,7 +342,10 @@ test("catalog pages preserve selection and apply actions across all filtered pag
   await pagination.getByRole("button", { name: "Далее", exact: true }).click();
   await page.getByRole("combobox", { name: "На главной", exact: true }).click();
   await page.getByRole("option", { name: "Да", exact: true }).click();
-  await expect(pagination).toContainText("Страница 1 из 3");
+  await expect(
+    pagination.getByRole("spinbutton", { name: "Номер страницы" }),
+  ).toHaveValue("1");
+  await expect(pagination).toContainText("из 3");
   await actions
     .getByRole("button", { name: "Выбрать все", exact: true })
     .click();
@@ -349,7 +364,10 @@ test("catalog pages preserve selection and apply actions across all filtered pag
       exact: true,
     })
     .click();
-  await expect(pagination).toContainText("Страница 1 из 3");
+  await expect(
+    pagination.getByRole("spinbutton", { name: "Номер страницы" }),
+  ).toHaveValue("1");
+  await expect(pagination).toContainText("из 3");
   await expect(names.first()).toHaveText("Квартира 049");
   await actions
     .getByRole("button", { name: "Опубликовать", exact: true })
@@ -374,6 +392,78 @@ test("catalog pages preserve selection and apply actions across all filtered pag
         document.documentElement.clientWidth,
     ),
   ).toBe(true);
+});
+
+test("page arrows and editable page number sit below the list and validate input", async ({
+  page,
+}) => {
+  await catalog(
+    page,
+    Array.from({ length: 241 }, (_, i) => ({
+      ...base,
+      id: `page-${i}`,
+      title: `Квартира ${String(i + 1).padStart(3, "0")}`,
+    })),
+  );
+  const pagination = page.getByRole("navigation", {
+    name: "Страницы объектов",
+  });
+  const pageNumber = pagination.getByRole("spinbutton", {
+    name: "Номер страницы",
+  });
+  const names = page.locator(".admin-property-name");
+  const tableBox = await page.locator(".admin-table-wrap").boundingBox();
+  const pagerBox = await pagination.boundingBox();
+  expect(pagerBox!.y).toBeGreaterThanOrEqual(tableBox!.y + tableBox!.height);
+  await expect(
+    pagination.getByRole("button", { name: "Назад", exact: true }),
+  ).toHaveText("");
+  await expect(
+    pagination.getByRole("button", { name: "Далее", exact: true }),
+  ).toHaveText("");
+  await pageNumber.fill("12");
+  await expect(names.first()).toHaveText("Квартира 001");
+  await pageNumber.press("Enter");
+  await expect(names.first()).toHaveText("Квартира 221");
+  await pageNumber.fill("999");
+  await pageNumber.press("Enter");
+  await expect(pageNumber).toHaveValue("13");
+  await expect(names).toHaveText(["Квартира 241"]);
+  await expect(
+    pagination.getByRole("button", { name: "Далее", exact: true }),
+  ).toBeDisabled();
+  await pageNumber.fill("0");
+  await pageNumber.press("Tab");
+  await expect(pageNumber).toHaveValue("1");
+  await expect(
+    pagination.getByRole("button", { name: "Назад", exact: true }),
+  ).toBeDisabled();
+  for (const invalid of ["", "2.5"]) {
+    await pageNumber.fill(invalid);
+    await pageNumber.press("Enter");
+    await expect(pageNumber).toHaveValue("1");
+  }
+  await pageNumber.fill("2");
+  await pageNumber.press("Tab");
+  await expect(names.first()).toHaveText("Квартира 021");
+  await pagination.getByRole("button", { name: "Далее", exact: true }).click();
+  await expect(pageNumber).toHaveValue("3");
+  await pagination.getByRole("button", { name: "Назад", exact: true }).click();
+  await expect(pageNumber).toHaveValue("2");
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await pagination.scrollIntoViewIfNeeded();
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    await pagination.screenshot({
+      path: test.info().outputPath(`pagination-${width}.png`),
+    });
+  }
 });
 
 test("large selections continue after a failed batch and retain failures for retry", async ({

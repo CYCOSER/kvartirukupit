@@ -15,6 +15,8 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-vue-next";
 import Button from "~/components/ui/button/Button.vue";
 import ConfirmDialog from "~/components/ui/alert-dialog/ConfirmDialog.vue";
@@ -129,6 +131,13 @@ watch([filters, pageSize, sortField, sortDirection], () => {
 watch(pageCount, (count) => {
   page.value = Math.min(page.value, count);
 });
+function goToPage(event: Event) {
+  const input = event.target as HTMLInputElement;
+  if (Number.isInteger(input.valueAsNumber)) {
+    page.value = Math.min(pageCount.value, Math.max(1, input.valueAsNumber));
+  }
+  input.value = String(page.value);
+}
 const selectedIds = ref(new Set<string>());
 const bulkBusy = ref(false);
 const confirmBulkDelete = ref(false);
@@ -468,41 +477,6 @@ async function publish(p: AdminPropertyListItem) {
         </button>
         <span v-if="bulkBusy" role="status">Обработка объектов…</span>
       </div>
-      <nav class="admin-pagination" aria-label="Страницы объектов">
-        <label
-          >Объектов на странице<AppSelect
-            :model-value="String(pageSize)"
-            aria-label="Объектов на странице"
-            @update:model-value="pageSize = Number($event)"
-          >
-            <AppSelectOption
-              v-for="size in [10, 20, 50]"
-              :key="size"
-              :value="String(size)"
-              >{{ size }}</AppSelectOption
-            >
-          </AppSelect></label
-        >
-        <div>
-          <button
-            type="button"
-            class="btn-secondary"
-            :disabled="page === 1"
-            @click="page--"
-          >
-            Назад
-          </button>
-          <span role="status">Страница {{ page }} из {{ pageCount }}</span>
-          <button
-            type="button"
-            class="btn-secondary"
-            :disabled="page === pageCount"
-            @click="page++"
-          >
-            Далее
-          </button>
-        </div>
-      </nav>
       <div
         class="admin-table-wrap"
         tabindex="0"
@@ -652,6 +626,56 @@ async function publish(p: AdminPropertyListItem) {
           </tbody>
         </table>
       </div>
+      <nav class="admin-pagination" aria-label="Страницы объектов">
+        <label
+          >Объектов на странице<AppSelect
+            :model-value="String(pageSize)"
+            aria-label="Объектов на странице"
+            @update:model-value="pageSize = Number($event)"
+          >
+            <AppSelectOption
+              v-for="size in [10, 20, 50]"
+              :key="size"
+              :value="String(size)"
+              >{{ size }}</AppSelectOption
+            >
+          </AppSelect></label
+        >
+        <div>
+          <button
+            type="button"
+            class="btn-secondary"
+            :disabled="page === 1"
+            aria-label="Назад"
+            title="Предыдущая страница"
+            @click="page--"
+          >
+            <ChevronLeft :size="18" aria-hidden="true" />
+          </button>
+          <input
+            type="number"
+            inputmode="numeric"
+            aria-label="Номер страницы"
+            :value="page"
+            min="1"
+            :max="pageCount"
+            step="1"
+            @change="goToPage"
+            @keydown.enter.prevent="goToPage"
+          />
+          <span>из {{ pageCount }}</span>
+          <button
+            type="button"
+            class="btn-secondary"
+            :disabled="page === pageCount"
+            aria-label="Далее"
+            title="Следующая страница"
+            @click="page++"
+          >
+            <ChevronRight :size="18" aria-hidden="true" />
+          </button>
+        </div>
+      </nav>
     </template>
     <ConfirmDialog
       v-model:open="confirmBulkDelete"

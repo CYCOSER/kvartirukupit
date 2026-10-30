@@ -385,7 +385,7 @@
 }
 .admin-pagination {
   justify-content: space-between;
-  margin-bottom: 14px;
+  margin-top: 14px;
   font-size: 12px;
 }
 .admin-pagination > label {
@@ -395,6 +395,15 @@
 }
 .admin-pagination .select-field {
   width: 80px;
+}
+.admin-pagination input {
+  width: 64px;
+  text-align: center;
+}
+.admin-pagination button {
+  width: 42px;
+  height: 42px;
+  padding: 0;
 }
 .admin-pagination button:disabled {
   opacity: 0.5;
