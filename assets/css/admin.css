@@ -399,6 +399,12 @@
 .admin-pagination input {
   width: 64px;
   text-align: center;
+  appearance: textfield;
+}
+.admin-pagination input::-webkit-inner-spin-button,
+.admin-pagination input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 .admin-pagination button {
   width: 42px;
