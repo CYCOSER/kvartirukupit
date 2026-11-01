@@ -38,12 +38,6 @@ const roundedMoney = (value: number) => money(Math.round(value));
         <h2 :id="uid + '-title'">Калькулятор ипотеки</h2>
       </div>
     </div>
-    <p class="mortgage-intro">
-      Посмотрите, как взнос, срок и ставка влияют на ежемесячный платёж.
-    </p>
-    <p v-if="price === null" class="mortgage-notice">
-      Цена объекта — по запросу. Введите предполагаемую стоимость для расчёта.
-    </p>
     <div class="mortgage-grid">
       <div class="mortgage-fields">
         <label :for="uid + '-cost'"
@@ -99,37 +93,33 @@ const roundedMoney = (value: number) => money(Math.round(value));
         </div>
       </div>
       <div class="mortgage-result" aria-live="polite" aria-atomic="true">
-        <template v-if="result"
-          ><p>Ежемесячный платёж</p>
-          <strong class="mortgage-payment">{{
-            roundedMoney(result.monthly)
-          }}</strong
-          ><span class="mortgage-caption">равными платежами каждый месяц</span>
-          <dl>
-            <div>
-              <dt>Первый взнос</dt>
-              <dd>{{ roundedMoney(result.deposit) }}</dd>
-            </div>
-            <div>
-              <dt>Сумма кредита</dt>
-              <dd>{{ roundedMoney(result.principal) }}</dd>
-            </div>
-            <div>
-              <dt>Проценты за весь срок</dt>
-              <dd>{{ roundedMoney(result.interest) }}</dd>
-            </div>
-            <div>
-              <dt>Всего выплат по кредиту</dt>
-              <dd>{{ roundedMoney(result.total) }}</dd>
-            </div>
-          </dl>
-          <p v-if="result.principal === 0">
-            При взносе 100% кредит не требуется.
-          </p></template
-        >
-        <p v-else>
-          Укажите стоимость от 1 ₽ до 2 млрд ₽, взнос от 0 до 100%, срок в целых
-          годах от 1 до 30 и ставку от 0 до 50%.
+        <p>Ежемесячный платёж</p>
+        <strong class="mortgage-payment">{{
+          roundedMoney(result?.monthly ?? 0)
+        }}</strong>
+        <span class="mortgage-caption">{{
+          result ? "равными платежами каждый месяц" : "Расчёт ещё не выполнен"
+        }}</span>
+        <dl>
+          <div>
+            <dt>Первый взнос</dt>
+            <dd>{{ roundedMoney(result?.deposit ?? 0) }}</dd>
+          </div>
+          <div>
+            <dt>Сумма кредита</dt>
+            <dd>{{ roundedMoney(result?.principal ?? 0) }}</dd>
+          </div>
+          <div>
+            <dt>Проценты за весь срок</dt>
+            <dd>{{ roundedMoney(result?.interest ?? 0) }}</dd>
+          </div>
+          <div>
+            <dt>Всего выплат по кредиту</dt>
+            <dd>{{ roundedMoney(result?.total ?? 0) }}</dd>
+          </div>
+        </dl>
+        <p v-if="result?.principal === 0">
+          При взносе 100% кредит не требуется.
         </p>
       </div>
     </div>
@@ -146,7 +136,7 @@ const roundedMoney = (value: number) => money(Math.round(value));
   margin: 40px 0;
   padding: clamp(20px, 3vw, 32px);
   border: 1px solid #c4d0e0;
-  border-radius: 20px;
+  border-radius: 0;
   background: #fff;
 }
 .mortgage-heading {
@@ -174,7 +164,7 @@ const roundedMoney = (value: number) => money(Math.round(value));
   place-items: center;
   flex: 0 0 48px;
   min-height: 48px;
-  border-radius: 14px;
+  border-radius: 0;
   color: #476184;
   background: #d9e3f0;
 }
@@ -183,18 +173,6 @@ const roundedMoney = (value: number) => money(Math.round(value));
   margin: 0;
   line-height: 1.2;
   letter-spacing: -0.03em;
-}
-.mortgage-intro,
-.mortgage-notice {
-  font-size: 0.875rem;
-  line-height: 1.7;
-  margin-top: 18px;
-  color: #486285;
-}
-.mortgage-notice {
-  padding: 12px;
-  background: #d9e3f0;
-  border-radius: 8px;
 }
 .mortgage-grid {
   display: grid;
@@ -240,7 +218,7 @@ const roundedMoney = (value: number) => money(Math.round(value));
   min-width: 0;
   background: #102f50;
   color: #fff;
-  border-radius: 14px;
+  border-radius: 0;
   padding: 24px;
   font-size: 0.875rem;
   line-height: 1.6;

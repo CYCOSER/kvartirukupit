@@ -1,8 +1,13 @@
 import { test, expect } from "@playwright/test";
 test("mortgage responds to fields, presets and invalid values", async ({
   page,
+  request,
 }) => {
-  await page.goto("/catalog/zhk-traditsiya");
+  const response = await request.get("/api/properties?status=available");
+  expect(response.ok()).toBeTruthy();
+  const { items } = await response.json();
+  expect(items.length, "The catalog needs an available property").toBeGreaterThan(0);
+  await page.goto("/catalog/" + items[0].slug);
   const calc = page.locator("#mortgage");
   await expect(calc).toBeVisible();
   const cost = calc.getByLabel("Стоимость квартиры, ₽", { exact: true });
@@ -12,6 +17,11 @@ test("mortgage responds to fields, presets and invalid values", async ({
   await expect(deposit).toHaveValue("20");
   await expect(years).toHaveValue("20");
   await expect(rate).toHaveValue("16.9");
+  await cost.fill("");
+  await expect(calc.locator(".mortgage-payment")).toHaveText("0 ₽");
+  await expect(calc.locator(".mortgage-result dd")).toHaveText(["0 ₽", "0 ₽", "0 ₽", "0 ₽"]);
+  await expect(calc.getByText("Расчёт ещё не выполнен")).toBeVisible();
+  await expect(calc.getByText("При взносе 100% кредит не требуется.")).toHaveCount(0);
   await cost.fill("1200000");
   await deposit.fill("0");
   await years.fill("10");
@@ -26,7 +36,11 @@ test("mortgage responds to fields, presets and invalid values", async ({
     calc.getByText("При взносе 100% кредит не требуется."),
   ).toBeVisible();
   await years.fill("0");
-  await expect(calc.locator(".mortgage-payment")).toHaveCount(0);
+  await expect(calc.locator(".mortgage-payment")).toHaveText("0 ₽");
+  await expect(calc.locator(".mortgage-result dd")).toHaveText(["0 ₽", "0 ₽", "0 ₽", "0 ₽"]);
+  await expect(calc.getByText("Расчёт ещё не выполнен")).toBeVisible();
+  await expect(calc.getByText("Укажите стоимость от 1 ₽", { exact: false })).toHaveCount(0);
+  await expect(calc.getByText("При взносе 100% кредит не требуется.")).toHaveCount(0);
   await years.fill("20");
   await deposit.fill("20");
   await rate.fill("16.9");

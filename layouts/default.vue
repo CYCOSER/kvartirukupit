@@ -37,7 +37,8 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
     class="glass-home-layout"
     :class="{
       'glass-inner-layout': route.path !== '/',
-      'glass-photo-layout': /^\/(elite|catalog|blog|privacy)(\/|$)/.test(route.path),
+      'glass-photo-layout':
+        /^\/(elite|catalog|blog|privacy|ipoteka)(\/|$)/.test(route.path),
     }"
   >
     <a href="#main" class="skip-link">Перейти к содержимому</a>
@@ -58,6 +59,7 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
           <NuxtLink to="/elite">Элитные квартиры</NuxtLink
           ><NuxtLink to="/catalog">Новостройки</NuxtLink
           ><NuxtLink to="/#process">Как купить</NuxtLink
+          ><NuxtLink to="/ipoteka">Ипотека</NuxtLink
           ><NuxtLink to="/blog">Блог</NuxtLink>
         </nav>
         <NuxtLink to="/catalog" class="header-catalog">Новостройки</NuxtLink>
@@ -102,8 +104,12 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
                 ><ArrowUpRight :size="19" aria-hidden="true"
               /></NuxtLink>
 
+              <NuxtLink to="/ipoteka"
+                ><span><small aria-hidden="true">04</small>Ипотека</span
+                ><ArrowUpRight :size="19" aria-hidden="true"
+              /></NuxtLink>
               <NuxtLink to="/blog"
-                ><span><small aria-hidden="true">04</small>Блог</span
+                ><span><small aria-hidden="true">05</small>Блог</span
                 ><ArrowUpRight :size="19" aria-hidden="true"
               /></NuxtLink>
             </nav>
@@ -165,6 +171,9 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
                 ></NuxtLink
               >
 
+              <NuxtLink to="/ipoteka"
+                ><span><small>ПЛАНИРУЕМ ПОКУПКУ</small>Ипотека</span></NuxtLink
+              >
               <NuxtLink to="/blog"
                 ><span><small>ИНТЕРЕСНОЕ</small>Блог</span></NuxtLink
               >
@@ -353,7 +362,7 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
   color: #54739b;
 }
 .glass-home-layout .footer-destinations {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0;
 }
 .glass-home-layout .footer-destinations a {
@@ -416,6 +425,9 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
   }
 }
 @media (max-width: 540px) {
+  .glass-home-layout .footer-destinations {
+    grid-template-columns: 1fr;
+  }
   .glass-home-layout .site-footer {
     padding-top: 46px;
   }

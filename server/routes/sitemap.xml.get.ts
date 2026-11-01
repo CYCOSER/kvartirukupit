@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
     where: { published: true },
     select: { slug: true, updatedAt: true },
   });
-  const pages = ['', '/elite', '/catalog', '/blog', '/privacy'].map((path) => ({
+  const pages = ['', '/elite', '/catalog', '/ipoteka', '/blog', '/privacy'].map((path) => ({
     path,
     lastmod: '',
   }));

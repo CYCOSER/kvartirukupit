@@ -54,6 +54,20 @@ const { data, error, status, refresh } = await useFetch<{
     type: catalogType.value,
   })),
 });
+const page = computed(() => route.query.page === undefined ? 1
+  : typeof route.query.page === 'string' ? Number(route.query.page) : NaN);
+const pageOutOfRange = () => !mapView.value && (
+  !Number.isInteger(page.value) || page.value < 1 || page.value > 10000
+  || (data.value && page.value > Math.max(1, data.value.pages))
+);
+if (pageOutOfRange()) {
+  throw createError({ statusCode: 404, statusMessage: "Страница каталога не найдена" });
+}
+watch(data, () => {
+  if (pageOutOfRange()) {
+    showError({ statusCode: 404, statusMessage: "Страница каталога не найдена" });
+  }
+});
 const cardItems = computed(() => mapView.value ? [] : (data.value?.items || []) as Property[]);
 function changeView(view: "grid" | "map") {
   if ((view === "map") === mapView.value) return;
@@ -90,7 +104,6 @@ function reset() {
   router.push({ query: mapView.value ? { view: "map" } : {}, hash: "#homes" });
   open.value = false;
 }
-const page = computed(() => Number(route.query.page || 1));
 useCatalogTools(async (values) => {
   filters.value = { ...defaults, ...values };
   await router.push({ query: { ...values, ...(mapView.value ? { view: "map" } : {}) }, hash: "#homes" });

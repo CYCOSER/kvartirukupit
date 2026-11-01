@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { articleSchema } from "../shared/article";
 import { apartmentArticles } from "./apartment-articles";
+import { mortgageArticles } from "./mortgage-articles";
 import {
   importCatalog,
   importLegacyLeads,
@@ -25,13 +26,16 @@ export async function initializeSite(
       create: { email, passwordHash: await hash(password) },
     });
     if (firstSetup) {
-      for (const article of apartmentArticles) {
+      for (const article of [...apartmentArticles, ...mortgageArticles]) {
         await tx.article.upsert({
           where: { slug: article.slug },
           update: {},
           create: {
             ...articleSchema.parse(article),
-            publishedAt: new Date("2026-10-18T10:00:00.000Z"),
+            publishedAt: mortgageArticles.includes(article)
+              ? new Date()
+              : new Date("2026-10-18T10:00:00.000Z"),
+            image: mortgageArticles.includes(article) ? "/images/mortgage-planning.webp" : "",
           },
         });
       }

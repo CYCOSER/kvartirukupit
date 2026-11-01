@@ -138,9 +138,10 @@ onBeforeUnmount(() => {
 });
 usePageSeo(
   p.value.title,
-  [types[p.value.type], propertyAddress(p.value), readiness.value]
+  [p.value.title, types[p.value.type], propertyAddress(p.value), readiness.value]
     .filter(Boolean)
     .join(". "),
+  heroImage.value?.file,
 );
 useHead({
   script: [
@@ -181,19 +182,20 @@ useHead({
       :image="heroImage?.file"
       :alt="heroImage?.alt || ''"
     >
-      <nav class="breadcrumb" aria-label="Хлебные крошки">
+      <nav v-reveal class="breadcrumb" aria-label="Хлебные крошки">
         <NuxtLink to="/">Главная</NuxtLink><span aria-hidden="true">/</span
         ><NuxtLink :to="p.elite ? '/elite' : '/catalog'">{{ p.elite ? "Элитные квартиры" : "Новостройки" }}</NuxtLink
         ><span aria-hidden="true">/</span
         ><span aria-current="page">Объект</span>
       </nav>
-      <p class="eyebrow">{{ p.location }}</p>
-      <h1 class="detail-title">{{ p.title }}</h1>
-      <p class="detail-hero-script" :class="{ 'is-complex-name': p.type === 'apartment' && p.complex }">
+      <p v-reveal class="eyebrow">{{ p.location }}</p>
+      <h1 v-reveal="85" class="detail-title">{{ p.title }}</h1>
+      <p v-reveal="170" class="detail-hero-script" :class="{ 'is-complex-name': p.type === 'apartment' && p.complex }">
         {{ p.type === 'apartment' && p.complex ? 'ЖК ' + p.complex.title.replace(/^ЖК\s+/i, '') : types[p.type] }}
       </p>
-      <p v-if="seaDistance" class="detail-hero-location">{{ seaDistance }}</p>
+      <p v-if="seaDistance" v-reveal="170" class="detail-hero-location">{{ seaDistance }}</p>
       <a
+        v-reveal="255"
         :href="p.status === 'sold' ? '#about-property' : '#property-enquiry'"
         class="detail-hero-cta"
         >{{
@@ -202,16 +204,16 @@ useHead({
         <ArrowDown :size="20" aria-hidden="true"
       /></a>
       <template #aside>
-        <small
+        <small v-reveal="170"
           >{{ p.type === "complex" ? "Жилой комплекс" : statuses[p.status] }} /
           {{ priceCaption }}</small
         >
-        <strong class="detail-hero-price">{{ money(p.price) }}</strong>
-        <p>{{ readiness }}</p>
+        <strong v-reveal="255" class="detail-hero-price">{{ money(p.price) }}</strong>
+        <p v-reveal="340">{{ readiness }}</p>
       </template>
     </SceneHero>
     <section class="detail-gallery" aria-labelledby="detail-gallery-title">
-      <div class="detail-gallery-heading shell">
+      <div v-reveal class="detail-gallery-heading shell">
         <div>
           <p class="eyebrow">01 / ФОТОГРАФИИ</p>
           <h2 id="detail-gallery-title" class="type-pair">
@@ -235,7 +237,7 @@ useHead({
           ><MapPin :size="18" aria-hidden="true" /><span>Посмотреть на карте</span></NuxtLink>
         </div>
       </div>
-      <figure class="detail-gallery-figure">
+      <figure v-reveal="70" class="detail-gallery-figure">
         <div
           v-if="p.images.length"
           class="gallery-carousel"
@@ -324,6 +326,7 @@ useHead({
       </figure>
       <div
         v-if="p.images.length > 1"
+        v-reveal
         class="gallery-thumbs shell"
         role="group"
         aria-label="Фотографии объекта"
@@ -380,7 +383,7 @@ useHead({
           </button>
         </div>
       </dialog>
-      <dl class="detail-specs shell">
+      <dl v-reveal class="detail-specs shell">
         <div v-if="p.area != null">
           <dt>Площадь квартиры</dt>
           <dd>{{ p.area }} <span>м²</span></dd>
@@ -404,7 +407,7 @@ useHead({
       </dl>
     </section>
     <section id="about-property" class="shell detail-story">
-      <div class="detail-text">
+      <div v-reveal class="detail-text">
         <p class="eyebrow">02 / О ДОМЕ</p>
         <h2 class="type-pair">
           <span class="type-upright">О жилом комплексе</span>
@@ -416,7 +419,7 @@ useHead({
         </NuxtLink>
       </div>
       <div class="detail-attributes">
-        <div>
+        <div v-reveal="70">
           <h3>Готовность и отделка</h3>
           <dl>
             <div v-if="p.developer">
@@ -437,7 +440,7 @@ useHead({
             </div>
           </dl>
         </div>
-        <div>
+        <div v-reveal="140">
           <h3>Коммуникации и удобства</h3>
           <div v-if="p.utilities.length" class="utilities">
             <span v-for="item in p.utilities" :key="item">{{ item }}</span>
@@ -447,9 +450,9 @@ useHead({
       </div>
     </section>
     <section v-if="p.type === 'complex' && p.apartments?.length" class="shell detail-apartments" aria-labelledby="complex-apartments-title">
-      <h2 id="complex-apartments-title">Квартиры в этом ЖК</h2>
+      <h2 v-reveal id="complex-apartments-title">Квартиры в этом ЖК</h2>
       <div class="detail-apartments-grid">
-        <NuxtLink v-for="apartment in p.apartments" :key="apartment.id" :to="'/catalog/' + apartment.slug" class="detail-apartment">
+        <NuxtLink v-for="(apartment, i) in p.apartments" :key="apartment.id" v-reveal="(i % 3) * 70" :to="'/catalog/' + apartment.slug" class="detail-apartment">
           <img v-if="apartment.images[0]" :src="apartment.images[0].file" :alt="apartment.images[0].alt" width="400" height="280" loading="lazy" :class="{ 'is-plan': apartment.images[0].kind === 'plan' }" />
           <div class="detail-apartment-body">
             <span class="detail-apartment-status">{{ statuses[apartment.status] }}</span>
@@ -462,7 +465,7 @@ useHead({
       </div>
     </section>
     <section v-if="p.status !== 'sold'" class="detail-finance">
-      <div class="shell"><MortgageCalculator :price="p.price" /></div>
+      <div v-reveal class="shell"><MortgageCalculator :price="p.price" /></div>
     </section>
     <section
       id="property-enquiry"
@@ -471,14 +474,14 @@ useHead({
     >
       <div class="shell detail-enquiry-grid">
         <div class="detail-enquiry-story">
-          <p class="eyebrow">
+          <p v-reveal class="eyebrow">
             {{
               p.status === "sold"
                 ? "03 / ДРУГИЕ КВАРТИРЫ"
                 : "03 / ЛИЧНЫЙ ПРОСМОТР"
             }}
           </p>
-          <h2 class="type-pair">
+          <h2 v-reveal="85" class="type-pair">
             <span class="type-upright">{{
               p.status === "sold" ? "Продажи завершены" : "Увидимся?"
             }}</span>
@@ -486,14 +489,14 @@ useHead({
               p.status === "sold" ? "Найдём вашу" : "В новом квартале"
             }}</em>
           </h2>
-          <p>
+          <p v-reveal="170">
             {{
               p.status === "sold"
                 ? "Продажи в этом комплексе завершены. Посмотрите другие новостройки Калининграда."
                 : "Обсудим планировку, окружение и ваши пожелания. Оставьте контакты, чтобы согласовать личный просмотр."
             }}
           </p>
-          <div v-if="p.status !== 'sold'" class="detail-viewing-topics">
+          <div v-if="p.status !== 'sold'" v-reveal class="detail-viewing-topics">
             <p>На просмотре</p>
             <ol>
               <li>
@@ -519,7 +522,7 @@ useHead({
               </li>
             </ol>
           </div>
-          <div v-if="p.status !== 'sold'" class="detail-enquiry-place">
+          <div v-if="p.status !== 'sold'" v-reveal class="detail-enquiry-place">
             <img
               v-if="p.images[0]"
               :src="p.images[0].file"
@@ -543,6 +546,7 @@ useHead({
           </div>
           <NuxtLink
             v-if="p.status === 'sold'"
+            v-reveal="255"
             class="detail-hero-cta"
             :to="p.elite ? '/elite' : '/catalog'"
             >Выбрать другую квартиру
