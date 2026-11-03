@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Button from "~/components/ui/button/Button.vue";
+import { emptyAdminExclusions, matchesAdminExclusions } from "~/shared/admin-exclusions";
 import {
   articleSchema,
   type Article,
@@ -9,6 +10,15 @@ definePageMeta({ middleware: "admin", layout: "admin" });
 const { data, refresh, error } = await useFetch<Article[]>(
   "/api/admin/articles",
 );
+const exclusions = ref(emptyAdminExclusions());
+const exclusionFields = [{
+  key: "publication", label: "Публикация статьи",
+  options: [{ value: "published", label: "Опубликована" }, { value: "draft", label: "Черновик" }],
+}];
+const filtered = computed(() => data.value?.filter(article =>
+  matchesAdminExclusions(exclusions.value,
+    `${article.title} ${article.slug} ${article.excerpt} ${article.content}`,
+    { publication: article.published ? "published" : "draft" })) || []);
 const editing = ref(false),
   pending = ref(false),
   preview = ref(false);
@@ -257,6 +267,12 @@ async function remove(article: Article) {
     ></template>
     <template v-else
       ><Button class="mb-6" @click="edit()">Новая статья</Button>
+      <AdminExclusionFilters
+        v-model="exclusions"
+        :fields="exclusionFields"
+        class="admin-panel mb-6"
+        text-hint="Заголовок, адрес, анонс или текст статьи."
+      />
       <div class="admin-table-wrap">
         <table class="admin-table">
           <thead>
@@ -267,7 +283,7 @@ async function remove(article: Article) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="article in data" :key="article.id">
+            <tr v-for="article in filtered" :key="article.id">
               <td>
                 {{ article.title }}<small>/blog/{{ article.slug }}</small>
               </td>
@@ -287,8 +303,8 @@ async function remove(article: Article) {
                 </div>
               </td>
             </tr>
-            <tr v-if="!data?.length">
-              <td colspan="3">Статей пока нет. Создайте первую публикацию.</td>
+            <tr v-if="!filtered.length">
+              <td colspan="3">{{ data?.length ? "По выбранным фильтрам статьи не найдены." : "Статей пока нет. Создайте первую публикацию." }}</td>
             </tr>
           </tbody>
         </table>

@@ -4,6 +4,7 @@ import {
   emptyImportFilters,
   filterImportObjects,
   importFilterError,
+  matchesImportExclusions,
   type ImportObject,
 } from "../shared/import-catalog";
 
@@ -94,4 +95,62 @@ test("import sorting keeps unknown values last in both directions and does not r
     items.map((item) => item.id),
     ["1", "2", "3"],
   );
+});
+
+test("import exclusions combine with positive filters and match any excluded field or phrase", () => {
+  assert.deepEqual(ids({
+    city: "Калининград",
+    exclusions: { text: "", values: { developer: ["Застройщик Б"] } },
+  }), ["1"]);
+  assert.deepEqual(ids({
+    exclusions: { text: "  МИРА, 1  ;\n несуществующий адрес ", values: {} },
+  }), ["3"]);
+  assert.deepEqual(ids({
+    exclusions: { text: "квартира 1", values: { city: ["Зеленоградск"], developer: ["Застройщик Б"] } },
+  }), []);
+  assert.deepEqual(ids({
+    exclusions: { text: "", values: { category: ["Квартиры", "ЖК"] } },
+  }), []);
+  assert.deepEqual(ids({
+    category: "Квартиры",
+    exclusions: { text: "", values: { category: ["Квартиры"] } },
+  }), []);
+});
+
+test("import room exclusions distinguish studios, four or more rooms and missing data", () => {
+  const apartments = [
+    ...items,
+    { ...items[0]!, id: "4", bedrooms: 4 },
+    { ...items[0]!, id: "5", bedrooms: 5 },
+  ];
+  const keep = (rooms: string[]) => apartments
+    .filter(item => matchesImportExclusions(item, { text: "", values: { rooms } }))
+    .map(item => item.id);
+  assert.deepEqual(keep(["0"]), ["2", "3", "4", "5"]);
+  assert.deepEqual(keep(["4+"]), ["1", "2", "3"]);
+  assert.deepEqual(keep(["unknown"]), ["1", "2", "4", "5"]);
+  assert.deepEqual(keep(["0", "4+", "unknown"]), ["2"]);
+});
+
+test("import status exclusions keep overlapping imported and unsupported semantics", () => {
+  const importedUnsupported = { ...items[2]!, existingId: "existing-complex" };
+  for (const status of ["imported", "unsupported"]) {
+    assert.equal(matchesImportExclusions(importedUnsupported, { text: "", values: { status: [status] } }), false);
+  }
+  assert.equal(matchesImportExclusions(importedUnsupported, { text: "", values: { status: ["ready"] } }), true);
+  assert.deepEqual(ids({ exclusions: { text: "", values: { status: ["ready"] } } }), ["2", "3"]);
+  assert.deepEqual(ids({ exclusions: { text: "", values: { status: ["ready", "imported"] } } }), ["3"]);
+  assert.deepEqual(ids({ exclusions: { text: "", values: { status: ["unsupported"] } } }), ["1", "2"]);
+});
+
+test("empty import exclusions retain missing metadata and reset without shared mutable state", () => {
+  assert.deepEqual(ids({ exclusions: { text: " ; \n ", values: { city: [], rooms: [] } } }), ["1", "2", "3"]);
+  assert.deepEqual(ids({ exclusions: { text: "", values: { developer: ["Застройщик А", "Застройщик Б"] } } }), ["3"]);
+  const first = emptyImportFilters();
+  first.exclusions.values.city = ["Калининград"];
+  first.exclusions.text = "Комплекс";
+  assert.deepEqual(filterImportObjects(items, first), []);
+  Object.assign(first, emptyImportFilters());
+  assert.equal(filterImportObjects(items, first).length, 3);
+  assert.deepEqual(emptyImportFilters().exclusions, { text: "", values: {} });
 });

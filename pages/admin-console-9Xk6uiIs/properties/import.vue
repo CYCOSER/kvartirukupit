@@ -14,6 +14,7 @@ import {
   emptyImportFilters,
   filterImportObjects,
   importFilterError,
+  matchesImportExclusions,
   type ImportObject,
 } from "~/shared/import-catalog";
 
@@ -111,6 +112,26 @@ const options = (field: "category" | "location" | "developer") =>
 const categories = computed(() => options("category"));
 const cities = computed(() => options("location"));
 const developers = computed(() => options("developer"));
+const exclusionFields = computed(() => [
+  { key: "category", label: "Категория", options: categories.value.map(value => ({ value, label: value })) },
+  { key: "city", label: "Город", options: cities.value.map(value => ({ value, label: value })) },
+  { key: "developer", label: "Застройщик", options: developers.value.map(value => ({ value, label: value })) },
+  { key: "rooms", label: "Комнат", options: [
+    { value: "0", label: "Студия" },
+    ...["1", "2", "3", "4+"].map(value => ({ value, label: value })),
+    { value: "unknown", label: "Не указано" },
+  ] },
+  { key: "status", label: "Статус импорта", options: [
+    { value: "ready", label: "Готовы к импорту" },
+    { value: "imported", label: "Уже добавлены" },
+    { value: "unsupported", label: "Недоступны для импорта" },
+  ] },
+]);
+const nonExcludedItems = computed(() => items.value.filter(item => matchesImportExclusions(item, filters.exclusions)));
+watch(nonExcludedItems, allowed => {
+  const ids = new Set(allowed.map(item => item.id));
+  selected.value = selected.value.filter(id => ids.has(id));
+});
 const filterError = computed(() => importFilterError(filters));
 const filtered = computed(() => filterImportObjects(items.value, filters));
 const eligible = computed(() =>
@@ -227,7 +248,7 @@ function selectCategory() {
 
 async function importSelected() {
   if (loading.value || importing.value || submitting.value) return;
-  const pending = items.value.filter(
+  const pending = nonExcludedItems.value.filter(
     (item) =>
       selected.value.includes(item.id) && item.supported && !item.existingId,
   );
@@ -467,6 +488,11 @@ async function importSelected() {
             ></label
           >
         </div>
+        <AdminExclusionFilters
+          v-model="filters.exclusions"
+          :fields="exclusionFields"
+          text-hint="Исключить совпадения в названии, городе, адресе, ID или застройщике. Исключённые объекты снимаются с выбора."
+        />
         <p v-if="filterError" class="import-error" role="alert">
           {{ filterError }}
         </p>

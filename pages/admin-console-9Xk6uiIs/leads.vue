@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { leadStatuses } from "~/shared/property";
+import { emptyAdminExclusions, matchesAdminExclusions } from "~/shared/admin-exclusions";
 definePageMeta({ middleware: "admin", layout: "admin" });
 type Lead = {
   id: string;
@@ -12,10 +13,18 @@ type Lead = {
 };
 const { data, refresh, error } = await useFetch<Lead[]>("/api/admin/leads");
 const status = ref("");
+const exclusions = ref(emptyAdminExclusions());
+const exclusionFields = [{
+  key: "status", label: "Статус заявки",
+  options: Object.entries(leadStatuses).map(([value, label]) => ({ value, label })),
+}];
 const notice = ref("");
 const filtered = computed(
   () =>
-    data.value?.filter((l) => !status.value || l.status === status.value) || [],
+    data.value?.filter((l) => (!status.value || l.status === status.value) &&
+      matchesAdminExclusions(exclusions.value,
+        `${l.name} ${l.phone} ${l.comment} ${l.property?.title || "Подбор квартиры"}`,
+        { status: l.status })) || [],
 );
 async function change(id: string, value: string) {
   try {
@@ -44,6 +53,12 @@ async function change(id: string, value: string) {
         {{ label }}
       </AppSelectOption>
     </AppSelect>
+    <AdminExclusionFilters
+      v-model="exclusions"
+      :fields="exclusionFields"
+      class="admin-panel mb-6"
+      text-hint="Имя, телефон, комментарий или название объекта."
+    />
     <p v-if="notice" class="toast" role="status">{{ notice }}</p>
     <p v-if="error" class="error-text">Не удалось загрузить заявки.</p>
     <div v-else class="admin-table-wrap">
@@ -94,7 +109,7 @@ async function change(id: string, value: string) {
             </td>
           </tr>
           <tr v-if="!filtered.length">
-            <td colspan="4">Заявок пока нет.</td>
+            <td colspan="4">{{ data?.length ? "По выбранным фильтрам заявки не найдены." : "Заявок пока нет." }}</td>
           </tr>
         </tbody>
       </table>

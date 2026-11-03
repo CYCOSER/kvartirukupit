@@ -524,3 +524,77 @@ test('one apartment-search job includes selected complexes across pages and excl
   expect(fixture.requests[0]).toMatchObject({ kind: 'apartments', complexIds: ['complex-0', 'complex-21'], preferredSource: 'rf39' });
   await expect(page.getByText('Поиск запустится для ЖК: 2.', { exact: false })).toContainText('Выбранные квартиры (1)');
 });
+
+test('exclusions combine with property filters, clear selection and reset without hiding complexes with no housing market', async ({ page }) => {
+  const requests = await catalog(page, [
+    base,
+    { ...base, id: 'two', title: 'Квартира у моря', location: 'Зеленоградск' },
+    { ...base, id: 'three', title: 'Квартира у леса', location: 'Светлогорск' },
+    { ...base, id: 'unknown', title: 'Квартира без рынка', housingMarket: null },
+    { ...base, id: 'complex', title: 'Жилой комплекс', type: 'complex', housingMarket: null },
+  ]);
+  const names = page.locator('.admin-property-name');
+  const actions = page.getByRole('group', { name: 'Массовые действия' });
+  const panel = page.locator('.admin-exclusions');
+  async function exclude(label: string, value: string) {
+    await panel.getByRole('combobox', { name: `Исключить: ${label}`, exact: true }).click();
+    await page.getByRole('option', { name: value, exact: true }).click();
+  }
+  await actions.getByRole('button', { name: 'Выбрать все', exact: true }).click();
+  await panel.locator('summary').click();
+  await exclude('Город', 'Зеленоградск');
+  await exclude('Город', 'Светлогорск');
+  await expect(names).toHaveText([base.title, 'Квартира без рынка', 'Жилой комплекс']);
+  await expect(actions).toContainText('Выбрано: 3');
+  await exclude('Рынок квартиры', 'Не указан');
+  await expect(names).toHaveText([base.title, 'Жилой комплекс']);
+  await expect(actions).toContainText('Выбрано: 2');
+  await page.getByRole('textbox', { name: 'Поиск объектов', exact: true }).fill('Квартира');
+  await expect(names).toHaveText([base.title]);
+  await panel.getByRole('textbox', { name: 'Исключить по тексту', exact: true }).fill(' У ПАРКА ;\nу моря\n');
+  await expect(names).toHaveCount(0);
+  await expect(actions).toContainText('Выбрано: 0');
+  await page.getByRole('button', { name: 'Сбросить фильтры', exact: true }).click();
+  await expect(names).toHaveCount(5);
+  await expect(panel.getByRole('textbox', { name: 'Исключить по тексту', exact: true })).toHaveValue('');
+  await expect(actions).toContainText('Выбрано: 0');
+
+  await actions.getByRole('button', { name: 'Выбрать все', exact: true }).click();
+  await exclude('Город', 'Зеленоградск');
+  await exclude('Город', 'Светлогорск');
+  await exclude('Рынок квартиры', 'Не указан');
+  await actions.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Опубликовано: 2.' })).toBeVisible();
+  expect(requests).toEqual([{ action: 'publish', ids: ['one', 'complex'] }]);
+  await panel.getByRole('button', { name: 'Убрать исключение: Город — Зеленоградск', exact: true }).click();
+  await expect(names).toHaveText([base.title, 'Квартира у моря', 'Жилой комплекс']);
+  await panel.getByRole('button', { name: 'Сбросить исключения', exact: true }).click();
+  await expect(names).toHaveCount(5);
+  await expect(page.getByRole('button', { name: 'Сбросить фильтры', exact: true })).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await exclude('Город', 'Зеленоградск');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await panel.screenshot({ path: test.info().outputPath('property-exclusions-mobile.png') });
+});
+
+test('excluded selected complexes never reach an apartment-search job', async ({ page }) => {
+  await catalog(page, [
+    { ...base, id: 'complex-keep', title: 'ЖК у парка', type: 'complex' },
+    { ...base, id: 'complex-skip', title: 'ЖК у моря', type: 'complex', location: 'Зеленоградск' },
+    { ...base, id: 'apartment', title: 'Отдельная квартира' },
+  ]);
+  const fixture = await mockImportJobs(page, { create: (_request, job) => { job.status = 'running'; } });
+  const actions = page.getByRole('group', { name: 'Массовые действия' });
+  await actions.getByRole('button', { name: 'Выбрать все', exact: true }).click();
+  const panel = page.locator('.admin-exclusions');
+  await panel.locator('summary').click();
+  await panel.getByRole('combobox', { name: 'Исключить: Город', exact: true }).click();
+  await page.getByRole('option', { name: 'Зеленоградск', exact: true }).click();
+  await expect(actions).toContainText('Выбрано: 2');
+  await page.getByTestId('complex-apartment-search').getByRole('button', {
+    name: 'Найти квартиры для выбранных ЖК (1)', exact: true,
+  }).click();
+  await expect.poll(() => fixture.requests.length).toBe(1);
+  expect(fixture.requests[0]).toMatchObject({ kind: 'apartments', complexIds: ['complex-keep'] });
+});

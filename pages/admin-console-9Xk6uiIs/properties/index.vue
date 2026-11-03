@@ -21,6 +21,7 @@ import {
 import Button from "~/components/ui/button/Button.vue";
 import ConfirmDialog from "~/components/ui/alert-dialog/ConfirmDialog.vue";
 import { statuses, housingMarkets, money } from "~/shared/property";
+import { emptyAdminExclusions, matchesAdminExclusions } from "~/shared/admin-exclusions";
 import {
   adminPropertyTypes,
   adminPropertyType,
@@ -49,6 +50,16 @@ const filters = reactive({
   areaMin: "" as string | number,
   areaMax: "" as string | number,
 });
+const exclusions = ref(emptyAdminExclusions());
+const exclusionFields = computed(() => [
+  { key: "type", label: "Тип объекта", options: Object.entries(adminPropertyTypes).map(([value, label]) => ({ value, label })) },
+  { key: "city", label: "Город", options: [...new Set((data.value || []).map(property => property.location).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru")).map(value => ({ value, label: value })) },
+  { key: "status", label: "Статус", options: Object.entries(statuses).map(([value, label]) => ({ value, label })) },
+  { key: "catalog", label: "Каталог", options: [{ value: "newbuilds", label: "Новостройки" }, { value: "elite", label: "Элитные квартиры" }] },
+  { key: "publication", label: "Публикация", options: [{ value: "published", label: "Опубликованные" }, { value: "draft", label: "Черновики" }] },
+  { key: "featured", label: "На главной", options: [{ value: "yes", label: "Да" }, { value: "no", label: "Нет" }] },
+  { key: "housingMarket", label: "Рынок квартиры", options: [...Object.entries(housingMarkets).map(([value, label]) => ({ value, label })), { value: "unknown", label: "Не указан" }] },
+]);
 const deleting = ref<AdminPropertyListItem | null>(null),
   confirm = ref(false),
   notice = ref("");
@@ -58,7 +69,8 @@ const totals = computed(() => ({
   drafts: data.value?.filter((p) => !p.published).length || 0,
 }));
 const hasFilters = computed(() =>
-  Object.values(filters).some((value) => value !== ""),
+  Object.values(filters).some((value) => value !== "") || exclusions.value.text.trim() !== "" ||
+  Object.values(exclusions.value.values).some(values => values.length > 0),
 );
 const sortField = ref<AdminSortField | null>(null);
 const sortDirection = ref<AdminSortDirection>("asc");
@@ -108,7 +120,13 @@ const filtered = computed(
         inRange(p.area, filters.areaMin, filters.areaMax) &&
         (p.title + " " + p.location + " " + p.address)
           .toLowerCase()
-          .includes(filters.query.trim().toLowerCase()),
+          .includes(filters.query.trim().toLowerCase()) &&
+        matchesAdminExclusions(exclusions.value, `${p.title} ${p.location} ${p.address}`, {
+          type: adminPropertyType(p), city: p.location, status: p.status,
+          catalog: p.elite ? "elite" : "newbuilds",
+          publication: p.published ? "published" : "draft", featured: p.featured ? "yes" : "no",
+          housingMarket: p.type === "apartment" ? p.housingMarket || "unknown" : null,
+        }),
     ) || [],
 );
 const sorted = computed(() =>
@@ -125,9 +143,9 @@ const pageItems = computed(() =>
     page.value * pageSize.value,
   ),
 );
-watch([filters, pageSize, sortField, sortDirection], () => {
+watch([filters, exclusions, pageSize, sortField, sortDirection], () => {
   page.value = 1;
-});
+}, { deep: true });
 watch(pageCount, (count) => {
   page.value = Math.min(page.value, count);
 });
@@ -139,7 +157,7 @@ function goToPage(event: Event) {
   input.value = String(page.value);
 }
 const selectedIds = ref(new Set<string>());
-const selectedComplexes = computed(() => (data.value || []).filter(
+const selectedComplexes = computed(() => filtered.value.filter(
   property => property.type === "complex" && selectedIds.value.has(property.id),
 ));
 const bulkBusy = ref(false);
@@ -152,7 +170,8 @@ watch(filtered, (items) => {
 
 async function bulkAction(action: "publish" | "unpublish" | "delete") {
   if (bulkBusy.value || !selectedIds.value.size) return;
-  const ids = [...selectedIds.value];
+  const ids = filtered.value.filter(property => selectedIds.value.has(property.id)).map(property => property.id);
+  if (!ids.length) return;
   let completed = 0;
   let failed = 0;
   bulkBusy.value = true;
@@ -192,6 +211,7 @@ async function bulkAction(action: "publish" | "unpublish" | "delete") {
   }
 }
 function resetFilters() {
+  exclusions.value = emptyAdminExclusions();
   Object.assign(filters, {
     query: "",
     status: "",
@@ -419,6 +439,11 @@ async function publish(p: AdminPropertyListItem) {
           </div>
         </fieldset>
       </div>
+      <AdminExclusionFilters
+        v-model="exclusions"
+        :fields="exclusionFields"
+        text-hint="Проверяем название, город и адрес. Исключённые объекты снимаются с выбора для массовых действий."
+      />
     </section>
     <p v-if="notice" class="toast" role="status">{{ notice }}</p>
     <p v-if="error" class="error-text" role="alert">

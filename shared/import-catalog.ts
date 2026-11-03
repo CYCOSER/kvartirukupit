@@ -1,3 +1,5 @@
+import { emptyAdminExclusions, matchesAdminExclusions, type AdminExclusions } from "./admin-exclusions";
+
 export type ImportObject = {
   id: string | number;
   title: string;
@@ -26,6 +28,7 @@ export const emptyImportFilters = () => ({
   maxPrice: "" as string | number,
   minArea: "" as string | number,
   maxArea: "" as string | number,
+  exclusions: emptyAdminExclusions(),
 });
 export type ImportFilters = ReturnType<typeof emptyImportFilters>;
 
@@ -52,6 +55,22 @@ export function importFilterError(filters: ImportFilters): string {
   return "";
 }
 
+const searchableText = (item: ImportObject) =>
+  `${item.id} ${item.title} ${item.location} ${item.address} ${item.developer || ""}`;
+
+export function matchesImportExclusions(item: ImportObject, exclusions: AdminExclusions): boolean {
+  return matchesAdminExclusions(exclusions, searchableText(item), {
+    category: item.category,
+    city: item.location,
+    developer: item.developer,
+    rooms: item.bedrooms == null ? "unknown" : item.bedrooms >= 4 ? "4+" : String(item.bedrooms),
+  }) && !(exclusions.values.status || []).some(status =>
+    status === "ready" ? item.supported && !item.existingId
+      : status === "imported" ? !!item.existingId
+        : status === "unsupported" && !item.supported,
+  );
+}
+
 export function filterImportObjects(
   items: ImportObject[],
   filters: ImportFilters,
@@ -75,6 +94,7 @@ export function filterImportObjects(
   };
   const result = items.filter(
     (item) =>
+      matchesImportExclusions(item, filters.exclusions) &&
       (!filters.category || item.category === filters.category) &&
       (!filters.city || item.location === filters.city) &&
       (!filters.developer || item.developer === filters.developer) &&
@@ -91,7 +111,7 @@ export function filterImportObjects(
             : !item.supported)) &&
       inRange(item.price, filters.minPrice, filters.maxPrice) &&
       inRange(item.area, filters.minArea, filters.maxArea) &&
-      `${item.id} ${item.title} ${item.location} ${item.address} ${item.developer || ""}`
+      searchableText(item)
         .toLocaleLowerCase("ru")
         .includes(search),
   );
