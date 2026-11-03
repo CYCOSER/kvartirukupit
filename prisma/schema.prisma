@@ -120,6 +120,57 @@ model AdminUser {
   email        String    @unique
   passwordHash String
   sessions     Session[]
+  importJobs   ImportJob[]
+}
+
+model ImportJob {
+  id             String   @id @default(cuid())
+  ownerId        String
+  owner          AdminUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  requestId      String
+  kind           String
+  request        Json
+  status         String   @default("queued")
+  stopRequested  Boolean  @default(false)
+  activeTitle    String   @default("")
+  total          Int      @default(0)
+  processed      Int      @default(0)
+  created        Int      @default(0)
+  linked         Int      @default(0)
+  existing       Int      @default(0)
+  failed         Int      @default(0)
+  error          String?
+  token          String?
+  leaseExpiresAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  finishedAt     DateTime?
+  items          ImportJobItem[]
+
+  @@unique([ownerId, requestId])
+  @@index([status, leaseExpiresAt, createdAt])
+}
+
+model ImportJobItem {
+  id           String   @id @default(cuid())
+  jobId        String
+  job          ImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  key          String
+  groupOrder   Int
+  step         Int
+  kind         String
+  source       String
+  title        String
+  complexId    String?
+  complexTitle String?
+  payload      Json
+  status       String   @default("queued")
+  result       Json?
+  error        String?
+  updatedAt    DateTime @updatedAt
+
+  @@unique([jobId, key])
+  @@index([jobId, status, groupOrder, step])
 }
 
 model Session {

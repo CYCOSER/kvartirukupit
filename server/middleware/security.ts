@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
     path !== '/api/admin/logout'
   ) {
     const length = getHeader(event, 'content-length');
-    const max =
+    const max = path === '/api/admin/import-jobs' && event.method === 'POST' ? 1024 * 1024 :
       (path.endsWith('/images') || path.endsWith('/image')) &&
       event.method === 'POST'
         ? 12 * 1024 * 1024

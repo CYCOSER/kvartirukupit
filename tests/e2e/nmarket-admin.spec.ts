@@ -1,17 +1,9 @@
-import { test, expect } from "@playwright/test";
-import { readFile } from "node:fs/promises";
-import { parseEnv } from "node:util";
-
-const env = { ...parseEnv(await readFile(".env", "utf8")), ...process.env };
+import { expect } from "@playwright/test";
+import { test } from './fixtures/admin-session';
+import { mockImportJobs, openImportResults } from './fixtures/import-jobs';
 
 test.beforeEach(async ({ page }) => {
-  const login = await page.request.post("/api/admin/login", {
-    headers: {
-      Origin: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3100",
-    },
-    data: { email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD },
-  });
-  expect(login.ok()).toBe(true);
+  await mockImportJobs(page);
 });
 
 test("Nmarket import filters the received list and imports only selected new objects", async ({
@@ -91,18 +83,12 @@ test("Nmarket import filters the received list and imports only selected new obj
       },
     });
   });
-  await page.route("**/api/admin/nmarket/import", async (route) => {
-    const { id } = route.request().postDataJSON();
+  await mockImportJobs(page, { importItem: async (source, { id }) => {
+    expect(source).toBe('nmarket');
     expect(typeof id).toBe("string");
-    imported.push(id);
-    await route.fulfill({
-      json: {
-        id: `draft-${id}`,
-        created: id !== apartment.id,
-        warnings: [],
-      },
-    });
-  });
+    imported.push(String(id));
+    return { id: `draft-${id}`, created: id !== apartment.id, warnings: [] };
+  } });
 
   await page.goto("/admin-console-9Xk6uiIs/properties/import?source=nmarket");
   await expect(
@@ -198,6 +184,7 @@ test("Nmarket import filters the received list and imports only selected new obj
   await page
     .getByRole("button", { name: "Создать черновики (1)", exact: true })
     .click();
+  await openImportResults(page);
   await expect(
     page.getByRole("link", { name: "Студия у моря — открыть черновик" }),
   ).toHaveAttribute("href", "/admin-console-9Xk6uiIs/properties/draft-n-studio");
@@ -238,6 +225,8 @@ test("Nmarket import filters the received list and imports only selected new obj
   await page
     .getByRole("button", { name: "Создать черновики (1)", exact: true })
     .click();
+  await expect(page.locator('.import-page .import-results')).toContainText('Просторная квартира');
+  await openImportResults(page);
   await expect(
     page.getByRole("link", {
       name: "Просторная квартира — уже добавлен, открыть",
@@ -365,12 +354,11 @@ test("Nmarket opens the saved export automatically and keeps live refresh explic
       });
     }
   });
-  await page.route("**/api/admin/nmarket/import", async (route) => {
-    imported.push(route.request().postDataJSON());
-    await route.fulfill({
-      json: { id: "saved-draft", created: true, warnings: [] },
-    });
-  });
+  await mockImportJobs(page, { importItem: async (source, { id }, snapshot) => {
+    expect(source).toBe('nmarket');
+    imported.push({ id, snapshot });
+    return { id: "saved-draft", created: true, warnings: [] };
+  } });
   await page.goto("/admin-console-9Xk6uiIs/properties/import?source=nmarket");
   await expect(
     page.getByRole("button", {
@@ -397,6 +385,7 @@ test("Nmarket opens the saved export automatically and keeps live refresh explic
   await page
     .getByRole("button", { name: "Создать черновики (1)", exact: true })
     .click();
+  await openImportResults(page);
   await expect(
     page.getByRole("link", { name: `${items[0].title} — открыть черновик` }),
   ).toHaveAttribute("href", "/admin-console-9Xk6uiIs/properties/saved-draft");
@@ -414,9 +403,7 @@ test("Nmarket opens the saved export automatically and keeps live refresh explic
   await expect(page.getByRole("checkbox")).toHaveCount(0);
   await expect(page.getByText(items[0].title, { exact: true })).toHaveCount(0);
   await expect(page.getByText(items[1].title, { exact: true })).toHaveCount(0);
-  await expect(
-    page.getByRole("heading", { name: "Результаты импорта" }),
-  ).toHaveCount(0);
+  await expect(page.locator('.import-page .import-results')).toContainText(items[0].title);
   await expect(
     page.getByRole("button", { name: /^Создать черновики/ }),
   ).toHaveCount(0);

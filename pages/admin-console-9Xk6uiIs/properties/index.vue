@@ -139,6 +139,9 @@ function goToPage(event: Event) {
   input.value = String(page.value);
 }
 const selectedIds = ref(new Set<string>());
+const selectedComplexes = computed(() => (data.value || []).filter(
+  property => property.type === "complex" && selectedIds.value.has(property.id),
+));
 const bulkBusy = ref(false);
 const confirmBulkDelete = ref(false);
 watch(filtered, (items) => {
@@ -476,6 +479,17 @@ async function publish(p: AdminPropertyListItem) {
           Удалить выбранные
         </button>
         <span v-if="bulkBusy" role="status">Обработка объектов…</span>
+      </div>
+      <div v-if="selectedComplexes.length" class="mb-5">
+        <p v-if="selectedIds.size > selectedComplexes.length" class="mb-3 text-sm text-slate-600">
+          Поиск запустится для ЖК: {{ selectedComplexes.length }}. Выбранные квартиры
+          ({{ selectedIds.size - selectedComplexes.length }}) в поиске не участвуют.
+        </p>
+        <ComplexApartmentSearch
+          :properties="selectedComplexes"
+          :disabled="bulkBusy"
+          @finished="refresh()"
+        />
       </div>
       <div
         class="admin-table-wrap"

@@ -5,5 +5,6 @@ import { ConfigProvider } from "reka-ui";
   <!-- The stable root scrollbar gutter already reserves the space for modal locks. -->
   <ConfigProvider :scroll-body="false">
     <NuxtLayout><NuxtPage /></NuxtLayout>
+    <AdminImportJobs />
   </ConfigProvider>
 </template>

@@ -4,6 +4,7 @@ import { nmarketDraft } from './nmarket-data';
 import { matchNmarketApartments, nmarketApartmentKeys, type ApartmentIdentity } from './apartment-matching';
 import { importProperty } from './import-property';
 import type { ImportSource } from './import-sources';
+import type { ImportExecution } from './import-execution';
 
 export async function prepareNmarketImport(config: { nmarketSnapshotPath: string; nmarketFeedUrl: string }, id: string,
   complexId?: string, saved = false, alias?: ImportSource & { identity: ApartmentIdentity }) {
@@ -25,7 +26,8 @@ export async function prepareNmarketImport(config: { nmarketSnapshotPath: string
   return { draft, sources };
 }
 
-export async function importNmarketProperty(...args: Parameters<typeof prepareNmarketImport>) {
-  const { draft, sources } = await prepareNmarketImport(...args);
-  return importProperty(draft, args[2], false, sources);
+export async function importNmarketProperty(config: Parameters<typeof prepareNmarketImport>[0], id: string,
+  complexId?: string, saved = false, alias?: ImportSource & { identity: ApartmentIdentity }, execution?: ImportExecution) {
+  const { draft, sources } = await prepareNmarketImport(config, id, complexId, saved, alias);
+  return importProperty(draft, complexId, false, sources, execution);
 }

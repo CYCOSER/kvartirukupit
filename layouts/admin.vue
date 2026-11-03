@@ -10,6 +10,8 @@ import {
 import "~/assets/css/admin.css";
 
 const route = useRoute();
+const adminUserId = useState<string | null>('admin-user-id', () => null);
+const importJobs = useImportJobs();
 const sections = [
   {
     to: "/admin-console-9Xk6uiIs/properties",
@@ -30,6 +32,8 @@ useHead({
 });
 async function logout() {
   await $fetch("/api/admin/logout", { method: "POST" });
+  adminUserId.value = null;
+  importJobs.reset();
   await navigateTo("/admin-console-9Xk6uiIs/login");
 }
 </script>

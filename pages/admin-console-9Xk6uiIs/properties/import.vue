@@ -23,7 +23,7 @@ definePageMeta({
   key: "property-import",
 });
 const route = useRoute();
-const source = computed(() => route.query.source === "nmarket" ? "nmarket" : "rf39");
+const source = computed<'nmarket' | 'rf39'>(() => route.query.source === "nmarket" ? "nmarket" : "rf39");
 const isNmarket = computed(() => source.value === "nmarket");
 const sourceName = computed(() => isNmarket.value ? "Нмаркет" : "CRM RF39");
 const endpoint = computed(() => "/api/admin/" + source.value);
@@ -32,7 +32,6 @@ onMounted(() => {
   ready.value = true;
   void loadObjects(isNmarket.value ? "saved" : null);
 });
-type ImportResult = { id: string; created: boolean; warnings: string[] };
 type ImportPage = {
   items: ImportObject[];
   nextOffset: number | null;
@@ -54,18 +53,17 @@ const snapshotLabel = computed(() =>
 );
 const filters = reactive(emptyImportFilters());
 const nextOffset = ref<number | null>(0);
-const loading = ref(false),
-  importing = ref(false);
+const loading = ref(false), submitting = ref(false);
+const { jobs, details, start } = useImportJobs();
+const sourceJobs = computed(() => jobs.value.filter(job => job.kind === 'import' && job.source === source.value));
+const currentJob = computed(() => sourceJobs.value.find(job => job.status === 'queued' || job.status === 'running') || sourceJobs.value[0]);
+const importing = computed(() => currentJob.value?.status === 'queued' || currentJob.value?.status === 'running');
+const importError = ref('');
+let importRequestKey = '', importRequestId = '';
+const launchedJobs = new Set<string>();
+const observedJobs = new Set<string>();
+const appliedResults = new Set<string>();
 const listError = ref("");
-const importErrors = ref<string[]>([]);
-const completed = ref(0),
-  importTotal = ref(0),
-  createdCount = ref(0),
-  existingCount = ref(0),
-  activeTitle = ref("");
-const results = ref<
-  (ImportResult & { sourceId: string | number; title: string })[]
->([]);
 const page = ref(1),
   pageSize = 50;
 let disposed = false;
@@ -78,19 +76,30 @@ watch(source, () => {
   requestVersion++;
   items.value = [];
   selected.value = [];
-  results.value = [];
   snapshot.value = null;
   snapshotDate.value = "";
   nextOffset.value = 0;
   page.value = 1;
-  loading.value = importing.value = false;
-  listError.value = activeTitle.value = "";
-  importErrors.value = [];
-  completed.value = importTotal.value = 0;
-  createdCount.value = existingCount.value = 0;
+  loading.value = false;
+  listError.value = importError.value = "";
   Object.assign(filters, emptyImportFilters());
   if (ready.value) void loadObjects(isNmarket.value ? "saved" : null);
 });
+watch(details, () => {
+  for (const job of Object.values(details.value).filter(job => job.kind === 'import')) {
+    const initial = !observedJobs.has(job.id) && !launchedJobs.has(job.id);
+    observedJobs.add(job.id);
+    for (const result of job.items || []) {
+      if (!result.propertyId || appliedResults.has(result.id)) continue;
+      appliedResults.add(result.id);
+      // Fresh source lists are authoritative; old receipts may refer to drafts deleted later.
+      if (initial || job.source !== source.value) continue;
+      const item = items.value.find(item => String(item.id) === String(result.sourceId));
+      if (item) item.existingId = result.propertyId;
+      selected.value = selected.value.filter(id => String(id) !== String(result.sourceId));
+    }
+  }
+}, { deep: true });
 const options = (field: "category" | "location" | "developer") =>
   [
     ...new Set(
@@ -127,7 +136,7 @@ watch(totalPages, (value) => {
 });
 
 async function loadObjects(requestedSnapshot: "saved" | null = null, refresh = false) {
-  if (loading.value || importing.value) return;
+  if (loading.value || submitting.value) return;
   const version = requestVersion;
   const requestEndpoint = endpoint.value;
   let snapshotRestarts = 0;
@@ -135,9 +144,6 @@ async function loadObjects(requestedSnapshot: "saved" | null = null, refresh = f
     ? { items: items.value, selected: selected.value, date: snapshotDate.value }
     : null;
   if (snapshot.value !== requestedSnapshot) {
-    results.value = [];
-    importTotal.value = 0;
-    importErrors.value = [];
     Object.assign(filters, emptyImportFilters());
   }
   if (refresh || nextOffset.value === null || snapshot.value !== requestedSnapshot) {
@@ -220,50 +226,31 @@ function selectCategory() {
 }
 
 async function importSelected() {
-  if (loading.value || importing.value) return;
-  const version = requestVersion;
-  const requestEndpoint = endpoint.value;
+  if (loading.value || importing.value || submitting.value) return;
   const pending = items.value.filter(
     (item) =>
       selected.value.includes(item.id) && item.supported && !item.existingId,
   );
-  importing.value = true;
-  importErrors.value = [];
-  completed.value = createdCount.value = existingCount.value = 0;
-  importTotal.value = pending.length;
+  if (!pending.length) return;
+  const input = { kind: 'import' as const, source: source.value,
+    items: pending.map(item => ({ id: item.id, title: item.title })),
+    ...(snapshot.value ? { snapshot: snapshot.value } : {}),
+  };
+  const key = JSON.stringify(input);
+  if (key !== importRequestKey) {
+    importRequestKey = key;
+    importRequestId = crypto.randomUUID();
+  }
+  submitting.value = true;
+  importError.value = '';
   try {
-    for (const item of pending) {
-      if (disposed || version !== requestVersion) break;
-      activeTitle.value = item.title;
-      try {
-        const result = await $fetch<ImportResult>(requestEndpoint + "/import", {
-          method: "POST",
-          body: {
-            id: item.id,
-            ...(snapshot.value ? { snapshot: snapshot.value } : {}),
-          },
-          retry: 0,
-        });
-        if (disposed || version !== requestVersion) break;
-        results.value.push({ ...result, sourceId: item.id, title: item.title });
-        item.existingId = result.id;
-        selected.value = selected.value.filter((id) => id !== item.id);
-        if (result.created) createdCount.value++;
-        else existingCount.value++;
-      } catch (error: any) {
-        if (disposed || version !== requestVersion) break;
-        importErrors.value.push(
-          `Не удалось импортировать «${item.title}» (ID ${item.id}). ` +
-          (error.data?.data?.message || error.data?.message || "Попробуйте ещё раз."),
-        );
-      }
-      completed.value++;
-    }
+    const job = await start({ ...input, requestId: importRequestId });
+    launchedJobs.add(job.id);
+    importRequestKey = '';
+  } catch (error: any) {
+    importError.value = error.data?.data?.message || error.data?.message || 'Не удалось запустить создание черновиков. Повторите попытку.';
   } finally {
-    if (version === requestVersion) {
-      importing.value = false;
-      activeTitle.value = "";
-    }
+    submitting.value = false;
   }
 }
 </script>
@@ -285,7 +272,7 @@ async function importSelected() {
     </header>
     <ImportSourceToggle
       :model-value="isNmarket ? 'nmarket' : 'rf39'"
-      :disabled="!ready || loading || importing"
+      :disabled="!ready || loading || submitting"
       @update:model-value="navigateTo('/admin-console-9Xk6uiIs/properties/import' + ($event === 'nmarket' ? '?source=nmarket' : ''))"
     />
     <section class="import-source-card">
@@ -313,7 +300,7 @@ async function importSelected() {
       </div>
       <div class="import-load-actions">
         <Button
-          :disabled="!ready || loading || importing"
+          :disabled="!ready || loading || submitting"
           @click="loadObjects(nextOffset !== null && items.length ? snapshot : null, !isNmarket && (nextOffset === null || nextOffset === 0))"
           ><RefreshCw :size="16" :class="{ 'animate-spin': loading }" />{{
             loading
@@ -499,7 +486,7 @@ async function importSelected() {
         <div class="import-selection-actions">
           <button
             class="btn-secondary"
-            :disabled="nextOffset !== null || importing || !eligible.length"
+            :disabled="nextOffset !== null || importing || submitting || !eligible.length"
             @click="selectCategory"
           >
             {{
@@ -507,16 +494,16 @@ async function importSelected() {
             }}</button
           ><button
             class="btn-secondary"
-            :disabled="importing || !selected.length"
+            :disabled="importing || submitting || !selected.length"
             @click="selected = []"
           >
             Снять выбор</button
           ><Button
-            :disabled="loading || importing || !selected.length"
+            :disabled="loading || importing || submitting || !selected.length"
             @click="importSelected"
             ><ArrowDownToLine :size="16" />{{
-              importing
-                ? "Создаём карточки…"
+              importing || submitting
+                ? submitting ? "Запускаем…" : "Создаём карточки…"
                 : "Создать черновики (" + selected.length + ")"
             }}</Button
           >
@@ -527,55 +514,8 @@ async function importSelected() {
       </p>
     </template>
 
-    <div
-      v-if="importTotal"
-      class="import-progress"
-      role="status"
-      aria-live="polite"
-    >
-      <span
-        >Обработано: {{ completed }} из {{ importTotal
-        }}{{ activeTitle ? " · " + activeTitle : "" }}</span
-      >
-      <p>
-        Создано: {{ createdCount }} · Уже добавлены: {{ existingCount }} ·
-        Пропущено: {{ importErrors.length }}
-      </p>
-      <progress
-        :value="completed"
-        :max="importTotal"
-        aria-label="Ход импорта"
-      />
-    </div>
-    <div v-if="importErrors.length" class="import-error" role="alert">
-      <p>
-        Пропущено: {{ importErrors.length }}. Объекты с ошибками остаются
-        выбранными для повторного импорта.
-      </p>
-      <ul>
-        <li v-for="message in importErrors" :key="message">{{ message }}</li>
-      </ul>
-    </div>
-    <section
-      v-if="results.length"
-      class="import-results"
-      aria-labelledby="import-results"
-    >
-      <h2 id="import-results">
-        <CheckCircle2 :size="19" /> Результаты импорта
-      </h2>
-      <ul>
-        <li v-for="result in results" :key="result.sourceId">
-          <NuxtLink :to="'/admin-console-9Xk6uiIs/properties/' + result.id"
-            >{{ result.title }} —
-            {{
-              result.created ? "открыть черновик" : "уже добавлен, открыть"
-            }}</NuxtLink
-          >
-          <p v-for="warning in result.warnings" :key="warning">{{ warning }}</p>
-        </li>
-      </ul>
-    </section>
+    <p v-if="importError" class="import-error" role="alert">{{ importError }}</p>
+    <ImportJobProgress v-if="currentJob" :job-id="currentJob.id" class="import-job-result" />
 
     <div v-if="items.length" class="admin-table-wrap import-table-wrap">
       <table class="admin-table import-table">
@@ -601,7 +541,7 @@ async function importSelected() {
                 type="checkbox"
                 :value="item.id"
                 :aria-label="'Выбрать ' + item.title + ' (ID ' + item.id + ')'"
-                :disabled="importing"
+                :disabled="importing || submitting"
               />
             </td>
             <td class="import-object">
@@ -795,8 +735,7 @@ async function importSelected() {
   gap: 12px;
   margin-bottom: 20px;
 }
-.import-filter-heading h2,
-.import-results h2 {
+.import-filter-heading h2 {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -877,6 +816,7 @@ async function importSelected() {
   flex-wrap: wrap;
   font-size: 13px;
 }
+.import-job-result { margin-top: 24px; }
 .import-selection small {
   display: block;
   font-size: 11px;
@@ -988,40 +928,6 @@ async function importSelected() {
 .import-pagination .btn-secondary {
   font-size: 12px;
   padding: 8px 13px;
-}
-.import-progress,
-.import-results {
-  padding: 20px;
-  border: 1px solid #d7e9df;
-  background: #f4fbf7;
-  border-radius: 12px;
-  margin: 18px 0;
-  font-size: 13px;
-}
-.import-progress progress {
-  display: block;
-  width: 100%;
-  height: 6px;
-  margin-top: 12px;
-  accent-color: #2b8a66;
-}
-.import-results ul,
-.import-error ul {
-  display: grid;
-  gap: 12px;
-  margin-top: 14px;
-  max-height: 280px;
-  overflow: auto;
-}
-.import-results a {
-  font-weight: 600;
-  color: #256b55;
-  text-decoration: underline;
-}
-.import-results p {
-  font-size: 12px;
-  color: #728578;
-  margin-top: 5px;
 }
 .import-error {
   font-size: 13px;

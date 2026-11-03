@@ -2,6 +2,7 @@ import { createError } from 'h3';
 import type { Prisma } from '@prisma/client';
 import { db } from './db';
 import { lockPropertyRelations } from './property-relations';
+import type { ImportExecution } from './import-execution';
 
 export type ImportSource = { sourceId: string; apartmentKey?: string | null };
 const select = { id: true, type: true, complexId: true, sourceId: true } as const;
@@ -28,9 +29,10 @@ export async function saveImportSources(tx: Prisma.TransactionClient, propertyId
 }
 
 // Discover old imported copies before either source starts creating drafts.
-export async function rememberExistingImportSources(sources: ImportSource[]) {
+export async function rememberExistingImportSources(sources: ImportSource[], execution?: ImportExecution) {
   if (!sources.length) return;
   await db.$transaction(async tx => {
+    await execution?.guard(tx);
     await lockPropertyRelations(tx);
     const ids = sources.map(source => source.sourceId);
     const properties = await tx.property.findMany({ where: { sourceId: { in: ids } }, select: { id: true, sourceId: true } });

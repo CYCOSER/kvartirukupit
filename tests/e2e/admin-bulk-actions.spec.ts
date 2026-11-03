@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { mockImportJobs } from './fixtures/import-jobs';
 
 const base = {
   id: "one",
@@ -25,7 +26,9 @@ async function catalog(page: Page, initial: Item[], failFirst = false) {
   await page.route("**/api/admin/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/admin/login" || path === "/api/admin/me") {
-      await route.fulfill({ json: { ok: true } });
+      await route.fulfill({ json: { id: 'fixture-admin', email: 'fixture@example.com' } });
+    } else if (path === '/api/admin/import-jobs') {
+      await route.fulfill({ json: [] });
     } else if (path === "/api/admin/properties") {
       expect(new URL(route.request().url()).searchParams.get("view")).toBe(
         "list",
@@ -500,4 +503,24 @@ test("large selections continue after a failed batch and retain failures for ret
   ).toBeVisible();
   expect(requests[3]!.ids).toEqual(requests[0]!.ids);
   await expect(actions).toContainText("Выбрано: 0");
+});
+
+test('one apartment-search job includes selected complexes across pages and excludes selected apartments', async ({ page }) => {
+  await catalog(page, [
+    ...Array.from({ length: 22 }, (_, index) => ({ ...base, id: `complex-${index}`, title: `ЖК ${index + 1}`, type: 'complex' })),
+    { ...base, id: 'single-apartment', title: 'Отдельная квартира' },
+  ]);
+  const fixture = await mockImportJobs(page, { create: (_request, job) => { job.status = 'running'; } });
+  await page.getByRole('checkbox', { name: 'Выбрать объект «ЖК 1»', exact: true }).check();
+  const pagination = page.getByRole('navigation', { name: 'Страницы объектов' });
+  await pagination.getByRole('button', { name: 'Далее', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Выбрать объект «ЖК 22»', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Выбрать объект «Отдельная квартира»', exact: true }).check();
+  const search = page.getByTestId('complex-apartment-search');
+  await search.getByRole('button', { name: 'CRM RF39', exact: true }).click();
+  await search.getByRole('button', { name: 'Найти квартиры для выбранных ЖК (2)', exact: true }).click();
+  await expect(search.getByRole('button', { name: 'Поиск выполняется…', exact: true })).toBeDisabled();
+  expect(fixture.requests).toHaveLength(1);
+  expect(fixture.requests[0]).toMatchObject({ kind: 'apartments', complexIds: ['complex-0', 'complex-21'], preferredSource: 'rf39' });
+  await expect(page.getByText('Поиск запустится для ЖК: 2.', { exact: false })).toContainText('Выбранные квартиры (1)');
 });

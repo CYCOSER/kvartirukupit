@@ -10,6 +10,7 @@ import { lockPropertyRelations } from './property-relations';
 import { findImportSourceProperty, saveImportSources, type ImportSource } from './import-sources';
 import type { nmarketDraft } from './nmarket-data';
 import type { rf39Draft } from './rf39-data';
+import { ImportOwnershipLost, importInfrastructureError, type ImportExecution } from './import-execution';
 
 type Draft = ReturnType<typeof nmarketDraft> | ReturnType<typeof rf39Draft>;
 
@@ -33,19 +34,22 @@ async function findExisting(tx: Prisma.TransactionClient, sources: ImportSource[
     ? ['Квартира уже есть на сайте. Сохранена существующая карточка и её ручные правки.'] : [] as string[] };
 }
 
-export async function existingImportedProperty(sourceId: string, complexId?: string, sources: ImportSource[] = []) {
+export async function existingImportedProperty(sourceId: string, complexId?: string, sources: ImportSource[] = [], execution?: ImportExecution) {
   return db.$transaction(async tx => {
+    await execution?.guard(tx);
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${sourceId}))`;
     await lockPropertyRelations(tx);
     await checkTarget(tx, complexId);
-    return findExisting(tx, sources.length ? sources : [{ sourceId }], complexId);
+    const result = await findExisting(tx, sources.length ? sources : [{ sourceId }], complexId);
+    if (result) await execution?.complete?.(tx, result);
+    return result;
   });
 }
 
-export async function importProperty(draft: Draft, complexId?: string, detectPlans = false, sources: ImportSource[] = [{ sourceId: draft.data.sourceId }]) {
+export async function importProperty(draft: Draft, complexId?: string, detectPlans = false, sources: ImportSource[] = [{ sourceId: draft.data.sourceId }], execution?: ImportExecution) {
   if (complexId && draft.data.type !== 'apartment')
     throw createError({ statusCode: 400, data: { message: 'К ЖК можно привязать только квартиру.' } });
-  const existing = await existingImportedProperty(draft.data.sourceId, complexId, sources);
+  const existing = await existingImportedProperty(draft.data.sourceId, complexId, sources, execution);
   if (existing) return existing;
   const dir = resolve(process.env.UPLOAD_DIR || '.data/uploads');
   await mkdir(dir, { recursive: true });
@@ -73,11 +77,15 @@ export async function importProperty(draft: Draft, complexId?: string, detectPla
     }
     if (!files.length) draft.warnings.push('В источнике нет доступных фотографий. Добавьте их перед публикацией.');
     const result = await db.$transaction(async tx => {
+      await execution?.guard(tx);
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${draft.data.sourceId}))`;
       await lockPropertyRelations(tx);
       await checkTarget(tx, complexId);
       const previous = await findExisting(tx, sources, complexId);
-      if (previous) return previous;
+      if (previous) {
+        await execution?.complete?.(tx, previous);
+        return previous;
+      }
       const property = await tx.property.create({ data: {
         ...draft.data, complexId: complexId || null,
         slug: await tx.property.findUnique({ where: { slug: draft.data.slug } }) ? `${draft.data.slug}-${randomUUID().slice(0, 8)}` : draft.data.slug,
@@ -85,11 +93,18 @@ export async function importProperty(draft: Draft, complexId?: string, detectPla
         images: { create: files.map(({ name, originalName, hueShift, kind }, order) => ({ file: '/uploads/' + name, originalFile: '/uploads/' + originalName, hueShift, kind, alt: draft.data.title.slice(0, 200), order })) },
       }, select: { id: true } });
       await saveImportSources(tx, property.id, sources);
-      return { id: property.id, created: true, linked: !!complexId, warnings: draft.warnings };
+      const result = { id: property.id, created: true, linked: !!complexId, warnings: draft.warnings };
+      await execution?.complete?.(tx, result);
+      return result;
     });
     keepFiles = result.created;
     return result;
   } catch (error) {
+    if (importInfrastructureError(error)) {
+      // A lost database response may follow a committed card; preserve its files until the result is known.
+      if (!(error instanceof ImportOwnershipLost)) keepFiles = true;
+      throw error;
+    }
     if (isError(error) && [400, 409].includes(error.statusCode) && error.data && typeof error.data === 'object' && 'message' in error.data) throw error;
     throw createError({ statusCode: 502, data: { message: 'Не удалось перенести объект или его фотографии. Новая карточка не создана. Повторите импорт.' } });
   } finally {
