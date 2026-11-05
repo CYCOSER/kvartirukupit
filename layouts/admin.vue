@@ -3,6 +3,7 @@ import {
   Building2,
   Inbox,
   BookOpen,
+  Rss,
   ArrowUpRight,
   LogOut,
   LayoutDashboard,
@@ -20,6 +21,7 @@ const sections = [
   },
   { to: "/admin-console-9Xk6uiIs/leads", label: "Заявки", icon: Inbox },
   { to: "/admin-console-9Xk6uiIs/articles", label: "Блог", icon: BookOpen },
+  { to: "/admin-console-9Xk6uiIs/feeds", label: "XML-выгрузка", icon: Rss },
 ];
 const sectionTitle = computed(
   () =>

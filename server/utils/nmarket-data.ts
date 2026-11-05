@@ -186,7 +186,7 @@ export function nmarketDraft(item: NmarketObject, snapshotDate?: string) {
   const data = propertySchema.parse({
     housingMarket: item.type === 'apartment' ? 'newbuild' : null,
     title: item.type === 'apartment' ? apartmentTitle(item.bedrooms, item.area) : item.title,
-    slug: `nmarket-${item.id.replace(':', '-')}`, type: item.type,
+    slug: `nobj-${item.id.replace(':', '-')}`, type: item.type,
     location: item.location || 'Уточняется', address: item.address,
     latitude: item.latitude, longitude: item.longitude, price: item.price, status: 'available',
     area: item.area, bedrooms: item.bedrooms, floors: item.floors, landArea: null, seaDistance: null,

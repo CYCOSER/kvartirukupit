@@ -4,6 +4,7 @@ import ImageEditor from "~/components/admin/ImageEditor.vue";
 import AddressMap from "~/components/admin/AddressMap.client.vue";
 import { Eye, Star, FlaskConical, ImagePlus, Building2, ArrowUpRight } from "lucide-vue-next";
 import { adminPropertyType, adminPropertyTypes } from "~/shared/admin-property";
+import { changedPropertyFields, propertyEditFields } from "~/shared/property-edit";
 import {
   statuses,
   housingMarkets,
@@ -49,6 +50,8 @@ const form = reactive<PropertyInput & { seaDistance: number | null }>({
   ...props.initial,
   seaDistance: props.initial?.seaDistance ?? null,
 });
+const initialForm = propertySchema.safeParse(form);
+let savedForm = initialForm.success ? initialForm.data : { ...form, utilities: [...form.utilities] };
 const utils = ref(form.utilities.join("\n"));
 const utilitiesField = useAutoResizeTextarea(() => utils.value);
 const descriptionField = useAutoResizeTextarea(() => form.description);
@@ -76,6 +79,8 @@ const pending = ref(false),
   notice = ref(""),
   isError = ref(false);
 const images = ref(props.initial?.images.map((i) => ({ ...i })) || []);
+const gallerySnapshot = () => images.value.map(({ id, alt }) => ({ id, alt }));
+let savedGallery = gallerySnapshot();
 const id = ref(props.initial?.id);
 const complexes = ref<Property[]>([]);
 const complexesLoaded = ref(false);
@@ -84,15 +89,10 @@ const complexesError = ref("");
 const linkedApartments = ref(props.initial?.apartments || []);
 const mappingFields = ['nmarketComplexId', 'rf39ComplexId', 'rf39BuildingId'] as const;
 const mappingValue = (value: string | null | undefined) => value?.trim() || null;
-const savedMappings = {
-  nmarketComplexId: mappingValue(form.nmarketComplexId),
-  rf39ComplexId: mappingValue(form.rf39ComplexId),
-  rf39BuildingId: mappingValue(form.rf39BuildingId),
-};
-function mergeMappings(saved: Property, previous: typeof savedMappings = savedMappings) {
+function mergeMappings(saved: Property) {
   for (const field of mappingFields) {
-    if (mappingValue(form[field]) === previous[field]) form[field] = saved[field] ?? null;
-    savedMappings[field] = mappingValue(saved[field]);
+    if (mappingValue(form[field]) === mappingValue(savedForm[field])) form[field] = saved[field] ?? null;
+    savedForm[field] = mappingValue(saved[field]);
   }
 }
 const selectedComplexId = computed({
@@ -175,24 +175,33 @@ async function save() {
     return;
   }
   try {
-    const submittedMappings = {
-      nmarketComplexId: mappingValue(form.nmarketComplexId),
-      rf39ComplexId: mappingValue(form.rf39ComplexId),
-      rf39BuildingId: mappingValue(form.rf39BuildingId),
-    };
-    const body = { ...parsed.data };
+    const submittedForm = { ...form, utilities: [...form.utilities] };
+    const submittedUtilities = utils.value;
+    const submittedGallery = JSON.stringify(gallerySnapshot());
+    const changedFields = changedPropertyFields(savedForm, parsed.data);
+    const body = { ...parsed.data, ...(id.value ? { changedFields } : {}) };
     // Preserve source IDs discovered by a search while this editor was open.
     if (id.value) for (const field of mappingFields) {
-      if (submittedMappings[field] === savedMappings[field]) delete body[field];
+      if (!changedFields.includes(field)) delete body[field];
     }
     const p = await $fetch<Property>(
       "/api/admin/properties" + (id.value ? "/" + id.value : ""),
       { method: id.value ? "PUT" : "POST", body },
     );
     linkedRequest++;
-    mergeMappings(p, submittedMappings);
     if (id.value) {
-      await saveGallery();
+      const saved = propertySchema.parse(p);
+      for (const field of propertyEditFields) {
+        if (JSON.stringify(form[field]) === JSON.stringify(submittedForm[field]))
+          Object.assign(form, { [field]: saved[field] });
+      }
+      if (utils.value === submittedUtilities) utils.value = saved.utilities.join("\n");
+      savedForm = saved;
+      if (JSON.stringify(gallerySnapshot()) !== JSON.stringify(savedGallery)) await saveGallery();
+      else if (JSON.stringify(gallerySnapshot()) === submittedGallery) {
+        images.value = p.images.map(image => ({ ...image }));
+        savedGallery = gallerySnapshot();
+      }
       if (form.type === 'complex') await refreshLinkedApartments();
     }
     else {
@@ -202,19 +211,21 @@ async function save() {
     notice.value = "Объект сохранён.";
   } catch (e: any) {
     notice.value =
-      e.status === 409
+      e.data?.data?.message || (e.status === 409
         ? "Такой адрес страницы уже существует. Измените адрес страницы."
-        : e.data?.data?.message || e.data?.message || "Не удалось сохранить объект.";
+        : e.data?.message || "Не удалось сохранить объект.");
     isError.value = true;
   } finally {
     pending.value = false;
   }
 }
 async function saveGallery() {
+  const submitted = gallerySnapshot();
   await $fetch("/api/admin/properties/" + id.value + "/images", {
     method: "PUT",
-    body: images.value.map((i) => ({ id: i.id, alt: i.alt })),
+    body: submitted,
   });
+  savedGallery = submitted;
 }
 async function upload(event: Event) {
   const input = event.target as HTMLInputElement;
@@ -233,6 +244,7 @@ async function upload(event: Event) {
         { method: "POST", body },
       );
       images.value.push(img);
+      savedGallery.push({ id: img.id, alt: img.alt });
     }
     notice.value = "Фотографии загружены.";
   } catch {

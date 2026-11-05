@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createError } from 'h3';
-import { rf39ReadBody } from './rf39';
+import { DEFAULT_RF39_FEED_URL, fetchRf39Feed } from './rf39';
 import type { Rf39Object } from './rf39-data';
 
 export function snapshotRf39Developments(items: Rf39Object[]) {
@@ -31,17 +31,9 @@ export function parseRf39Developments(input: unknown) {
     objectIds: [...new Set(Object.values(item.objects || {}).map(object => object.id))] }));
 }
 
-export async function fetchRf39Developments(token: string, developmentId?: string) {
-  if (!token) throw createError({ statusCode: 503, data: { message: 'Подключение CRM не настроено.' } });
+export async function fetchRf39Developments(source = DEFAULT_RF39_FEED_URL, developmentId?: string) {
   if (developmentId && (!/^[1-9]\d{0,15}$/.test(developmentId) || !Number.isSafeInteger(Number(developmentId))))
     throw createError({ statusCode: 400, data: { message: 'ID ЖК в CRM должен быть целым положительным числом.' } });
-  try {
-    const response = await fetch('https://crm.rf39.ru/api/developments', {
-      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(45000),
-      body: new URLSearchParams({ token, ...(developmentId ? { id: developmentId } : { has_objects: '1' }) }),
-    });
-    return parseRf39Developments(JSON.parse((await rf39ReadBody(response, 32 * 1024 * 1024)).toString('utf8')));
-  } catch {
-    throw createError({ statusCode: 502, data: { message: 'Не удалось получить список ЖК из CRM. Повторите поиск.' } });
-  }
+  const groups = snapshotRf39Developments((await fetchRf39Feed(source)).items);
+  return developmentId ? groups.filter(group => String(group.id) === developmentId) : groups;
 }

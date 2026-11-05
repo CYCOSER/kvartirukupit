@@ -77,10 +77,11 @@ async function launch() {
       <p>Источник при дубле</p>
       <ImportSourceToggle v-model="preferredSource" :disabled="pending || disabled" label="Источник при совпадении квартиры" />
     </div>
-    <p v-if="propertyId" class="complex-search-hint">Перед поиском сохраните изменения объекта. Новые квартиры будут созданы черновиками.</p>
-    <p v-else class="complex-search-hint">Выбранные ЖК будут обработаны по очереди: база сайта, Нмаркет и CRM RF39. Новые квартиры будут созданы черновиками.</p>
+    <p v-if="propertyId" class="complex-search-hint">Перед поиском сохраните изменения объекта.</p>
+    <p v-else class="complex-search-hint">Выбранные ЖК будут обработаны по очереди: база сайта, Нмаркет и CRM RF39.</p>
+    <p class="complex-search-hint">Квартиры из Нмаркета сохраняются черновиками, из XML CRM RF39 — сразу публикуются в «Элитных».</p>
     <p class="complex-search-hint">Поиск продолжится при переходе на другую страницу и после закрытия вкладки. Его можно остановить в панели задач.</p>
-    <p v-if="snapshotMode === 'saved'" class="complex-search-warning">Сохранённая выгрузка может быть устаревшей. Проверьте цены и наличие перед публикацией.</p>
+    <p v-if="snapshotMode === 'saved'" class="complex-search-warning">Сохранённая выгрузка может быть устаревшей. Проверьте цены и наличие.</p>
     <div class="complex-search-actions">
       <Button type="button" :disabled="pending || disabled || !targetIds.length" @click="launch">
         <Search :size="17" aria-hidden="true" />{{ starting ? 'Запускаем…' : activeJob ? 'Поиск выполняется…' : propertyId ? 'Найти и привязать квартиры' : `Найти квартиры для выбранных ЖК (${targetIds.length})` }}

@@ -1,8 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { createError, defineEventHandler, getRouterParam, setHeader } from 'h3';
+import { uploadFilePattern } from '../../utils/property-image';
 export default defineEventHandler(async (event) => {
   const name = getRouterParam(event, 'name') || '';
-  if (!/^[0-9a-f-]{36}\.webp$/.test(name))
+  if (!uploadFilePattern.test(name))
     throw createError({ statusCode: 404, statusMessage: 'Not found' });
   try {
     const file = await readFile(

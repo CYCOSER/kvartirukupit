@@ -3,6 +3,8 @@ import { test } from './fixtures/admin-session';
 import { mockImportJobs, openImportResults } from './fixtures/import-jobs';
 
 for (const source of ["rf39", "nmarket"] as const) {
+  const actionName = source === 'rf39' ? 'Опубликовать квартиры' : 'Создать черновики';
+  const resultAction = source === 'rf39' ? 'открыть карточку' : 'открыть черновик';
   test(`${source} bulk import skips failed objects and retries only failures`, async ({ page }) => {
     const items = Array.from({ length: 5 }, (_, index) => ({
       id: source === "rf39" ? 201 + index : `n-bulk-${index}`,
@@ -33,7 +35,7 @@ for (const source of ["rf39", "nmarket"] as const) {
 
     await page.goto(`/admin-console-9Xk6uiIs/properties/import?source=${source}`);
     await page.getByRole("button", { name: "Выбрать все найденные", exact: true }).click();
-    await page.getByRole("button", { name: "Создать черновики (5)", exact: true }).click();
+    await page.getByRole("button", { name: `${actionName} (5)`, exact: true }).click();
     await expect(page.locator(".import-progress")).toContainText("Обработано: 5 из 5");
     await expect(page.locator(".import-progress")).toContainText("Создано: 2 · Уже добавлены: 1 · Пропущено: 2");
     expect(imported).toEqual(items.map(({ id }) => id));
@@ -47,43 +49,43 @@ for (const source of ["rf39", "nmarket"] as const) {
     }
     await openImportResults(page);
     for (const item of items.filter((_, index) => index % 2 === 0)) {
-      const action = item.id === items[4].id ? "уже добавлен, открыть" : "открыть черновик";
+      const action = item.id === items[4].id ? "уже добавлен, открыть" : resultAction;
       await expect(page.getByRole("link", { name: `${item.title} — ${action}`, exact: true }))
         .toHaveAttribute("href", `/admin-console-9Xk6uiIs/properties/draft-${item.id}`);
     }
 
-    await page.getByRole("button", { name: "Создать черновики (2)", exact: true }).click();
+    await page.getByRole("button", { name: `${actionName} (2)`, exact: true }).click();
     await expect(page.locator(".import-progress")).toContainText("Обработано: 2 из 2");
     await expect(page.locator(".import-progress")).toContainText("Создано: 2 · Уже добавлены: 0 · Пропущено: 0");
     expect(imported).toEqual([...items.map(({ id }) => id), ...failures.map(({ item }) => item.id)]);
     await expect(page.getByRole("alert")).toHaveCount(0);
     await expect(page.getByRole("checkbox")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Создать черновики (0)", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: `${actionName} (0)`, exact: true })).toBeDisabled();
     await openImportResults(page);
     for (const { item } of failures) {
-      await expect(page.getByRole("link", { name: `${item.title} — открыть черновик`, exact: true })).toBeVisible();
+      await expect(page.getByRole("link", { name: `${item.title} — ${resultAction}`, exact: true })).toBeVisible();
     }
   });
 }
 
-test("CRM import resumes listing, keeps drafts and reuses saved lists with an animated source switch", async ({
+test("CRM import resumes listing, publishes apartments and reuses saved lists with an animated source switch", async ({
   page,
 }, testInfo) => {
   const first = {
     id: 101,
-    title: "Первый корпус",
-    category: "ЖК",
+    title: "Первая квартира",
+    category: "Квартиры",
     location: "Калининград",
     address: "Первый адрес",
     price: 5000000,
-    layoutCount: 12,
+    layoutCount: 0,
     supported: true,
     existingId: null,
   };
   const second = {
     ...first,
     id: 102,
-    title: "Второй корпус",
+    title: "Вторая квартира",
     address: "Второй адрес",
   };
   const listOffsets: number[] = [];
@@ -139,7 +141,7 @@ test("CRM import resumes listing, keeps drafts and reuses saved lists with an an
     }
     return {
       id: `draft-${id}`, created: true,
-      warnings: id === 101 ? ["Проверьте цену перед публикацией."] : [],
+      warnings: id === 101 ? ["Проверьте цену."] : [],
     };
   } });
 
@@ -165,20 +167,20 @@ test("CRM import resumes listing, keeps drafts and reuses saved lists with an an
   ).toBeEnabled();
   expect(listOffsets).toEqual([0, 3, 3]);
   await expect(page.getByRole("checkbox")).toHaveCount(2);
-  await expect(page.getByText("Первый корпус", { exact: true })).toHaveCount(1);
+  await expect(page.getByText("Первая квартира", { exact: true })).toHaveCount(1);
   await page.getByRole("textbox", { name: "Поиск объектов CRM" }).fill("102");
   await expect(page.getByRole("checkbox")).toHaveCount(1);
   await expect(page.getByRole("checkbox")).toHaveAccessibleName(
-    "Выбрать Второй корпус (ID 102)",
+    "Выбрать Вторая квартира (ID 102)",
   );
   await page.getByRole("textbox", { name: "Поиск объектов CRM" }).fill("");
   await page.getByRole("combobox", { name: "Категория CRM" }).click();
-  await page.getByRole("option", { name: "ЖК", exact: true }).click();
+  await page.getByRole("option", { name: "Квартиры", exact: true }).click();
   await page.getByRole("button", { name: "Выбрать категорию" }).click();
   await expect(page.getByRole("checkbox").first()).toBeChecked();
   await expect(page.getByRole("checkbox").last()).toBeChecked();
   await page
-    .getByRole("button", { name: "Создать черновики (2)", exact: true })
+    .getByRole("button", { name: "Опубликовать квартиры (2)", exact: true })
     .click();
   await expect(page.getByRole("alert")).toContainText(
     "Не удалось загрузить фото",
@@ -186,27 +188,27 @@ test("CRM import resumes listing, keeps drafts and reuses saved lists with an an
   expect(imported).toEqual([101, 102]);
   await openImportResults(page);
   await expect(
-    page.getByRole("link", { name: "Первый корпус — открыть черновик" }),
+    page.getByRole("link", { name: "Первая квартира — открыть карточку" }),
   ).toHaveAttribute("href", "/admin-console-9Xk6uiIs/properties/draft-101");
   await page.locator('.import-page .job-warnings > summary').click();
   await expect(
-    page.getByText("Проверьте цену перед публикацией."),
+    page.getByText("Проверьте цену."),
   ).toBeVisible();
   await expect(page.getByRole("checkbox")).toHaveCount(1);
   await expect(page.getByRole("checkbox")).toBeChecked();
 
   await page
-    .getByRole("button", { name: "Создать черновики (1)", exact: true })
+    .getByRole("button", { name: "Опубликовать квартиры (1)", exact: true })
     .click();
   await expect(page.locator('.import-page .import-progress')).toContainText('Обработано: 1 из 1');
   await openImportResults(page);
   await expect(
-    page.getByRole("link", { name: "Второй корпус — открыть черновик" }),
+    page.getByRole("link", { name: "Вторая квартира — открыть карточку" }),
   ).toHaveAttribute("href", "/admin-console-9Xk6uiIs/properties/draft-102");
   expect(imported).toEqual([101, 102, 102]);
   await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Создать черновики (0)", exact: true }),
+    page.getByRole("button", { name: "Опубликовать квартиры (0)", exact: true }),
   ).toBeDisabled();
 
   await page.unroute("**/api/admin/rf39/objects?*");
@@ -229,7 +231,7 @@ test("CRM import resumes listing, keeps drafts and reuses saved lists with an an
     "CRM повторила страницу списка",
   );
   expect(repeatedOffsets).toEqual([0, 1]);
-  await expect(page.getByText("Первый корпус", { exact: true })).toHaveCount(1);
+  await expect(page.getByText("Первая квартира", { exact: true })).toHaveCount(1);
   await expect(
     page.getByRole("button", { name: "Выбрать категорию" }),
   ).toBeDisabled();
@@ -239,7 +241,7 @@ test("CRM import resumes listing, keeps drafts and reuses saved lists with an an
     "CRM повторила страницу списка",
   );
   expect(repeatedOffsets).toEqual([0, 1, 1]);
-  await expect(page.getByText("Второй корпус", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Вторая квартира", { exact: true })).toHaveCount(0);
 
   await page.unroute("**/api/admin/rf39/objects?*");
   let changingPage = 0;
@@ -250,8 +252,8 @@ test("CRM import resumes listing, keeps drafts and reuses saved lists with an an
       : { items: [second], nextOffset: null, snapshotDate: '2026-10-23T08:00:00.000Z' } });
   });
   await page.reload();
-  await expect(page.getByText("Второй корпус", { exact: true })).toBeVisible();
-  await expect(page.getByText("Первый корпус", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Вторая квартира", { exact: true })).toBeVisible();
+  await expect(page.getByText("Первая квартира", { exact: true })).toHaveCount(0);
   expect(changingPage).toBe(3);
   await page.unroute("**/api/admin/rf39/objects?*");
   const refreshFlags: (string | null)[] = [];
@@ -263,15 +265,15 @@ test("CRM import resumes listing, keeps drafts and reuses saved lists with an an
       : { json: { items: [first], nextOffset: null, snapshot: "saved", snapshotDate: "2026-10-23T08:15:00.000Z" } });
   });
   await page.reload();
-  await expect(page.getByText("Первый корпус", { exact: true })).toBeVisible();
+  await expect(page.getByText("Первая квартира", { exact: true })).toBeVisible();
   await expect(page.locator('.import-snapshot-note')).toContainText('23.10.2026, 11:15');
   expect(refreshFlags).toEqual([null]);
   await page.getByRole("button", { name: "Обновить из CRM" }).click();
   await expect(page.getByRole('alert')).toContainText('Продолжаем показывать сохранённую выгрузку');
-  await expect(page.getByText("Первый корпус", { exact: true })).toBeVisible();
+  await expect(page.getByText("Первая квартира", { exact: true })).toBeVisible();
   expect(refreshFlags).toEqual([null, '1']);
 
-  await page.getByRole('textbox', { name: 'Поиск объектов CRM' }).fill('Первый');
+  await page.getByRole('textbox', { name: 'Поиск объектов CRM' }).fill('Первая');
   const indicator = await page.locator('.import-source-indicator').elementHandle();
   await expect(page.locator('.import-source-indicator')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await indicator!.evaluate(node => {
@@ -286,10 +288,10 @@ test("CRM import resumes listing, keeps drafts and reuses saved lists with an an
   expect(await indicator!.evaluate(node => node.isConnected)).toBe(true);
   await expect(page.locator('.import-source-indicator')).toHaveAttribute('data-animated', 'true');
   await expect(page.getByRole('button', { name: 'Нмаркет', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByText("Первый корпус", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Первая квартира", { exact: true })).toHaveCount(0);
   await expect(page.locator('.import-snapshot-note')).toContainText('19.10.2026');
   await page.getByRole('button', { name: 'CRM RF39', exact: true }).click();
-  await expect(page.getByText("Первый корпус", { exact: true })).toBeVisible();
+  await expect(page.getByText("Первая квартира", { exact: true })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Поиск объектов CRM' })).toHaveValue('');
   expect(await indicator!.evaluate(node => node.isConnected)).toBe(true);
   expect(refreshFlags).toEqual([null, '1', null]);

@@ -85,29 +85,18 @@ test('development parsing retains only public relation fields and validates IDs'
   assert.throws(() => parseRf39Developments({ code: 200, data: [{ ...data, objects: [{ id: -1 }] }] }));
 });
 
-test('RF39 relations requests preserve eligibility filters and never expose credentials on upstream failures', async () => {
-  const original = globalThis.fetch;
-  const requests: { url: string; body: URLSearchParams }[] = [];
-  try {
-    globalThis.fetch = async (input, init) => {
-      requests.push({ url: String(input), body: init!.body as URLSearchParams });
-      return new Response(JSON.stringify({ code: 200, data: [] }), { headers: { 'content-type': 'application/json' } });
-    };
-    await fetchRf39Objects('PRIVATE_TOKEN', 0, '17209,34019');
-    assert.deepEqual(JSON.parse(requests[0]!.body.get('params')!), { limit: 100, offset: 0,
-      filter: { published: true, archived: false, id: '17209,34019' } });
-    await fetchRf39Developments('PRIVATE_TOKEN', '293');
-    assert.equal(requests[1]!.url, 'https://crm.rf39.ru/api/developments');
-    assert.equal(requests[1]!.body.get('id'), '293');
-    await fetchRf39Developments('PRIVATE_TOKEN');
-    assert.equal(requests[2]!.body.get('has_objects'), '1');
-    for (const id of ['0', '-2', '17209,0', '1e3', Array(101).fill('1').join(',')])
-      await assert.rejects(fetchRf39Objects('PRIVATE_TOKEN', 0, id));
-    await assert.rejects(fetchRf39Developments('PRIVATE_TOKEN', '293,294'));
-    assert.equal(requests.length, 3);
-    globalThis.fetch = async () => { throw new Error('upstream leaked PRIVATE_TOKEN'); };
-    await assert.rejects(fetchRf39Developments('PRIVATE_TOKEN'), error => !JSON.stringify(error).includes('PRIVATE_TOKEN'));
-  } finally { globalThis.fetch = original; }
+test('RF39 relation lookup uses XML and validates IDs', async t => {
+  const { rf39Xml, rf39Offer } = await import('./fixtures/rf39-feed');
+  let requests = 0;
+  t.mock.method(globalThis, 'fetch', async (url: string | URL | Request, options?: RequestInit) => {
+    requests++; assert.equal(String(url), 'https://feed.rf39.ru/301.xml'); assert.equal(options?.body, undefined);
+    return new Response(rf39Xml(rf39Offer(17209, '<building-name>ЖК Тест</building-name><yandex-building-id>293</yandex-building-id>')));
+  });
+  assert.equal((await fetchRf39Objects('https://feed.rf39.ru/301.xml', 0, '17209'))[0]!.id, 17209);
+  assert.deepEqual(await fetchRf39Developments('https://feed.rf39.ru/301.xml'), []);
+  for (const id of ['0', '-2', '17209,0', '1e3', Array(101).fill('1').join(',')]) await assert.rejects(fetchRf39Objects('https://feed.rf39.ru/301.xml', 0, id));
+  await assert.rejects(fetchRf39Developments('https://feed.rf39.ru/301.xml', '293,294'));
+  assert.equal(requests, 1);
 });
 
 test('saved CRM development relations retain only each development’s objects and exact name/city matching', () => {

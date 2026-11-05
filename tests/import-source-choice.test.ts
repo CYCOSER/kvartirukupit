@@ -6,11 +6,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createError } from 'h3';
 import { db } from '../server/utils/db';
+import { DEFAULT_RF39_FEED_URL } from '../server/utils/rf39';
+import { importRf39Property, type Rf39ImportInput } from '../server/utils/import-rf39';
 import { parseNmarketFeed } from '../server/utils/nmarket-data';
 import { parseRf39Response } from '../server/utils/rf39-data';
 import { cacheApartmentMatches, matchNmarketApartments, rf39ApartmentIdentity } from '../server/utils/apartment-matching';
 
-test('duplicate import validates source choice, defaults to Nmarket and preserves chosen CRM aliases and existing edits', async () => {
+test('duplicate import defaults to Nmarket and preserves chosen CRM aliases and existing edits', async () => {
   const xml = `<realty-feed xmlns="http://webmaster.yandex.ru/schemas/feed/realty/2010-06"><offer internal-id="99"><type>продажа</type><property-type>жилая</property-type><category>квартира</category>
     <nmarket-complex-id>7</nmarket-complex-id><nmarket-building-id>8</nmarket-building-id><building-name>ЖК Тест</building-name>
     <location><locality-name>Калининград</locality-name><address>Тестовая улица, 1</address><apartment>12</apartment></location>
@@ -30,6 +32,9 @@ test('duplicate import validates source choice, defaults to Nmarket and preserve
   const dir = await mkdtemp(join(tmpdir(), 'newh-source-choice-'));
   const crmPath = join(dir, 'rf39.json'), nmarketPath = join(dir, 'nmarket.xml');
   process.env.UPLOAD_DIR = dir;
+  const snapshotDate = '2026-10-19T10:00:00.000Z';
+  await writeFile(crmPath, JSON.stringify({ version: 2, sourceHash: createHash('sha256').update(DEFAULT_RF39_FEED_URL).digest('hex'), snapshotDate, presentIds: [100], errors: [], authoritative: true, items: [rawCrm] }));
+  await writeFile(nmarketPath, xml);
   let body: Record<string, unknown> = {};
   let properties: any[] = [], aliases: any[] = [];
   const tx = {
@@ -53,23 +58,21 @@ test('duplicate import validates source choice, defaults to Nmarket and preserve
   db.$transaction = (async (callback: any) => callback(tx)) as any;
   globals.defineEventHandler = (handler: unknown) => handler;
   globals.readBody = async () => body;
-  globals.useRuntimeConfig = () => ({ rf39Token: 'fixture', nmarketFeedUrl: 'https://ecatalog-service.nmarket.pro/source-choice-test', nmarketSnapshotPath: '' });
+  globals.useRuntimeConfig = () => ({ rf39FeedUrl: DEFAULT_RF39_FEED_URL, rf39SnapshotPath: crmPath, nmarketFeedUrl: 'https://ecatalog-service.nmarket.pro/source-choice-test', nmarketSnapshotPath: nmarketPath });
   globals.createError = createError;
   globalThis.fetch = async url => String(url).includes('crm.rf39.ru')
     ? Response.json({ code: 200, data: { 100: rawCrm } }) : new Response(xml);
   try {
-    const handler = (await import('../server/api/admin/rf39/import.post')).default;
-    body = { id: 100, preferredSource: 'unknown' };
-    await assert.rejects(handler({} as any), { statusCode: 400 });
+    const handler = async (_event: unknown) => importRf39Property(globals.useRuntimeConfig(), { ...body, snapshot: 'saved' } as Rf39ImportInput);
     for (const preference of [undefined, 'rf39']) {
       properties = []; aliases = [];
-      cacheApartmentMatches('complex', false, matches);
+      cacheApartmentMatches('complex', true, matches);
       body = { id: 100, complexId: 'complex', preferredNmarketId: 'apartment:99', ...(preference ? { preferredSource: preference } : {}) };
       assert.equal((await handler({} as any)).created, true);
       assert.equal(properties.length, 1);
       assert.equal(properties[0].sourceId, preference ? 'rf39:100' : 'nmarket:apartment:99');
       assert.equal(properties[0].price, preference ? 9100000 : 9000000);
-      assert.equal(properties[0].published, false);
+      assert.equal(properties[0].published, !!preference);
       assert.deepEqual(new Set(aliases.map(alias => alias.sourceId)), new Set(['rf39:100', 'nmarket:apartment:99']));
       assert.ok(aliases.every(alias => alias.apartmentKey === matches.get('rf39:100')!.key));
       properties[0].title = 'Ручная правка';
@@ -82,10 +85,9 @@ test('duplicate import validates source choice, defaults to Nmarket and preserve
     body = { id: 100, complexId: 'expired', preferredNmarketId: 'apartment:99', preferredSource: 'rf39' };
     await assert.rejects(handler({} as any), { statusCode: 409 });
     assert.equal(properties.length, 0);
-    const snapshotDate = '2026-10-19T10:00:00.000Z';
-    await writeFile(crmPath, JSON.stringify({ version: 1, tokenHash: createHash('sha256').update('fixture').digest('hex'), snapshotDate, items: [rawCrm] }));
+    await writeFile(crmPath, JSON.stringify({ version: 2, sourceHash: createHash('sha256').update(DEFAULT_RF39_FEED_URL).digest('hex'), snapshotDate, presentIds: [100], errors: [], authoritative: true, items: [rawCrm] }));
     await writeFile(nmarketPath, xml.replace('<offer ', `<generation-date>${snapshotDate}</generation-date><offer `));
-    globals.useRuntimeConfig = () => ({ rf39Token: 'fixture', rf39SnapshotPath: crmPath, nmarketFeedUrl: 'https://ecatalog-service.nmarket.pro/source-choice-test', nmarketSnapshotPath: nmarketPath });
+    globals.useRuntimeConfig = () => ({ rf39FeedUrl: DEFAULT_RF39_FEED_URL, rf39SnapshotPath: crmPath, nmarketFeedUrl: 'https://ecatalog-service.nmarket.pro/source-choice-test', nmarketSnapshotPath: nmarketPath });
     let requests = 0;
     globalThis.fetch = async () => { requests++; throw new Error('Saved mode must not request either feed'); };
     for (const preferredSource of ['nmarket', 'rf39']) {

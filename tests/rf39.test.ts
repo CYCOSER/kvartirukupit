@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseRf39Response, rf39Draft, rf39ImageUrl, rf39IsComplex, rf39LayoutDraft, rf39Number, rf39Summary } from '../server/utils/rf39-data';
-import { fetchRf39Objects, rf39ReadBody } from '../server/utils/rf39';
+import { fetchRf39Feed, fetchRf39Objects, parseRf39Feed, rf39FeedUrl, rf39ReadBody } from '../server/utils/rf39';
+
+import { rf39Offer, rf39Xml, rf39Chunks } from './fixtures/rf39-feed';
 
 const fixture = {
   id: 123, title: 'Трёхкомнатная квартира', type: 'Квартиры - вторичное жильё', deal_type: 'sale',
@@ -15,7 +17,7 @@ const fixture = {
 };
 const parse = (value: unknown = fixture) => parseRf39Response({ code: 200, data: { '123': value } })[0]!;
 
-test('RF39 maps a real response shape into an unpublished editable card without private fields', () => {
+test('RF39 maps a real response shape into a published elite apartment without private fields', () => {
   const item = parse();
   const draft = rf39Draft(item);
   assert.equal(draft.data.title, '3-к кв. 90.5 м²');
@@ -29,10 +31,11 @@ test('RF39 maps a real response shape into an unpublished editable card without 
   assert.equal(draft.data.finish, 'Чистовая');
   assert.equal(draft.data.readiness, 'Уточняется');
   assert.equal(draft.data.description, 'Описание\nквартиры');
-  assert.equal(draft.data.published, false);
+  assert.equal(draft.data.published, true);
   assert.equal(draft.data.featured, false);
-  assert.equal(draft.data.elite, false);
+  assert.equal(draft.data.elite, true);
   assert.equal(draft.data.sourceId, 'rf39:123');
+  assert.equal(draft.data.slug, 'robj-123');
   assert.equal(rf39Summary(item).area, 90.5);
   assert.equal(rf39Summary(item).bedrooms, 3);
   assert.equal(rf39Summary(item).floors, 7);
@@ -88,7 +91,7 @@ test('RF39 layout creates its own apartment identity and characteristics while i
   const draft = rf39LayoutDraft(parent, 2775);
   assert.equal(draft.data.type, 'apartment');
   assert.equal(draft.data.sourceId, 'rf39-layout:17209:2775');
-  assert.equal(draft.data.slug, 'rf39-layout-17209-2775');
+  assert.equal(draft.data.slug, 'robj-layout-17209-2775');
   assert.equal(draft.data.title, '2-к кв. 74.7 м²');
   assert.equal(draft.data.description, 'Описание\nпланировки');
   assert.equal(draft.data.price, 13177080);
@@ -99,7 +102,7 @@ test('RF39 layout creates its own apartment identity and characteristics while i
   assert.equal(draft.data.rf39ComplexId, '293');
   assert.equal(draft.data.rf39BuildingId, '782');
   assert.equal(draft.data.readiness, 'IV кв. 2026');
-  assert.equal(draft.data.published, false);
+  assert.equal(draft.data.published, true);
   assert.deepEqual(draft.imageUrls, ['https://crm.rf39.ru/images/objects/layouts/17209/plan.jpg']);
   assert.equal(draft.warnings.some(warning => warning.includes('корпус/ЖК')), false);
   assert.throws(() => rf39LayoutDraft(parent, 17209), /не найдена/);
@@ -172,59 +175,92 @@ test('RF39 downloads are bounded even without a Content-Length header', async ()
   await assert.rejects(rf39ReadBody(new Response('oops', { status: 502 }), 10));
 });
 
-test('RF39 sends the token in the POST body and does not forward credential-bearing upstream errors', async (t) => {
-  let target = '';
-  let options: RequestInit | undefined;
-  t.mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
-    target = url; options = init;
-    return new Response(JSON.stringify({ code: 200, data: { 123: fixture } }));
-  });
-  await fetchRf39Objects('SECRET_TEST_TOKEN', 0, 123);
-  assert.equal(target, 'https://crm.rf39.ru/api/objects');
-  assert.equal(options?.method, 'POST');
-  assert.equal(options?.redirect, 'error');
-  const body = options?.body as URLSearchParams;
-  assert.equal(body.get('token'), 'SECRET_TEST_TOKEN');
-  assert.deepEqual(JSON.parse(body.get('params')!), { limit: 1, offset: 0, filter: { published: true, archived: false, id: 123 } });
-  await fetchRf39Objects('SECRET_TEST_TOKEN', 100);
-  assert.equal((options?.body as URLSearchParams).get('full'), '1');
-  assert.equal(JSON.parse((options?.body as URLSearchParams).get('params')!).offset, 100);
-  t.mock.method(globalThis, 'fetch', async () => { throw new Error('SECRET_TEST_TOKEN PRIVATE_CONTACT'); });
-  await assert.rejects(fetchRf39Objects('SECRET_TEST_TOKEN'), error => {
-    assert.equal(JSON.stringify(error).includes('SECRET_TEST_TOKEN'), false);
-    return true;
-  });
+test('XML uses trusted public IDs, skips houses and keeps only public fields', async () => {
+  const result = await parseRf39Feed(rf39Chunks(rf39Xml(
+    rf39Offer(14567, '<new-flat>да</new-flat><building-name>ЖК Тест</building-name><yandex-building-id>999</yandex-building-id><sales-agent><name>PRIVATE_NAME</name><phone>PRIVATE_PHONE</phone></sales-agent><image>https://rf39.ru/images/objects/14567/a.jpg</image>', 'Я21001803388АL12'),
+    rf39Offer(2, '', 'J2', 'дом'), rf39Offer(3, '', 'J3', 'дача'),
+  )));
+  assert.deepEqual(result.presentIds, [14567, 2, 3]);
+  assert.deepEqual(result.items.map(item => rf39Summary(item).supported), [true, false, false]);
+  assert.equal(result.items[0]!.development?.title, 'ЖК Тест');
+  assert.equal(result.items[0]!.development?.id, undefined);
+  assert.equal(result.items[0]!.complex, undefined);
+  assert.equal(result.authoritative, true);
+  assert.equal(result.snapshotDate, '2026-11-03T14:23:00.000Z');
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE_NAME|PRIVATE_PHONE|sales-agent/);
+  const draft = rf39Draft(result.items[0]!);
+  assert.equal(draft.data.sourceId, 'rf39:14567');
+  assert.equal(draft.data.elite, true);
+  assert.equal(draft.data.published, true);
+  assert.equal(draft.data.housingMarket, 'newbuild');
+  assert.deepEqual(draft.imageUrls, ['https://rf39.ru/images/objects/14567/a.jpg']);
 });
 
-test('RF39 retries a failed connection once while preserving the private POST body and eligibility filter', async t => {
-  const bodies: string[] = [];
-  t.mock.method(globalThis, 'fetch', async (_url: string, init: RequestInit) => {
-    bodies.push(String(init.body));
-    if (bodies.length === 1) throw new TypeError('PRIVATE_TOKEN connection failed', { cause: { code: 'UND_ERR_CONNECT_TIMEOUT' } });
-    return new Response(JSON.stringify({ code: 200, data: [fixture] }));
-  });
-  const result = await fetchRf39Objects('PRIVATE_TOKEN', 0, 123);
-  assert.equal(result[0]!.id, 123);
-  assert.equal(bodies.length, 2);
-  assert.equal(bodies[0], bodies[1]);
-  const body = new URLSearchParams(bodies[0]);
-  assert.equal(body.get('token'), 'PRIVATE_TOKEN');
-  assert.deepEqual(JSON.parse(body.get('params')!).filter, { published: true, archived: false, id: 123 });
+test('XML preserves invalid record IDs while independent records continue', async () => {
+  const result = await parseRf39Feed(rf39Chunks(rf39Xml(
+    rf39Offer(1, '<rooms>4</rooms>'), rf39Offer(2),
+    rf39Offer(3).replace('https://rf39.ru/catalog/sale/vtorichka/object/3', 'https://evil.test/object/3'),
+    rf39Offer(4, '<image>https://evil.test/private.jpg</image>'),
+  )));
+  assert.deepEqual(result.items.map(item => item.id), [2, 4]);
+  assert.deepEqual(result.presentIds, [1, 2, 4]);
+  assert.deepEqual(result.errors.map(error => error.id), [1, null, 4]);
+  assert.equal(result.authoritative, false);
 });
 
-test('RF39 does not retry invalid responses, authorization failures or unrecognized errors, and stops after the second timeout', async t => {
-  for (const mode of ['schema', '401', '403', 'other', 'timeout']) {
-    let calls = 0;
+test('XML rejects empty, truncated, duplicate, oversized and entity-bearing documents', async () => {
+  for (const xml of ['', rf39Xml(), rf39Xml(rf39Offer(1)).slice(0, -5), rf39Xml(rf39Offer(1), rf39Offer(1)),
+    rf39Xml(rf39Offer(1), rf39Offer(1, '', 'OTHER')), '<!DOCTYPE foo [<!ENTITY x "secret">]>' + rf39Xml(rf39Offer(1)),
+    rf39Xml(rf39Offer(1, '<a><a><a><a><a><a><a><a><a>x</a></a></a></a></a></a></a></a></a>'))])
+    await assert.rejects(parseRf39Feed(rf39Chunks(xml)));
+  await assert.rejects(parseRf39Feed(rf39Chunks(rf39Xml(rf39Offer(1))), 20));
+  for (const url of ['http://feed.rf39.ru/30.xml', 'https://evil.test/30.xml', 'https://feed.rf39.ru/30.xml?key=x', 'https://user@feed.rf39.ru/30.xml', 'https://feed.rf39.ru:443/30.xml'])
+    assert.throws(() => rf39FeedUrl(url));
+});
+
+test('XML accepts CRM public object URLs while rejecting untrusted hosts and credentialed links', async () => {
+  const links = [
+    'https://crm.rf39.ru/catalog/sale/vtorichka/object/1',
+    'https://rf39.ru/catalog/sale/vtorichka/object/2',
+    'https://crm.rf39.ru.evil.test/catalog/sale/vtorichka/object/3',
+    'https://user@crm.rf39.ru/catalog/sale/vtorichka/object/4',
+  ];
+  const xml = rf39Xml(...links.map((url, index) => rf39Offer(index + 1).replace(
+    `https://rf39.ru/catalog/sale/vtorichka/object/${index + 1}`, url)));
+  const snapshot = await parseRf39Feed((async function* () { yield Buffer.from(xml); })());
+  assert.deepEqual(snapshot.presentIds, [1, 2]);
+  assert.deepEqual(snapshot.items.map(item => item.id), [1, 2]);
+  assert.equal(snapshot.errors.length, 2);
+  assert.equal(snapshot.authoritative, false);
+});
+
+test('RF39 downloads complete XML once and filters numeric IDs locally', async t => {
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async (url: string, options: RequestInit) => {
+    calls++;
+    assert.equal(url, 'https://feed.rf39.ru/101.xml');
+    assert.equal(options.body, undefined);
+    assert.equal(options.redirect, 'error');
+    return new Response(rf39Xml(rf39Offer(1), rf39Offer(2), rf39Offer(3)));
+  });
+  assert.deepEqual((await fetchRf39Objects('https://feed.rf39.ru/101.xml', 0, '1,3')).map(item => item.id), [1, 3]);
+  assert.deepEqual((await fetchRf39Objects('https://feed.rf39.ru/101.xml', 1)).map(item => item.id), [2, 3]);
+  assert.equal(calls, 1);
+  for (const id of ['0', '-2', '1e3', '1,0', Array(101).fill('1').join(',')])
+    await assert.rejects(fetchRf39Objects('https://feed.rf39.ru/101.xml', 0, id), { statusCode: 400 });
+  assert.equal(calls, 1);
+});
+
+test('RF39 failures never leak upstream data or become an empty catalog', async t => {
+  for (const mode of ['schema', '401', '403', 'network']) {
     t.mock.method(globalThis, 'fetch', async () => {
-      calls++;
-      if (mode === 'schema') return new Response(JSON.stringify({ code: 200, data: [{ ...fixture, id: 'invalid' }] }));
-      if (mode === '401' || mode === '403') return new Response('PRIVATE_TOKEN', { status: Number(mode) });
-      throw new TypeError('PRIVATE_TOKEN', { cause: { code: mode === 'timeout' ? 'UND_ERR_CONNECT_TIMEOUT' : 'ECONNRESET' } });
+      if (mode === 'schema') return new Response('PRIVATE_CONTACT');
+      if (mode !== 'network') return new Response('PRIVATE_CONTACT', { status: Number(mode) });
+      throw new Error('PRIVATE_CONTACT');
     });
-    await assert.rejects(fetchRf39Objects('PRIVATE_TOKEN'), error => {
-      assert.doesNotMatch(JSON.stringify(error), /PRIVATE_TOKEN/);
-      return true;
+    await assert.rejects(fetchRf39Feed('https://feed.rf39.ru/102.xml', true), error => {
+      assert.doesNotMatch(JSON.stringify(error), /PRIVATE_CONTACT/);
+      return (error as any).statusCode === 502;
     });
-    assert.equal(calls, mode === 'timeout' ? 2 : 1, mode);
   }
 });

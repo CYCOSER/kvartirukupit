@@ -24,6 +24,7 @@ export const importJobRequestSchema = z.discriminatedUnion('kind', [
 });
 export const importJobRetrySchema = z.object({ requestId }).strict();
 export type ImportJobRequest = z.infer<typeof importJobRequestSchema>;
+export type StoredImportJobRequest = ImportJobRequest | { kind: 'sync'; requestId: string; feedUrl: string };
 export type ImportJobItemView = {
   id: string; kind: 'search' | 'import' | 'rescan'; title: string;
   complexId?: string; complexTitle?: string; source: 'local' | ImportSource;
@@ -31,9 +32,10 @@ export type ImportJobItemView = {
   propertyId?: string; created: boolean; linked: boolean; error?: string; warnings: string[];
 };
 export type ImportJobView = {
-  id: string; kind: ImportJobRequest['kind']; status: ImportJobStatus; title: string;
+  id: string; kind: StoredImportJobRequest['kind']; status: ImportJobStatus; title: string;
   source?: ImportSource; snapshot?: 'saved'; preferredSource?: ImportSource; complexIds?: string[];
   createdAt: string; updatedAt: string; finishedAt: string | null; stopRequested: boolean;
   total: number; processed: number; created: number; linked: number; existing: number; failed: number;
+  updated?: number; unpublished?: number;
   activeTitle: string; error: string | null; canRetry: boolean; items?: ImportJobItemView[];
 };

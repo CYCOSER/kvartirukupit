@@ -1,11 +1,11 @@
 import { createError } from 'h3';
 import { db } from './db';
 import type { ImportConfig, ImportExecution } from './import-execution';
-import { chooseExternalComplex, isBuildingCard, matchesLocalApartment, missingSourceMappings, numberedAddress, rf39ApartmentCandidate, sameNumberedAddress } from './complex-matching';
+import { chooseExternalComplex, complexName, isBuildingCard, matchesLocalApartment, missingSourceMappings, numberedAddress, rf39ApartmentCandidate, sameCity, sameNumberedAddress } from './complex-matching';
 import { lockPropertyRelations } from './property-relations';
 import { fetchNmarketObjects, fetchNmarketSnapshot } from './nmarket';
-import { fetchRf39Objects } from './rf39';
-import { fetchRf39Developments, snapshotRf39Developments } from './rf39-developments';
+import { DEFAULT_RF39_FEED_URL, fetchRf39Feed } from './rf39';
+import { snapshotRf39Developments } from './rf39-developments';
 import { getRf39Snapshot } from './rf39-snapshot';
 import { rf39IsComplex, rf39Supported } from './rf39-data';
 import { cacheApartmentMatches, matchNmarketApartments, nmarketApartmentKeys, rf39ApartmentIdentity } from './apartment-matching';
@@ -72,34 +72,35 @@ export async function findComplexApartments(config: ImportConfig, id: string, in
     return { ...result, count: result.candidates.length, ...(snapshot ? { snapshotDate: snapshot.snapshotDate } : {}) };
   }
 
-  const snapshot = input.snapshot === 'saved' ? await getRf39Snapshot(config.rf39Token, config.rf39SnapshotPath, 'saved') : null;
-  if (snapshot) {
-    result.snapshotDate = snapshot.snapshotDate;
+  const source = config.rf39FeedUrl || DEFAULT_RF39_FEED_URL;
+  const snapshot = input.snapshot === 'saved' ? await getRf39Snapshot(source, config.rf39SnapshotPath, 'saved') : await fetchRf39Feed(source);
+  result.snapshotDate = snapshot.snapshotDate;
+  if (input.snapshot === 'saved') {
     result.warnings.push(`Используется сохранённая выгрузка CRM от ${snapshot.snapshotDate}. Проверьте цены и наличие.`);
   }
   const parentId = target.sourceId?.match(/^rf39:(\d+)$/)?.[1];
-  const parent = parentId ? (snapshot?.items || await fetchRf39Objects(config.rf39Token, 0, Number(parentId))).find(item => String(item.id) === parentId) : undefined;
+  const parent = parentId ? snapshot.items.find(item => String(item.id) === parentId) : undefined;
   if (parent && !rf39IsComplex(parent)) return { ...result, warnings: ['Исходный объект CRM является квартирой. Проверьте тип и ID карточки ЖК.'] };
   if (parent && ((target.rf39ComplexId && parent.development?.id && target.rf39ComplexId !== String(parent.development.id)) ||
       (target.rf39BuildingId && parent.complex?.id && target.rf39BuildingId !== String(parent.complex.id))))
     return { ...result, warnings: ['ID ЖК или корпуса противоречит исходному объекту CRM. Проверьте связь перед поиском.'] };
   const developmentId = target.rf39ComplexId || (parent?.development?.id ? String(parent.development.id) : undefined);
   const buildingId = target.rf39BuildingId || (parent?.complex?.id ? String(parent.complex.id) : undefined);
-  if (parentId && !parent && !buildingId)
-    return { ...result, warnings: ['Исходный корпус недоступен в опубликованной выгрузке CRM. Укажите ID корпуса или проверьте публикацию в CRM.'] };
-  const developments = parent && !developmentId ? [] : snapshot
-    ? snapshotRf39Developments(snapshot.items) : await fetchRf39Developments(config.rf39Token, developmentId);
+  const developments = parent && !developmentId ? [] : snapshotRf39Developments(snapshot.items);
   const match = chooseExternalComplex(target, developments, developmentId);
   result.matchedBy = parentId ? 'исходный корпус CRM' : match.matchedBy;
-  result.warnings.push(...match.warnings);
-  if (!match.item && !parent) return result;
   const items = new Map(parent ? [[parent.id, parent]] : []);
   const objectIds = match.item?.objectIds || [];
-  // Saved objects already passed eligibility filters; live development lists need filtered object requests.
-  for (let offset = 0; offset < objectIds.length; offset += 100) {
-    const ids = objectIds.slice(offset, offset + 100);
-    for (const item of snapshot?.items || await fetchRf39Objects(config.rf39Token, 0, ids.join(',')))
-      if (ids.includes(item.id)) items.set(item.id, item);
+  for (const item of snapshot.items) if (objectIds.includes(item.id)) items.set(item.id, item);
+  if (!match.item && !parent) {
+    for (const item of snapshot.items) {
+      if (!rf39ApartmentCandidate(item)) continue;
+      const nameMatch = !isBuildingCard(target) && !!item.development?.title &&
+        complexName(target.title) === complexName(item.development.title) && sameCity(target.location, item.city || '');
+      if (nameMatch || sameNumberedAddress(target, { location: item.city || '', address: item.address || '' })) items.set(item.id, item);
+    }
+    if (!items.size) { result.warnings.push(...match.warnings); return result; }
+    result.matchedBy = 'точное название ЖК и город или адрес корпуса из XML';
   }
   const building = isBuildingCard(target);
   let ambiguous = 0;
@@ -117,11 +118,12 @@ export async function findComplexApartments(config: ImportConfig, id: string, in
   if (ambiguous) result.warnings.push(`${ambiguous} объектов CRM пропущено: нет характеристик отдельной квартиры, объект может быть корпусом.`);
   if (building && !buildingId && !parentId && !numberedAddress(target.address))
     result.warnings.push('Укажите ID корпуса CRM или точный адрес с номером дома: квартиры соседних корпусов не привязаны.');
-  await saveMappings({ ...(match.item ? { rf39ComplexId: String(match.item.id) } : {}), ...(buildingId ? { rf39BuildingId: buildingId } : {}) });
+  if (match.item || buildingId) await saveMappings({ ...(match.item ? { rf39ComplexId: String(match.item.id) } : {}), ...(buildingId ? { rf39BuildingId: buildingId } : {}) });
   if (result.candidates.length) {
     // Use both complete building sets: equal street address and unit number alone can name different corpora.
-    const nmarket = input.snapshot === 'saved' ? (await fetchNmarketSnapshot(config.nmarketSnapshotPath)).items : await fetchNmarketObjects(config.nmarketFeedUrl, config.nmarketSnapshotPath);
     const identities = [...items.values()].flatMap(item => [rf39ApartmentIdentity(item), ...Object.values(item.layouts || {}).map(layout => rf39ApartmentIdentity(item, layout.id))]);
+    const comparable = identities.some(identity => identity.building && identity.apartment && identity.address);
+    const nmarket = !comparable ? [] : input.snapshot === 'saved' ? (await fetchNmarketSnapshot(config.nmarketSnapshotPath)).items : await fetchNmarketObjects(config.nmarketFeedUrl, config.nmarketSnapshotPath);
     const matches = matchNmarketApartments(nmarket, identities);
     const nmarketKeys = nmarketApartmentKeys(nmarket);
     result.apartmentMatches = [...matches];

@@ -10,6 +10,7 @@ export default defineEventHandler(async (event) => {
   const [items, total, locations] = await Promise.all([
     db.property.findMany({
       where,
+      omit: { rf39Baseline: true },
       orderBy,
       skip: (parsed.data.page - 1) * 12,
       take: 12,

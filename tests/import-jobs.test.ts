@@ -8,11 +8,12 @@ import sharp from 'sharp';
 import { db } from '../server/utils/db';
 import { createImportJob, deleteImportJob, getImportJob, listImportJobs, processNextImportJob, retryImportJob, stopImportJob } from '../server/utils/import-jobs';
 import { importJobRequestSchema } from '../shared/import-job';
+import { DEFAULT_RF39_FEED_URL } from '../shared/feed-sync';
 import { ImportOwnershipLost, type ImportConfig } from '../server/utils/import-execution';
 import { cacheApartmentMatches } from '../server/utils/apartment-matching';
 
 function memoryDatabase() {
-  const tables: Record<string, any[]> = { importJob: [], importJobItem: [], property: [], propertyImportSource: [] };
+  const tables: Record<string, any[]> = { importJob: [], importJobItem: [], property: [], propertyImportSource: [], importImageCache: [], feedSyncSetting: [] };
   const original: [any, string, any][] = [];
   const clone = <T>(value: T): T => structuredClone(value);
   function matches(row: any, where: any = {}): boolean {
@@ -55,7 +56,7 @@ function memoryDatabase() {
     const create = (data: any) => {
       const common = { id: `${name}-${randomUUID()}`, createdAt: new Date(), updatedAt: new Date() };
       const defaults = name === 'importJob'
-        ? { status: 'queued', stopRequested: false, activeTitle: '', error: null, token: null, leaseExpiresAt: null, finishedAt: null, total: 0, processed: 0, created: 0, linked: 0, existing: 0, failed: 0 }
+        ? { status: 'queued', stopRequested: false, activeTitle: '', error: null, token: null, leaseExpiresAt: null, finishedAt: null, total: 0, processed: 0, created: 0, updated: 0, unpublished: 0, linked: 0, existing: 0, failed: 0 }
         : name === 'importJobItem' ? { status: 'queued', result: null, error: null } : { complexId: null, sourceId: null };
       const row = { ...common, ...defaults, ...clone(data) };
       tables[name].push(row); return clone(row);
@@ -110,9 +111,10 @@ async function fixture() {
   process.env.UPLOAD_DIR = join(dir, 'uploads');
   const previousFetch = globalThis.fetch;
   globalThis.fetch = async () => { throw new Error('Job tests must not access live feeds'); };
-  const config: ImportConfig = { rf39Token: 'job-test-token', rf39SnapshotPath: join(dir, 'rf39.json'), nmarketSnapshotPath: join(dir, 'nmarket.xml'), nmarketFeedUrl: '' };
-  const saveCrm = (items: any[]) => writeFile(config.rf39SnapshotPath, JSON.stringify({ version: 1,
-    tokenHash: createHash('sha256').update(config.rf39Token).digest('hex'), snapshotDate: '2026-11-02T10:00:00.000Z', items }));
+  const config: ImportConfig = { rf39FeedUrl: DEFAULT_RF39_FEED_URL, rf39SnapshotPath: join(dir, 'rf39.json'), nmarketSnapshotPath: join(dir, 'nmarket.xml'), nmarketFeedUrl: '' };
+  const saveCrm = (items: any[]) => writeFile(config.rf39SnapshotPath, JSON.stringify({ version: 2,
+    sourceHash: createHash('sha256').update(DEFAULT_RF39_FEED_URL).digest('hex'), snapshotDate: '2026-11-02T10:00:00.000Z',
+    authoritative: true, presentIds: items.map(item => item.id), errors: [], items }));
   const drain = async () => { for (let i = 0; i < 100; i++) if (!await processNextImportJob(config)) return; throw new Error('Queue did not finish'); };
   return { ...memory, dir, config, saveCrm, drain, async close() {
     memory.restore(); globalThis.fetch = previousFetch;
@@ -129,6 +131,31 @@ test('job input validates source IDs, count limits and unexpected fields', () =>
     { ...request, items: [{ id: -1 }] }, { ...request, items: [{ id: '1' }] }, { ...request, items: Array(10001).fill({ id: 1 }) } ])
     assert.equal(importJobRequestSchema.safeParse(invalid).success, false);
   assert.equal(importJobRequestSchema.safeParse({ ...request, source: 'nmarket', items: [{ id: 'apartment:123' }] }).success, true);
+});
+
+test('XML job details expose imported cards and failed offers without the internal plan', async () => {
+  const f = await fixture();
+  try {
+    const job = await db.importJob.create({ data: { ownerId: 'owner', requestId: randomUUID(), kind: 'sync',
+      request: { kind: 'sync', feedUrl: DEFAULT_RF39_FEED_URL }, updated: 2, unpublished: 1 } });
+    await db.importJobItem.createMany({ data: [
+      { jobId: job.id, key: 'feed-plan', kind: 'feed-plan', source: 'rf39', title: 'Plan', payload: {}, groupOrder: 0, step: -1 },
+      { jobId: job.id, key: 'feed:rf39:1', kind: 'feed-import', source: 'rf39', title: 'Apartment',
+        payload: { data: { sourceId: 'rf39:1' } }, result: { id: 'property-1', created: true, warnings: [] }, groupOrder: 0, step: 0 },
+      { jobId: job.id, key: 'feed-error:0', kind: 'feed-error', source: 'rf39', title: 'Invalid offer',
+        payload: { id: 2 }, status: 'failed', error: 'Invalid price', groupOrder: 0, step: 1 },
+    ] });
+    const view = await getImportJob('owner', job.id);
+    assert.deepEqual([view.updated, view.unpublished], [2, 1]);
+    assert.deepEqual(view.items?.map(item => [item.kind, item.sourceId, item.propertyId]), [
+      ['import', 'rf39:1', 'property-1'], ['import', 2, undefined],
+    ]);
+    assert.equal(view.items?.[1]?.error, 'Invalid price');
+    await db.importJob.update({ where: { id: job.id }, data: { status: 'failed', total: 0, processed: 0, failed: 0 } });
+    assert.equal((await getImportJob('owner', job.id)).canRetry, true);
+    await db.importJob.update({ where: { id: job.id }, data: { status: 'stopped' } });
+    assert.equal((await getImportJob('owner', job.id)).canRetry, true);
+  } finally { await f.close(); }
 });
 
 test('durable import resumes an expired claim, skips item errors and retries only failures under its owner', async () => {
@@ -158,7 +185,7 @@ test('durable import resumes an expired claim, skips item errors and retries onl
     await f.drain();
     assert.equal((await getImportJob('owner', retry.id)).created, 1);
     assert.equal(f.tables.property.length, 3);
-    assert.ok(f.tables.property.every(row => row.published === false));
+    assert.ok(f.tables.property.every(row => row.published === true && row.elite === true));
   } finally { await f.close(); }
 });
 
@@ -258,11 +285,20 @@ for (const loseOwnership of [false, true]) test(`in-flight import ${loseOwnershi
       await assert.rejects(processing, ImportOwnershipLost);
       assert.equal(f.tables.property.length, 0);
       assert.equal(f.tables.importJob[0].processed, 0);
-      assert.deepEqual(await readdir(join(f.dir, 'uploads')), []);
+      const cachedFile = `import-v1-${createHash('sha256').update(image).digest('hex')}.webp`;
+      assert.deepEqual(await readdir(join(f.dir, 'uploads')), [cachedFile], JSON.stringify(f.tables.importJobItem));
+      assert.equal(f.tables.importImageCache.length, 1);
+      assert.equal(f.tables.importImageCache[0].originalFile, '/uploads/' + cachedFile);
+      globalThis.fetch = async () => { throw new Error('Retry must reuse the cached image'); };
+      f.tables.importJob[0].leaseExpiresAt = new Date(0);
+      await f.drain();
+      const resumed = await getImportJob('owner', job.id);
+      assert.deepEqual([resumed.status, resumed.created, resumed.failed], ['completed', 2, 0]);
+      assert.equal(f.tables.property[0].images.create[0].file, '/uploads/' + cachedFile);
     } else {
       await processing;
       const result = await getImportJob('owner', job.id);
-      assert.deepEqual([result.status, result.processed, result.created, result.total], ['stopped', 1, 1, 2]);
+      assert.deepEqual([result.status, result.processed, result.created, result.total], ['stopped', 1, 1, 2], JSON.stringify(result));
       assert.equal(await processNextImportJob(f.config), false);
       assert.equal(f.tables.property.length, 1);
       assert.equal(result.items?.[0]?.propertyId, f.tables.property[0].id);
@@ -270,14 +306,14 @@ for (const loseOwnership of [false, true]) test(`in-flight import ${loseOwnershi
   } finally { await f.close(); }
 });
 
-for (const [preferredSource, failCrm] of [['rf39', false], ['nmarket', false], ['rf39', true]] as const) test(`multiple complexes preserve ${preferredSource} preference after cache loss and continue past a removed complex (CRM failure: ${failCrm})`, async () => {
+for (const [preferredSource, failImage] of [['rf39', false], ['nmarket', false], ['rf39', true]] as const) test(`multiple complexes preserve ${preferredSource} preference after cache loss and continue past a removed complex (image failure: ${failImage})`, async () => {
   const f = await fixture();
   try {
     f.tables.property.push(...['a', 'b'].map((id, index) => ({ id, title: `ЖК ${id}`, type: 'complex', sourceId: null, complexId: null,
       location: 'Калининград', address: `Тестовая улица, ${index + 1}`, nmarketComplexId: String(7 + index), rf39ComplexId: String(7 + index) })));
     await f.saveCrm([0, 1].map(index => apartment(100 + index, { development: { id: 7 + index, title: `ЖК ${index ? 'b' : 'a'}` },
       complex: { id: 19 + index }, address: `Тестовая улица, ${index + 1}`,
-      ...(failCrm && index === 0 ? { images: ['/images/objects/unavailable.png'] } : {}) })));
+      ...(failImage && index === 0 ? { images: ['/images/objects/unavailable.png'] } : {}) })));
     await writeFile(f.config.nmarketSnapshotPath, `<realty-feed xmlns="http://webmaster.yandex.ru/schemas/feed/realty/2010-06">${[0, 1].map(index => `<offer internal-id="${99 + index}">
       <type>продажа</type><property-type>жилая</property-type><category>квартира</category><nmarket-complex-id>${7 + index}</nmarket-complex-id><nmarket-building-id>${29 + index}</nmarket-building-id>
       <building-name>ЖК ${index ? 'b' : 'a'}</building-name><location><locality-name>Калининград</locality-name><address>Тестовая улица, ${index + 1}</address><apartment>12</apartment></location>
@@ -292,12 +328,13 @@ for (const [preferredSource, failCrm] of [['rf39', false], ['nmarket', false], [
     }
     const result = await getImportJob('owner', job.id);
     assert.equal(result.status, 'completed');
-    assert.equal(result.created, failCrm ? 1 : 2);
-    assert.equal(result.failed, failCrm ? 6 : 4);
+    assert.equal(result.created, 2);
+    assert.equal(result.failed, 4);
     const apartments = f.tables.property.filter(row => row.type === 'apartment');
-    assert.deepEqual(apartments.map(row => row.complexId), failCrm ? ['b'] : ['a', 'b']);
-    assert.ok(apartments.every(row => row.sourceId.startsWith(preferredSource + ':') && row.published === false));
-    assert.equal(f.tables.propertyImportSource.length, failCrm ? 2 : 4);
+    assert.deepEqual(apartments.map(row => row.complexId), ['a', 'b']);
+    assert.ok(apartments.every(row => row.sourceId.startsWith(preferredSource + ':') && row.published === (preferredSource === 'rf39') && row.elite === (preferredSource === 'rf39')));
+    assert.equal(f.tables.propertyImportSource.length, 4);
+    if (failImage) assert.ok(result.items?.some(item => item.warnings.some(warning => warning.includes('фотографию №1'))));
     assert.ok(f.tables.importJobItem.filter(item => item.kind === 'rescan' && item.complexId !== 'removed').every(item => item.status === 'completed'));
   } finally { await f.close(); }
 });

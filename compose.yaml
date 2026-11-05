@@ -36,7 +36,7 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       UPSCALE_ENABLED: "true"
       NUXT_MAP_SEARCH_URL: ${NUXT_MAP_SEARCH_URL:-https://nominatim.openstreetmap.org/search}
-      NUXT_RF39_TOKEN: ${NUXT_RF39_TOKEN:-}
+      NUXT_RF39_FEED_URL: ${NUXT_RF39_FEED_URL:-https://feed.rf39.ru/30.xml}
       NUXT_RF39_SNAPSHOT_PATH: /app/rf39/snapshot.json
       NUXT_NMARKET_FEED_URL: ${NUXT_NMARKET_FEED_URL:-}
       NUXT_NMARKET_SNAPSHOT_PATH: /app/nmarket/snapshot.xml

@@ -44,6 +44,7 @@ model Property {
   sourceMode  String?
   sourceNote  String?
   sourceFetchedAt DateTime?
+  rf39Baseline Json?
   developer   String?
   district    String?
   completionDate String?
@@ -100,6 +101,33 @@ model ImageUpscale {
   @@index([status, updatedAt])
 }
 
+model ImportImageCache {
+  url          String @id
+  contentHash  String
+  contentType  String
+  originalFile String
+  etag         String?
+  lastModified String?
+  checkedAt    DateTime @default(now())
+  planFile     String?
+  planHueShift Int?
+  detectedPlan Boolean?
+}
+
+model FeedSyncSetting {
+  id             String @id @default("rf39")
+  ownerId        String
+  owner          AdminUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  url            String @default("https://feed.rf39.ru/30.xml")
+  enabled        Boolean @default(false)
+  intervalMinutes Int @default(60)
+  nextRunAt      DateTime?
+  lastSuccessAt  DateTime?
+  lastError      String?
+  lastJobId      String?
+  updatedAt      DateTime @updatedAt
+}
+
 model Lead {
   id             String    @id @default(cuid())
   propertyId     String?
@@ -121,6 +149,7 @@ model AdminUser {
   passwordHash String
   sessions     Session[]
   importJobs   ImportJob[]
+  feedSyncSettings FeedSyncSetting[]
 }
 
 model ImportJob {
@@ -138,6 +167,8 @@ model ImportJob {
   created        Int      @default(0)
   linked         Int      @default(0)
   existing       Int      @default(0)
+  updated        Int      @default(0)
+  unpublished    Int      @default(0)
   failed         Int      @default(0)
   error          String?
   token          String?

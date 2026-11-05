@@ -49,6 +49,7 @@ test('NMarket streams UTF-8 XML into filled drafts and strips agent/private fiel
   assert.equal(draft.data.readiness, 'IV кв. 2027');
   assert.equal(draft.data.completionDate, '2027-12-31');
   assert.equal(draft.data.sourceId, 'nmarket:apartment:123');
+  assert.equal(draft.data.slug, 'nobj-apartment-123');
   assert.equal(draft.data.published, false);
   assert.equal(draft.data.featured, false);
   assert.equal(draft.data.priceKind, null);
@@ -72,6 +73,7 @@ test('NMarket groups a complex across all offers with minimum price and latest c
   const draft = nmarketDraft(complex);
   assert.equal(objects.length, 3);
   assert.equal(complex.offerCount, 2);
+  assert.equal(draft.data.slug, 'nobj-complex-456');
   assert.equal(draft.data.housingMarket, null);
   assert.equal(draft.data.price, 8000000);
   assert.equal(draft.data.priceKind, 'from');
@@ -85,6 +87,13 @@ test('NMarket groups a complex across all offers with minimum price and latest c
   assert.deepEqual(draft.planImageUrls, []);
   assert.match(draft.warnings.join(' '), /Отдельные квартиры не создавались/);
   assert.equal(objects.find(item => item.id === 'apartment:124')!.bedrooms, 0);
+});
+
+test('NMarket public slugs keep apartment and complex IDs distinct without changing source identities', async () => {
+  const objects = await parse(feed(offer('123', { 'nmarket-complex-id': '123' })));
+  assert.deepEqual(objects.map(item => nmarketDraft(item).data).map(({ slug, sourceId }) => [slug, sourceId]), [
+    ['nobj-complex-123', 'nmarket:complex:123'], ['nobj-apartment-123', 'nmarket:apartment:123'],
+  ]);
 });
 
 test('NMarket retains an explicit plan tag when a URL is repeated earlier as a general image', async () => {

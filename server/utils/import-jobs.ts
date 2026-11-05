@@ -7,7 +7,9 @@ import { importRf39Property } from './import-rf39';
 import { existingImportedProperty } from './import-property';
 import { importNmarketProperty } from './import-nmarket';
 import { ImportOwnershipLost, importInfrastructureError, type ImportConfig, type ImportExecution } from './import-execution';
-import type { ImportJobRequest, ImportJobView, ImportJobItemView, ImportSource } from '../../shared/import-job';
+import type { ImportJobRequest, StoredImportJobRequest, ImportJobView, ImportJobItemView, ImportSource } from '../../shared/import-job';
+import { processRf39FeedJob } from './rf39-feed-sync';
+import { startRf39FeedSync } from './rf39-feed-settings';
 
 type Candidate = { id: string | number; layoutId?: number; preferredNmarketId?: string; matchedNmarketIds?: string[] };
 type SearchResult = Awaited<ReturnType<typeof findComplexApartments>>;
@@ -20,26 +22,29 @@ const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringif
 const itemOrder = [{ groupOrder: 'asc' }, { step: 'asc' }, { key: 'asc' }] as const;
 
 function summary(job: ImportJob): ImportJobView {
-  const request = job.request as unknown as ImportJobRequest;
+  const request = job.request as unknown as StoredImportJobRequest;
   return {
     id: job.id, kind: request.kind, status: job.status as ImportJobView['status'],
-    title: request.kind === 'import' ? `Импорт из ${request.source === 'rf39' ? 'CRM RF39' : 'Нмаркета'}` : `Квартиры для ЖК: ${request.complexIds.length}`,
-    ...(request.kind === 'import' ? { source: request.source } : { complexIds: request.complexIds, preferredSource: request.preferredSource }),
-    ...(request.snapshot ? { snapshot: request.snapshot } : {}),
+    title: request.kind === 'sync' ? 'Синхронизация XML CRM RF39' : request.kind === 'import' ? `Импорт из ${request.source === 'rf39' ? 'CRM RF39' : 'Нмаркета'}` : `Квартиры для ЖК: ${request.complexIds.length}`,
+    ...(request.kind === 'sync' ? { source: 'rf39' as const } : request.kind === 'import' ? { source: request.source } : { complexIds: request.complexIds, preferredSource: request.preferredSource }),
+    ...(request.kind !== 'sync' && request.snapshot ? { snapshot: request.snapshot } : {}),
     createdAt: job.createdAt.toISOString(), updatedAt: job.updatedAt.toISOString(), finishedAt: job.finishedAt?.toISOString() || null,
     stopRequested: job.stopRequested, total: job.total, processed: job.processed, created: job.created,
     linked: job.linked, existing: job.existing, failed: job.failed, activeTitle: job.activeTitle, error: job.error,
-    canRetry: !active.includes(job.status) && (job.failed > 0 || job.processed < job.total),
+    ...(request.kind === 'sync' ? { updated: job.updated, unpublished: job.unpublished } : {}),
+    canRetry: !active.includes(job.status) && (job.failed > 0 || job.processed < job.total || request.kind === 'sync' && ['failed', 'stopped'].includes(job.status)),
   };
 }
 function itemView(item: ImportJobItem): ImportJobItemView {
-  const payload = item.payload as unknown as Candidate;
+  const payload = item.payload as unknown as Candidate & { data?: { sourceId?: string } };
   const result = (item.result || {}) as Record<string, unknown>;
+  const feedItem = item.kind === 'feed-import' || item.kind === 'feed-error';
+  const sourceId = feedItem ? payload.data?.sourceId || payload.id : payload.id;
   return {
-    id: item.id, kind: item.kind as ImportJobItemView['kind'], title: item.title,
+    id: item.id, kind: feedItem ? 'import' : item.kind as ImportJobItemView['kind'], title: item.title,
     source: item.source as ImportJobItemView['source'], status: item.status as ImportJobItemView['status'],
     ...(item.complexId ? { complexId: item.complexId, complexTitle: item.complexTitle || item.complexId } : {}),
-    ...(payload.id !== undefined ? { sourceId: payload.id } : {}), ...(payload.layoutId ? { layoutId: payload.layoutId } : {}),
+    ...(sourceId != null ? { sourceId } : {}), ...(payload.layoutId ? { layoutId: payload.layoutId } : {}),
     ...(typeof result.id === 'string' ? { propertyId: result.id } : {}),
     created: result.created === true, linked: result.linked === true || Number(result.linked) > 0,
     ...(item.error ? { error: item.error } : {}), warnings: Array.isArray(result.warnings) ? result.warnings as string[] : [],
@@ -56,7 +61,7 @@ export async function getImportJob(ownerId: string, id: string, details = true) 
   const job = await db.importJob.findFirst({ where: { id, ownerId } });
   if (!job) throw createError({ statusCode: 404, data: { message: 'Задание не найдено.' } });
   const view = summary(job);
-  if (details) view.items = (await db.importJobItem.findMany({ where: { jobId: id, kind: { not: 'plan' } }, orderBy: [...itemOrder] })).map(itemView);
+  if (details) view.items = (await db.importJobItem.findMany({ where: { jobId: id, kind: { notIn: ['plan', 'feed-plan'] } }, orderBy: [...itemOrder] })).map(itemView);
   return view;
 }
 export async function deleteImportJob(ownerId: string, id: string) {
@@ -122,7 +127,8 @@ export async function retryImportJob(ownerId: string, id: string, requestId: str
   const view = await getImportJob(ownerId, id, false);
   if (!view.canRetry) throw createError({ statusCode: 409, data: { message: 'Нет ошибок или необработанных объектов для повтора.' } });
   const job = await db.importJob.findUniqueOrThrow({ where: { id } });
-  const request = job.request as unknown as ImportJobRequest;
+  const request = job.request as unknown as StoredImportJobRequest;
+  if (request.kind === 'sync') return startRf39FeedSync(ownerId, requestId);
   const items = await db.importJobItem.findMany({ where: { jobId: id }, orderBy: [...itemOrder] });
   if (request.kind === 'import') {
     return createImportJob(ownerId, { ...request, requestId, items: items.filter(item => !['completed', 'skipped'].includes(item.status)).map(item => ({ id: (item.payload as unknown as Candidate).id, title: item.title })) });
@@ -193,6 +199,10 @@ export async function processNextImportJob(config: ImportConfig) {
     if (!result.count) throw new ImportOwnershipLost();
   };
   try {
+    if (next.kind === 'sync') {
+      await processRf39FeedJob(next, config, { guard });
+      return true;
+    }
     const work = await db.$transaction(async tx => {
       await guard(tx);
       const current = await tx.importJob.findUniqueOrThrow({ where: { id: next.id }, select: { stopRequested: true } });
@@ -272,6 +282,8 @@ export async function processNextImportJob(config: ImportConfig) {
     await db.$transaction(async tx => {
       await guard(tx);
       await tx.importJob.update({ where: { id: next.id }, data: { status: 'failed', token: null, leaseExpiresAt: null, activeTitle: '', finishedAt: new Date(), error: 'Обработка остановлена из-за ошибки сервера. Необработанные объекты сохранены для повтора.' } });
+      if (next.kind === 'sync') await tx.feedSyncSetting.updateMany({ where: { id: 'rf39', lastJobId: next.id }, data: { lastError: isError(error) && typeof (error.data as { message?: unknown })?.message === 'string'
+        ? (error.data as { message: string }).message : 'Не удалось завершить синхронизацию XML.' } });
     });
     return true;
   } finally {

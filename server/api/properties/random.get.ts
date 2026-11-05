@@ -9,6 +9,7 @@ export default defineEventHandler(async (event) => {
     ORDER BY random() LIMIT 10
   `;
   const items = await db.property.findMany({
+    omit: { rf39Baseline: true },
     where: {
       id: { in: selected.map(({ id }) => id) },
       published: true,

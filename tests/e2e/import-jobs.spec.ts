@@ -12,7 +12,7 @@ for (const source of ['rf39', 'nmarket'] as const) test(`${source} job survives 
   } }));
   await page.goto(`/admin-console-9Xk6uiIs/properties/import?source=${source}`);
   await page.getByRole('button', { name: 'Выбрать все найденные', exact: true }).click();
-  await page.getByRole('button', { name: 'Создать черновики (2)', exact: true }).click();
+  await page.getByRole('button', { name: `${source === 'rf39' ? 'Опубликовать квартиры' : 'Создать черновики'} (2)`, exact: true }).click();
   await expect(page.locator('.import-page .import-progress')).toContainText('Обработано: 0 из 2');
   await page.reload();
   await expect(page.locator('.import-page .import-progress')).toContainText('Обработано: 0 из 2');
@@ -23,7 +23,7 @@ for (const source of ['rf39', 'nmarket'] as const) test(`${source} job survives 
   const reopened = await context.newPage();
   await reopened.goto('/admin-console-9Xk6uiIs/leads');
   const panel = reopened.getByRole('complementary', { name: 'Фоновые задачи' });
-  await panel.getByRole('button', { name: /Создание черновиков/ }).click();
+  await panel.getByRole('button', { name: /Фоновые задачи/ }).click();
   await panel.locator('.jobs-entry > summary').click();
   await expect(panel.locator('.import-progress')).toContainText('Обработано: 1 из 2');
   expect(fixture.stops).toHaveLength(0);
@@ -57,11 +57,11 @@ test('old jobs can be removed without reviving cached results; active jobs stay 
     await page.setViewportSize({ width, height: 1000 });
     await page.locator('.import-selection').scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath(`history-spacing-${width}.png`) });
-    await panel.getByRole('button', { name: /Создание черновиков/ }).click();
+    await panel.getByRole('button', { name: /Фоновые задачи/ }).click();
     await panel.screenshot({ path: testInfo.outputPath(`history-controls-${width}.png`) });
-    await panel.getByRole('button', { name: /Создание черновиков/ }).click();
+    await panel.getByRole('button', { name: /Фоновые задачи/ }).click();
   }
-  await panel.getByRole('button', { name: /Создание черновиков/ }).click();
+  await panel.getByRole('button', { name: /Фоновые задачи/ }).click();
   await expect(panel.locator(`[data-job-id="${running.id}"] .jobs-remove`)).toHaveCount(0);
 
   let failDelete = true;

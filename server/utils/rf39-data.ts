@@ -16,7 +16,7 @@ const layoutSchema = z.object({
   images: z.array(z.string()).nullish(),
   params: paramsSchema,
 });
-const objectSchema = z.object({
+export const rf39ObjectSchema = z.object({
   id: idSchema,
   title: z.string().nullish(),
   type: z.string(),
@@ -41,12 +41,12 @@ const objectSchema = z.object({
   }).nullish(),
   complex: z.object({ id: idSchema, title: z.string().nullish() }).nullish(),
 });
-export type Rf39Object = z.infer<typeof objectSchema>;
+export type Rf39Object = z.infer<typeof rf39ObjectSchema>;
 
 export function parseRf39Response(input: unknown): Rf39Object[] {
   const response = z.object({
     code: z.literal(200),
-    data: z.union([z.record(objectSchema), z.array(objectSchema)]),
+    data: z.union([z.record(rf39ObjectSchema), z.array(rf39ObjectSchema)]),
   }).parse(input);
   const items = Object.values(response.data);
   if (items.length > 100 || new Set(items.map(item => item.id)).size !== items.length)
@@ -114,7 +114,7 @@ export function rf39ImageUrl(value: string): string | null {
   const path = value.replace(/^\/var\/www\/jokercrm\/web(?=\/images\/)/, '');
   try {
     const url = new URL(path, 'https://crm.rf39.ru');
-    if (url.origin !== 'https://crm.rf39.ru' || url.username || url.password ||
+    if (!['https://crm.rf39.ru', 'https://rf39.ru'].includes(url.origin) || url.username || url.password ||
         url.search || url.hash || !/^\/images\/objects\/[a-zA-Z0-9/_-]+\.(?:jpe?g|png|webp)$/i.test(url.pathname))
       return null;
     return url.href;
@@ -142,14 +142,14 @@ export function rf39Draft(item: Rf39Object, type: 'complex' | 'apartment' = rf39
   if (price === null || price === 0) warnings.push('Цена не указана или требует проверки.');
   if (!validCoords && item.coordinates) warnings.push('Координаты CRM не распознаны.');
   const { description, requiresDraft } = rf39Description(item, missingPolicy);
-  if (requiresDraft) warnings.push('Описание отсутствует. Объект должен остаться черновиком.');
+  if (requiresDraft) warnings.push('Описание отсутствует. Проверьте карточку и добавьте описание.');
   if (type === 'complex' && layoutCount) warnings.push(`Импортирован корпус/ЖК. ${layoutCount} планировок остаются в CRM; отдельные квартиры не создавались.`);
   const area = type === 'apartment' ? number(param('area'), 10000) || null : null;
   const bedrooms = type === 'apartment' ? number(param('rooms'), 100, true) : null;
   const data = propertySchema.parse({
     housingMarket: type === 'apartment' ? (item.type === 'Квартиры в новостройках' ? 'newbuild' : 'secondary') : null,
     title: type === 'apartment' ? apartmentTitle(bedrooms, area) : item.title?.trim() || `Объект CRM №${item.id}`,
-    slug: `rf39-${item.id}`, type,
+    slug: `robj-${item.id}`, type,
     location: item.city?.trim() || 'Уточняется', address: item.address || '',
     latitude: validCoords ? coords[0] : null, longitude: validCoords ? coords[1] : null,
     price: price || null, status: 'available',
@@ -157,7 +157,7 @@ export function rf39Draft(item: Rf39Object, type: 'complex' | 'apartment' = rf39
     floors: number(param('floors-total'), 100, true) || null,
     landArea: null, seaDistance: null, readiness,
     finish: String(param('renovation') || param('decoration') || 'Уточняется'),
-    description, utilities: [], published: false, featured: false, elite: false, demo: false,
+    description, utilities: [], published: type === 'apartment', featured: false, elite: type === 'apartment', demo: false,
   });
   const imageUrls = [...new Set((item.images || []).map(rf39ImageUrl).filter((url): url is string => !!url))];
   if (imageUrls.length !== (item.images || []).length) warnings.push('Некоторые адреса фотографий отклонены или повторяются.');
@@ -187,6 +187,6 @@ export function rf39LayoutDraft(parent: Rf39Object, layoutId: number) {
     images: layout.images, params,
   }, 'apartment');
   draft.data.sourceId = `rf39-layout:${parent.id}:${id}`;
-  draft.data.slug = `rf39-layout-${parent.id}-${id}`;
+  draft.data.slug = `robj-layout-${parent.id}-${id}`;
   return draft;
 }

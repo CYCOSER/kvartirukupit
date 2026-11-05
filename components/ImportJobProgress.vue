@@ -47,6 +47,7 @@ async function act(action: 'stop' | 'retry') {
     <div class="import-progress" role="status" aria-live="polite">
       <span>Обработано: {{ job.processed }} из {{ job.total }}{{ job.activeTitle ? ' · ' + job.activeTitle : '' }}</span>
       <p>Создано: {{ job.created }} · Уже добавлены: {{ job.existing }} · Пропущено: {{ job.failed }}</p>
+      <p v-if="job.kind === 'sync'">Обновлено: {{ job.updated || 0 }} · Снято с публикации: {{ job.unpublished || 0 }}</p>
       <p v-if="job.kind === 'apartments'">Привязано: {{ job.linked }} · ЖК в задании: {{ job.complexIds?.length || 0 }}</p>
       <progress :value="job.processed" :max="Math.max(1, job.total)" aria-label="Ход импорта" />
     </div>
@@ -65,7 +66,7 @@ async function act(action: 'stop' | 'retry') {
       <details v-if="notices.length" class="job-warnings"><summary>Что проверить · {{ notices.length }}</summary><ul><li v-for="notice in notices" :key="notice">{{ notice }}</li></ul></details>
       <details v-if="results.length" class="import-results">
         <summary>Результаты импорта · {{ results.length }}</summary>
-        <ul><li v-for="result in results" :key="result.id"><NuxtLink :to="'/admin-console-9Xk6uiIs/properties/' + result.propertyId">{{ result.title }} — {{ result.created ? 'открыть черновик' : 'уже добавлен, открыть' }}</NuxtLink></li></ul>
+        <ul><li v-for="result in results" :key="result.id"><NuxtLink :to="'/admin-console-9Xk6uiIs/properties/' + result.propertyId">{{ result.title }} — {{ result.created ? (result.source === 'rf39' ? 'открыть карточку' : 'открыть черновик') : 'уже добавлен, открыть' }}</NuxtLink></li></ul>
       </details>
     </template>
   </section>

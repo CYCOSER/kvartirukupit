@@ -1,6 +1,6 @@
 import { createError } from 'h3';
 import type { ImportConfig, ImportExecution } from './import-execution';
-import { fetchRf39Objects } from './rf39';
+import { DEFAULT_RF39_FEED_URL, fetchRf39Objects } from './rf39';
 import { getRf39Snapshot } from './rf39-snapshot';
 import { rf39Draft, rf39LayoutDraft } from './rf39-data';
 import { existingImportedProperty, importProperty } from './import-property';
@@ -12,8 +12,9 @@ export async function importRf39Property(config: ImportConfig, input: Rf39Import
   const sourceId = input.layoutId ? `rf39-layout:${input.id}:${input.layoutId}` : `rf39:${input.id}`;
   const existing = await existingImportedProperty(sourceId, input.complexId, [], execution);
   if (existing) return existing;
-  const snapshot = input.snapshot === 'saved' ? await getRf39Snapshot(config.rf39Token, config.rf39SnapshotPath, 'saved') : null;
-  const items = snapshot?.items || await fetchRf39Objects(config.rf39Token, 0, input.id);
+  const source = config.rf39FeedUrl || DEFAULT_RF39_FEED_URL;
+  const snapshot = input.snapshot === 'saved' ? await getRf39Snapshot(source, config.rf39SnapshotPath, 'saved') : null;
+  const items = snapshot?.items || await fetchRf39Objects(source, 0, input.id);
   const item = items.find(item => item.id === input.id);
   if (!item) throw createError({ statusCode: 404, data: { message: 'Объект больше не доступен среди опубликованных объектов CRM.' } });
   const saved = input.snapshot === 'saved';
@@ -32,7 +33,7 @@ export async function importRf39Property(config: ImportConfig, input: Rf39Import
   catch { throw createError({ statusCode: 422, data: { message: 'Данные объекта не подходят для карточки ЖК или квартиры. Объект не импортирован.' } }); }
   if (snapshot) {
     draft.data.sourceFetchedAt = new Date(snapshot.snapshotDate);
-    draft.warnings.push(`Используется сохранённая выгрузка CRM от ${snapshot.snapshotDate}. Проверьте цены и наличие перед публикацией.`);
+    draft.warnings.push(`Используется сохранённая выгрузка CRM от ${snapshot.snapshotDate}. Проверьте цены и наличие.`);
   }
   if (preferred) {
     // Revalidate the duplicate before saving either source's aliases.

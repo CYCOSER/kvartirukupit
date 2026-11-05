@@ -3,6 +3,7 @@ import { withPublicTitle } from '../../../shared/property';
 export default defineEventHandler(async (event) => {
   const property = await db.property.findFirst({
     where: { slug: getRouterParam(event, 'slug'), published: true },
+    omit: { rf39Baseline: true },
     include: {
       images: { orderBy: { order: 'asc' } },
       complex: publicComplexSelect,

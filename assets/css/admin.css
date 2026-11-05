@@ -665,7 +665,8 @@
     margin-bottom: 18px;
   }
   .admin-navigation {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 7px;
     margin-top: 0;
   }

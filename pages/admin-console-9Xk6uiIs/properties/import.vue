@@ -269,7 +269,7 @@ async function importSelected() {
     launchedJobs.add(job.id);
     importRequestKey = '';
   } catch (error: any) {
-    importError.value = error.data?.data?.message || error.data?.message || 'Не удалось запустить создание черновиков. Повторите попытку.';
+    importError.value = error.data?.data?.message || error.data?.message || 'Не удалось запустить создание карточек. Повторите попытку.';
   } finally {
     submitting.value = false;
   }
@@ -288,7 +288,7 @@ async function importSelected() {
         </h1>
       </div>
       <span class="import-draft-badge"
-        ><CheckCircle2 :size="16" /> Сохраняем черновиками</span
+        ><CheckCircle2 :size="16" /> {{ isNmarket ? 'Сохраняем черновиками' : 'Публикуем в «Элитных»' }}</span
       >
     </header>
     <ImportSourceToggle
@@ -300,7 +300,7 @@ async function importSelected() {
       <div class="import-source-icon"><ArrowDownToLine :size="24" /></div>
       <div class="import-source-copy">
         <h2>
-          {{ isNmarket ? "Квартиры и жилые комплексы" : "Объекты агентства" }}
+          {{ isNmarket ? "Квартиры и жилые комплексы" : "Квартиры из XML-выгрузки" }}
         </h2>
         <p v-if="!items.length && !loading">Список предложений пока не загружен.</p>
         <p
@@ -339,7 +339,7 @@ async function importSelected() {
       role="status"
     >
       Сохранённая выгрузка от {{ snapshotLabel }}. Цены и наличие могли
-      измениться: проверьте их перед публикацией.
+      измениться: проверьте их{{ isNmarket ? ' перед публикацией' : '' }}.
     </p>
     <p v-if="listError" class="import-error" role="alert">
       {{ listError }} {{ nextOffset === null ? 'Продолжаем показывать сохранённую выгрузку.' : 'Повторная загрузка продолжится с места остановки.' }}
@@ -530,7 +530,7 @@ async function importSelected() {
             ><ArrowDownToLine :size="16" />{{
               importing || submitting
                 ? submitting ? "Запускаем…" : "Создаём карточки…"
-                : "Создать черновики (" + selected.length + ")"
+                : (isNmarket ? "Создать черновики (" : "Опубликовать квартиры (") + selected.length + ")"
             }}</Button
           >
         </div>
@@ -609,8 +609,7 @@ async function importSelected() {
                 class="import-existing"
                 >Уже добавлен — открыть</NuxtLink
               ><span v-else-if="!item.supported" class="import-unavailable"
-                >Недоступен: импортируются только ЖК и квартиры на
-                продажу.</span
+                >Недоступен: импортируются только {{ isNmarket ? 'ЖК и квартиры' : 'квартиры' }} на продажу.</span
               ><span v-else class="import-ready">Готов к импорту</span>
             </td>
           </tr>
@@ -652,8 +651,8 @@ async function importSelected() {
     </div>
     <p class="import-footnote">
       Повторный импорт сохраняет ручные правки.<template v-if="!isNmarket">
-        Квартиры внутри корпуса импортируются отдельно из карточки ЖК.</template
-      >
+        Импортируются только квартиры. Расписание полного обновления настраивается во вкладке
+        <NuxtLink to="/admin-console-9Xk6uiIs/feeds">«XML-выгрузка»</NuxtLink>.</template>
     </p>
   </div>
 </template>

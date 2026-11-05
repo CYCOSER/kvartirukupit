@@ -4,8 +4,10 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { createApp, toWebHandler } from 'h3';
+import { createApp, createRouter, toWebHandler } from 'h3';
 import uploads from '../server/routes/uploads/[...path].get';
+import singleUpload from '../server/routes/uploads/[name].get';
+import { readPropertyImage } from '../server/utils/property-image';
 
 async function fixture(t: TestContext) {
   const dir = await mkdtemp(join(tmpdir(), 'newh-uploads-'));
@@ -48,9 +50,31 @@ test('GET rejects directory traversal and invalid paths', async t => {
     '/uploads/a/b.webp',
     '/uploads/private.txt',
     '/uploads/not-a-uuid.webp',
+    '/uploads/import-v1-abcd.webp',
+    '/uploads/import-v1-' + 'a'.repeat(64) + '-other.webp',
     '/uploads/' + randomUUID() + '.webp/',
   ]) {
     const response = await request(path);
-    assert.equal(response.status, 400, path + ' should be 400');
+    assert.ok([400, 404].includes(response.status), path + ' should be rejected');
   }
+});
+
+test('content-addressed imports and plans are served by both routes and remain editable', async t => {
+  const { dir, request } = await fixture(t);
+  const app = createApp(), router = createRouter();
+  router.get('/uploads/:name', singleUpload); app.use(router.handler);
+  const handle = toWebHandler(app);
+  for (const suffix of ['', '-plan']) {
+    const name = `import-v1-${'a'.repeat(64)}${suffix}.webp`, content = Buffer.from(`test${suffix}`);
+    await writeFile(join(dir, name), content);
+    for (const response of [await request(`/uploads/${name}`), await handle(new Request(`http://localhost/uploads/${name}`))]) {
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('content-type'), 'image/webp');
+      assert.equal(response.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+      assert.deepEqual(Buffer.from(await response.arrayBuffer()), content);
+    }
+    assert.deepEqual(await readPropertyImage(`/uploads/${name}`), content);
+  }
+  for (const file of ['/uploads/../private.webp', `/uploads/import-v1-${'a'.repeat(64)}.webp/extra`, '/uploads/import-v1-short.webp'])
+    await assert.rejects(readPropertyImage(file), { statusCode: 400 });
 });

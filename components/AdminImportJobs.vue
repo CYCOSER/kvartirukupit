@@ -42,7 +42,7 @@ async function removeJob(id: string) {
 
 <template>
   <aside v-if="userId && (jobs.length || errors.list)" class="admin-jobs" aria-label="Фоновые задачи">
-    <button type="button" class="jobs-toggle" :aria-expanded="panelOpen" aria-controls="admin-job-list" @click="panelOpen = !panelOpen"><ListChecks :size="20" aria-hidden="true" /><span>Создание черновиков{{ active.length ? ' · выполняется ' + active.length : '' }}</span></button>
+    <button type="button" class="jobs-toggle" :aria-expanded="panelOpen" aria-controls="admin-job-list" @click="panelOpen = !panelOpen"><ListChecks :size="20" aria-hidden="true" /><span>Фоновые задачи{{ active.length ? ' · выполняется ' + active.length : '' }}</span></button>
     <div v-if="panelOpen" id="admin-job-list" class="jobs-list">
       <p class="jobs-note">Задачи сохраняются на сервере. Остановка доступна здесь на любой странице.</p>
       <p v-if="errors.list" class="jobs-error" role="alert">{{ errors.list }} <button type="button" @click="refresh">Обновить</button></p>

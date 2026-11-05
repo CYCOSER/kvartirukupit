@@ -7,7 +7,7 @@ export default defineNuxtConfig({
   vite: { build: { assetsInlineLimit: 0 } },
   devtools: { enabled: false },
   runtimeConfig: {
-    rf39Token: '',
+    rf39FeedUrl: 'https://feed.rf39.ru/30.xml',
     rf39SnapshotPath: '.data/rf39/snapshot.json',
     nmarketFeedUrl: '',
     nmarketSnapshotPath: '.data/nmarket/snapshot.xml',
