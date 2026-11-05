@@ -114,6 +114,12 @@ model ImportImageCache {
   detectedPlan Boolean?
 }
 
+model ImageFingerprint {
+  file      String @id
+  signature String
+  hash      String
+}
+
 model FeedSyncSetting {
   id             String @id @default("rf39")
   ownerId        String

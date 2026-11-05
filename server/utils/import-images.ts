@@ -7,6 +7,7 @@ import { rf39ImageUrl } from './rf39-data';
 import { nmarketImageUrl } from './nmarket-data';
 import { rf39ReadBody } from './rf39';
 import { importInfrastructureError } from './import-execution';
+import { propertyImageFingerprint } from './image-fingerprint';
 
 type CachedImage = {
   url: string; contentHash: string; contentType: string; originalFile: string;
@@ -14,7 +15,7 @@ type CachedImage = {
   planFile: string | null; planHueShift: number | null; detectedPlan: boolean | null;
 };
 type PreparedImage = { file: string; originalFile: string; hueShift: number; kind: 'photo' | 'plan'; alt: string; order: number };
-type DraftImages = { imageUrls: string[]; planImageUrls: string[]; data: { title: string } };
+type DraftImages = { imageUrls: string[]; planImageUrls: string[]; data: { title: string; type?: string; housingMarket?: string | null } };
 
 function limit(concurrency: number) {
   let active = 0;
@@ -133,17 +134,22 @@ async function planImage(image: CachedImage, dir: string) {
 export async function prepareImportImages(draft: DraftImages, detectPlans = false): Promise<{ images: PreparedImage[]; warnings: string[] }> {
   const dir = resolve(process.env.UPLOAD_DIR || '.data/uploads');
   const warnings: string[] = [], plans = new Set(draft.planImageUrls);
-  const settled = await Promise.allSettled([...new Set(draft.imageUrls)].slice(0, 100).map(async (input, index) => {
+  const plansOnly = draft.data.type === 'apartment' && draft.data.housingMarket === 'newbuild';
+  const urls = [...new Set(draft.imageUrls)].filter(input => !plansOnly || plans.has(input) ||
+    rf39ImageUrl(input)?.includes('/images/objects/layouts/'));
+  const settled = await Promise.allSettled(urls.slice(0, 100).map(async (input, index) => {
     try {
       const url = rf39ImageUrl(input) || nmarketImageUrl(input);
       if (!url) throw new Error('Invalid image URL');
       const cached = await originalImage(url, dir);
-      const isPlan = plans.has(input) || (detectPlans && await detectPlan(cached, dir));
+      const isPlan = plans.has(input) || ((detectPlans || plansOnly) && await detectPlan(cached, dir));
+      if (plansOnly && !isPlan) return null;
+      const hash = await propertyImageFingerprint(cached.originalFile);
       const image = isPlan ? await planImage(cached, dir) : { file: cached.originalFile, hueShift: 0 };
-      return { ...image, originalFile: cached.originalFile, kind: isPlan ? 'plan' as const : 'photo' as const, hash: cached.contentHash };
+      return { ...image, originalFile: cached.originalFile, kind: isPlan ? 'plan' as const : 'photo' as const, hash };
     } catch (error) {
       if (importInfrastructureError(error) || ['ENOSPC', 'EACCES', 'EPERM', 'EROFS', 'EMFILE'].includes((error as NodeJS.ErrnoException).code || '')) throw error;
-      return { warning: `Не удалось загрузить фотографию №${index + 1}. Она пропущена.` };
+      return { warning: `Не удалось загрузить ${plansOnly ? 'планировку' : 'фотографию'} №${index + 1}. Она пропущена.` };
     }
   }));
   const fatal = settled.find(result => result.status === 'rejected');
@@ -152,6 +158,7 @@ export async function prepareImportImages(draft: DraftImages, detectPlans = fals
   for (const entry of settled) {
     if (entry.status !== 'fulfilled') continue;
     const result = entry.value;
+    if (!result) continue;
     if ('warning' in result) { if (result.warning) warnings.push(result.warning); continue; }
     const previous = hashes.get(result.hash);
     const order = previous ?? images.length;
@@ -160,6 +167,6 @@ export async function prepareImportImages(draft: DraftImages, detectPlans = fals
     if (previous === undefined) { hashes.set(result.hash, order); images.push(image); }
     else if (image.kind === 'plan') images[previous] = image;
   }
-  if (!images.length) warnings.push('В источнике нет доступных фотографий. Добавьте их в карточку.');
+  if (!images.length) warnings.push(`В источнике нет доступных ${plansOnly ? 'планировок' : 'фотографий'}. Добавьте их в карточку.`);
   return { images, warnings };
 }

@@ -233,24 +233,32 @@ async function upload(event: Event) {
   if (!id.value || !files.length) return;
   uploadPending.value = true;
   notice.value = "";
+  isError.value = false;
+  let uploaded = 0, duplicates = 0;
+  const failed: string[] = [];
   try {
     for (const file of files) {
-      if (file.size > 10485760) throw new Error("size");
-      const body = new FormData();
-      body.set("file", file);
-      body.set("alt", form.title || "Фото объекта");
-      const img = await $fetch<Property["images"][number]>(
-        "/api/admin/properties/" + id.value + "/images",
-        { method: "POST", body },
-      );
-      images.value.push(img);
-      savedGallery.push({ id: img.id, alt: img.alt });
+      try {
+        if (file.size > 10485760) throw new Error("size");
+        const body = new FormData();
+        body.set("file", file);
+        body.set("alt", form.title || "Фото объекта");
+        const img = await $fetch<Property["images"][number] & { duplicate?: boolean }>(
+          "/api/admin/properties/" + id.value + "/images",
+          { method: "POST", body },
+        );
+        if (!images.value.some(image => image.id === img.id)) images.value.push(img);
+        if (!savedGallery.some(image => image.id === img.id)) savedGallery.push({ id: img.id, alt: img.alt });
+        if (img.duplicate) duplicates++;
+        else uploaded++;
+      } catch { failed.push(file.name); }
     }
-    notice.value = "Фотографии загружены.";
-  } catch {
-    notice.value =
-      "Не удалось загрузить файл. Допустимы JPEG, PNG, WebP до 10 МБ, не более 100 фото.";
-    isError.value = true;
+    notice.value = [
+      uploaded ? `Фотографии загружены: ${uploaded}.` : "",
+      duplicates ? `Пропущено повторов: ${duplicates}.` : "",
+      failed.length ? `Не удалось загрузить: ${failed.join(", ")}. Допустимы JPEG, PNG, WebP до 10 МБ, не более 100 фото.` : "",
+    ].filter(Boolean).join(" ");
+    isError.value = failed.length > 0;
   } finally {
     uploadPending.value = false;
     input.value = "";

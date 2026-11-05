@@ -6,12 +6,14 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import { db } from '../server/utils/db';
 import { prepareImportImages } from '../server/utils/import-images';
+import { mockImageFingerprintCache } from './fixtures/image-fingerprint-cache';
 
 const imageUrl = (name: string) => `https://crm.rf39.ru/images/objects/${name}.png`;
 const draft = (imageUrls: string[], planImageUrls: string[] = []) => ({ imageUrls, planImageUrls, data: { title: 'Квартира у парка' } });
 const png = (background: string) => sharp({ create: { width: 48, height: 32, channels: 3, background } }).png().toBuffer();
 
 async function fixture() {
+  const fingerprints = mockImageFingerprintCache();
   const dir = await mkdtemp(join(tmpdir(), 'newh-import-images-'));
   const previousDir = process.env.UPLOAD_DIR, previousFetch = globalThis.fetch;
   const cache = db.importImageCache;
@@ -31,7 +33,7 @@ async function fixture() {
   }) as any;
   process.env.UPLOAD_DIR = dir;
   return { dir, rows, async close() {
-    Object.assign(cache, originals); globalThis.fetch = previousFetch;
+    Object.assign(cache, originals); fingerprints.restore(); globalThis.fetch = previousFetch;
     if (previousDir === undefined) delete process.env.UPLOAD_DIR; else process.env.UPLOAD_DIR = previousDir;
     await rm(dir, { recursive: true, force: true });
   } };
@@ -122,6 +124,79 @@ test('duplicate plan wins over the same photo, retains first position and reuses
     assert.deepEqual(await prepareImportImages(draft([planUrl], [planUrl])), first);
     assert.equal(requests, 2);
     assert.equal((await readdir(f.dir)).length, 2);
+  } finally { await f.close(); }
+});
+
+test('same pixels at different URLs and encodings appear once, with a plan retaining the first position', async () => {
+  const f = await fixture();
+  try {
+    const photo = await png('#f4d15b');
+    const metadataCopy = await sharp(photo).withExif({ IFD0: { ImageDescription: 'Same image, different metadata' } }).png().toBuffer();
+    const plan = await sharp(photo).webp({ lossless: true, exact: true }).toBuffer();
+    assert.notDeepEqual(photo, metadataCopy);
+    const urls = ['original', 'distinct', 'metadata-copy', 'plan-copy'].map(imageUrl);
+    const sources = [photo, await png('#336699'), metadataCopy, plan];
+    let requests = 0;
+    globalThis.fetch = async input => {
+      requests++;
+      const index = urls.indexOf(String(input));
+      assert.ok(index >= 0);
+      return new Response(sources[index], { headers: { 'content-type': index === 3 ? 'image/webp' : 'image/png' } });
+    };
+    const result = await prepareImportImages(draft(urls, [urls[3]!]));
+    assert.deepEqual(result.images.map(image => [image.kind, image.order]), [['plan', 0], ['photo', 1]]);
+    assert.deepEqual(result.warnings, []);
+    assert.deepEqual(await prepareImportImages(draft(urls, [urls[3]!])), result);
+    assert.equal(requests, 4);
+  } finally { await f.close(); }
+});
+
+test('newbuild apartments never request house photos, including old mixed drafts and missing plans', async () => {
+  const f = await fixture();
+  try {
+    const plan = imageUrl('tagged-plan'), house = imageUrl('house-photo');
+    const bytes = await png('#f4d15b'), requests: string[] = [];
+    globalThis.fetch = async input => {
+      requests.push(String(input));
+      return new Response(bytes, { headers: { 'content-type': 'image/png' } });
+    };
+    const stored = { ...draft([house, plan, house], [plan]), data: { title: 'Новостройка', type: 'apartment', housingMarket: 'newbuild' } };
+    const result = await prepareImportImages(stored);
+    assert.deepEqual(requests, [plan]);
+    assert.deepEqual(result.images.map(image => [image.kind, image.order]), [['plan', 0]]);
+    assert.deepEqual(result.warnings, []);
+    const missing = await prepareImportImages({ ...stored, imageUrls: [house], planImageUrls: [] });
+    assert.deepEqual(requests, [plan]);
+    assert.deepEqual(missing.images, []);
+    assert.ok(missing.warnings.some(warning => warning.includes('нет доступных планировок')));
+    for (const data of [
+      { title: 'Вторичка', type: 'apartment', housingMarket: 'secondary' },
+      { title: 'ЖК', type: 'complex', housingMarket: null },
+    ]) {
+      const gallery = await prepareImportImages({ ...draft([house]), data });
+      assert.equal(gallery.images[0]?.kind, 'photo');
+    }
+    assert.deepEqual(requests, [plan, house]);
+  } finally { await f.close(); }
+});
+
+test('CRM newbuilds inspect only layout candidates and retain actual plans from a mixed layout folder', async () => {
+  const f = await fixture();
+  try {
+    const plan = imageUrl('layouts/1/plan'), interior = imageUrl('layouts/1/interior'), house = imageUrl('1/building');
+    const planBytes = await sharp(Buffer.from('<svg width="384" height="384" xmlns="http://www.w3.org/2000/svg"><rect width="384" height="384" fill="white"/><g stroke="black" stroke-width="6" fill="none"><rect x="40" y="40" width="300" height="300"/><path d="M180 40V340M40 180H340"/></g></svg>')).png().toBuffer();
+    const photoBytes = await png('#3377aa'), requests: string[] = [];
+    globalThis.fetch = async input => {
+      requests.push(String(input));
+      return new Response(String(input) === plan ? planBytes : photoBytes, { headers: { 'content-type': 'image/png' } });
+    };
+    const stored = { ...draft([house, interior, plan]), data: { title: 'CRM', type: 'apartment', housingMarket: 'newbuild' } };
+    const result = await prepareImportImages(stored);
+    assert.deepEqual(requests.sort(), [interior, plan].sort());
+    assert.deepEqual(result.images.map(image => [image.kind, image.order]), [['plan', 0]]);
+    assert.deepEqual(result.warnings, []);
+    assert.deepEqual(await prepareImportImages(stored), result);
+    assert.equal(requests.length, 2);
   } finally { await f.close(); }
 });
 

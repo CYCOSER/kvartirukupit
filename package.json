@@ -13,7 +13,8 @@
     "typecheck": "nuxt typecheck",
     "test": "tsx --test tests/*.test.ts",
     "test:e2e": "playwright test",
-    "db:import": "node --env-file-if-exists=.env --import tsx scripts/import-catalog.ts"
+    "db:import": "node --env-file-if-exists=.env --import tsx scripts/import-catalog.ts",
+    "images:dedupe": "node --env-file-if-exists=.env --import tsx scripts/deduplicate-images.ts"
   },
   "dependencies": {
     "@fontsource-variable/manrope": "^5.2.5",

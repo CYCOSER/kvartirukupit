@@ -7,6 +7,7 @@ import sharp from 'sharp';
 import { db } from '../server/utils/db';
 import { existingImportedProperty, importProperty } from '../server/utils/import-property';
 import { rf39Draft } from '../server/utils/rf39-data';
+import { mockImageFingerprintCache } from './fixtures/image-fingerprint-cache';
 
 test('repeat import links once, preserves content and refuses another complex', async () => {
   const transaction = db.$transaction;
@@ -36,6 +37,7 @@ test('repeat import links once, preserves content and refuses another complex', 
 });
 
 test('import converts marked plans, keeps CRM publication flags and skips failed images without deleting shared files', async () => {
+  const fingerprints = mockImageFingerprintCache();
   const transaction = db.$transaction, originalFetch = globalThis.fetch, originalDir = process.env.UPLOAD_DIR;
   const cache = db.importImageCache;
   const findUnique = cache.findUnique, upsert = cache.upsert, updateMany = cache.updateMany;
@@ -104,6 +106,7 @@ test('import converts marked plans, keeps CRM publication flags and skips failed
   } finally {
     db.$transaction = transaction; globalThis.fetch = originalFetch;
     cache.findUnique = findUnique; cache.upsert = upsert; cache.updateMany = updateMany;
+    fingerprints.restore();
     if (originalDir === undefined) delete process.env.UPLOAD_DIR; else process.env.UPLOAD_DIR = originalDir;
     await rm(dir, { recursive: true, force: true });
   }

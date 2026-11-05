@@ -53,9 +53,8 @@ test('NMarket streams UTF-8 XML into filled drafts and strips agent/private fiel
   assert.equal(draft.data.published, false);
   assert.equal(draft.data.featured, false);
   assert.equal(draft.data.priceKind, null);
-  assert.equal(draft.imageUrls.length, 2);
+  assert.equal(draft.imageUrls.length, 1);
   assert.ok(draft.imageUrls[0]!.includes(plan));
-  assert.ok(draft.imageUrls[1]!.includes(photo));
   assert.ok(draft.imageUrls.every(url => url.startsWith('https://img.nmarket.pro/')));
   assert.deepEqual(draft.planImageUrls, draft.imageUrls.filter(url => url.includes(plan)));
   assert.equal(draft.data.nmarketComplexId, '456');
@@ -99,7 +98,7 @@ test('NMarket public slugs keep apartment and complex IDs distinct without chang
 test('NMarket retains an explicit plan tag when a URL is repeated earlier as a general image', async () => {
   const objects = await parse(feed().replace(image(plan, 'plan'), image(plan, 'housemain') + image(plan, 'floorplan')));
   const draft = nmarketDraft(objects.find(item => item.id === 'apartment:123')!);
-  assert.equal(draft.imageUrls.length, 2);
+  assert.equal(draft.imageUrls.length, 1);
   assert.equal(draft.planImageUrls.length, 1);
   assert.ok(draft.planImageUrls[0]!.includes(plan));
   assert.equal(draft.imageUrls[0], draft.planImageUrls[0]);
@@ -113,17 +112,27 @@ test('NMarket excludes a plan from the complex even when another offer labels it
   assert.deepEqual(nmarketDraft(complex).imageUrls, [nmarketImageUrl(`http://img.nmarket.pro/photo/pid/${photo}/?v=1&hash=PRIVATE_IMAGE_KEY`)]);
 });
 
-test('NMarket drafts put plans before photos and remove all plans from old complex snapshots', async () => {
+test('NMarket apartment drafts keep only plans and old complex snapshots keep only house photos', async () => {
   const item = (await parse()).find(item => item.type === 'apartment')!;
   const photos = item.images.filter(image => !image.plan);
   const plans = item.images.filter(image => image.plan);
   const oldSnapshot = { ...item, images: [...photos, ...plans] };
   const apartment = nmarketDraft(oldSnapshot);
-  assert.deepEqual(apartment.imageUrls, [...plans, ...photos].map(image => image.url));
+  assert.deepEqual(apartment.imageUrls, plans.map(image => image.url));
   assert.deepEqual(apartment.planImageUrls, plans.map(image => image.url));
   const complex = nmarketDraft({ ...oldSnapshot, type: 'complex', id: 'complex:456' });
   assert.deepEqual(complex.imageUrls, photos.map(image => image.url));
   assert.deepEqual(complex.planImageUrls, []);
+});
+
+test('NMarket apartments without a marked plan never fall back to house photos', async () => {
+  const objects = await parse(feed().replace(image(plan, 'plan'), ''));
+  const apartment = nmarketDraft(objects.find(item => item.type === 'apartment')!);
+  assert.deepEqual(apartment.imageUrls, []);
+  assert.deepEqual(apartment.planImageUrls, []);
+  const complex = nmarketDraft(objects.find(item => item.type === 'complex')!);
+  assert.equal(complex.imageUrls.length, 1);
+  assert.ok(complex.imageUrls[0]!.includes(photo));
 });
 
 test('NMarket does not invent missing values or mix currencies/units; unsupported offers cannot import', async () => {

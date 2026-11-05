@@ -20,7 +20,7 @@ const property = (id: number, extra: Record<string, unknown> = {}) => ({ ...sour
 async function fixture(ids: number[], extraPlan = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'newh-feed-sync-'));
   const previousFetch = globalThis.fetch, previousDir = process.env.UPLOAD_DIR;
-  const tables: Record<string, any[]> = { property: [], propertyImportSource: [], propertyImage: [], importJobItem: [], importJob: [], feedSyncSetting: [], importImageCache: [] };
+  const tables: Record<string, any[]> = { property: [], propertyImportSource: [], propertyImage: [], importJobItem: [], importJob: [], feedSyncSetting: [], importImageCache: [], imageFingerprint: [] };
   const originals: [any, string, any][] = [];
   const writes = { cardBatches: 0, afterCardBatch: (() => {}) as () => void };
   const replace = (target: any, key: string, value: any) => { originals.push([target, key, target[key]]); target[key] = value; };

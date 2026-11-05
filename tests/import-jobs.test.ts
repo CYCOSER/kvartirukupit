@@ -13,7 +13,7 @@ import { ImportOwnershipLost, type ImportConfig } from '../server/utils/import-e
 import { cacheApartmentMatches } from '../server/utils/apartment-matching';
 
 function memoryDatabase() {
-  const tables: Record<string, any[]> = { importJob: [], importJobItem: [], property: [], propertyImportSource: [], importImageCache: [], feedSyncSetting: [] };
+  const tables: Record<string, any[]> = { importJob: [], importJobItem: [], property: [], propertyImportSource: [], importImageCache: [], imageFingerprint: [], feedSyncSetting: [] };
   const original: [any, string, any][] = [];
   const clone = <T>(value: T): T => structuredClone(value);
   function matches(row: any, where: any = {}): boolean {

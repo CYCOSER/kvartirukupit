@@ -15,6 +15,7 @@ test('property status cards keep keyboard semantics and the Russian photo picker
   };
   let saved: Record<string, unknown> | undefined;
   let uploads = 0;
+  let savedImages: { id: string }[] | undefined;
   const uploadNames: string[] = [];
   // Browser fixtures isolate the editor UI from real catalog records and credentials.
   await page.route('**/api/admin/**', async (route) => {
@@ -30,9 +31,15 @@ test('property status cards keep keyboard semantics and the Russian photo picker
       if (route.request().method() === 'POST') {
         uploads++;
         const body = route.request().postDataBuffer()!.toString('latin1');
-        uploadNames.push(body.match(/filename="([^"]+)"/)?.[1] || '');
+        const name = body.match(/filename="([^"]+)"/)?.[1] || '';
+        uploadNames.push(name);
+        if (name === 'duplicate.png') return route.fulfill({ json: { ...item.images[0], duplicate: true } });
+        if (name === 'broken.png') return route.fulfill({ status: 400, json: { message: 'Invalid image' } });
         await route.fulfill({ json: { id: 'uploaded-' + uploads, file: '/images/journal-morning.webp', alt: 'Загруженное фото ' + uploads, order: uploads + 1, kind: 'photo' } });
-      } else await route.fulfill({ json: { ok: true } });
+      } else {
+        savedImages = route.request().postDataJSON();
+        await route.fulfill({ json: { ok: true } });
+      }
     } else await route.fulfill({ status: 404, json: { message: 'Unexpected fixture request' } });
   });
   await page.setViewportSize({ width: 1440, height: 1100 });
@@ -76,11 +83,24 @@ test('property status cards keep keyboard semantics and the Russian photo picker
   await expect(media.locator('.property-photo-card')).toHaveCount(4);
   expect(uploadNames).toEqual(['one.png', 'two.png']);
   await expect(media.getByLabel('Количество фотографий')).toHaveText('4 / 100');
+  await page.getByLabel('Файлы фотографий', { exact: true }).setInputFiles([
+    { name: 'duplicate.png', mimeType: 'image/png', buffer: png },
+    { name: 'broken.png', mimeType: 'image/png', buffer: Buffer.from('broken') },
+    { name: 'last.png', mimeType: 'image/png', buffer: png },
+  ]);
+  await expect(media.locator('.property-photo-card')).toHaveCount(5);
+  await expect(page.getByText('Фотографии загружены: 1. Пропущено повторов: 1. Не удалось загрузить: broken.png.', { exact: false })).toBeVisible();
+  expect(uploadNames).toEqual(['one.png', 'two.png', 'duplicate.png', 'broken.png', 'last.png']);
+  // A local removal forces a gallery save, checking that duplicate responses did not duplicate saved IDs.
+  await media.locator('.property-photo-card').last().getByRole('button', { name: 'Убрать', exact: true }).click();
+  await expect(media.locator('.property-photo-card')).toHaveCount(4);
   await expect(page.getByLabel('Файлы фотографий', { exact: true })).toBeHidden();
   await expect(media).not.toContainText('Choose Files');
   await page.getByRole('button', { name: 'Сохранить объект', exact: true }).click();
   await expect(page.getByText('Объект сохранён.', { exact: true })).toBeVisible();
   expect(saved).toMatchObject({ published: true, featured: true, demo: true, elite: true, type: 'apartment', housingMarket: 'secondary' });
+  expect(savedImages).toHaveLength(4);
+  expect(new Set(savedImages!.map(image => image.id)).size).toBe(4);
 
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 1800 });

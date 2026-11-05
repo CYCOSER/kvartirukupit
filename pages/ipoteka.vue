@@ -174,7 +174,9 @@ const questions = [
           </h2>
         </div>
         <div class="purchase-banks" aria-labelledby="banks-title">
-          <h3 id="banks-title" class="eyebrow">Партнёры</h3>
+          <h3 id="banks-title" class="eyebrow" aria-label="Партнёры">
+            <span aria-hidden="true">Парт<span class="bank-letter-small">н</span>ёр<span class="bank-letter-small">ы</span></span>
+          </h3>
           <TooltipProvider :delay-duration="150">
             <ul class="bank-list">
               <li v-for="(bank, index) in banks" :key="bank.logo">
@@ -402,6 +404,10 @@ const questions = [
   text-orientation: upright;
   text-transform: uppercase;
   white-space: nowrap;
+}
+.bank-letter-small {
+  display: inline-block;
+  transform: scale(0.94);
 }
 .bank-list {
   display: grid;
