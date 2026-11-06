@@ -3,7 +3,7 @@ import { propertySchema, type PropertyInput } from './property';
 
 export const propertyEditFields = [
   'title', 'slug', 'type', 'housingMarket', 'complexId', 'nmarketComplexId', 'rf39ComplexId', 'rf39BuildingId',
-  'location', 'address', 'latitude', 'longitude', 'price', 'status', 'area', 'landArea', 'bedrooms', 'floors',
+  'location', 'address', 'latitude', 'longitude', 'price', 'status', 'area', 'landArea', 'bedrooms', 'floors', 'availableFloors',
   'readiness', 'finish', 'seaDistance', 'description', 'utilities', 'published', 'featured', 'elite', 'demo',
 ] as const satisfies readonly (keyof PropertyInput)[];
 export type PropertyEditField = typeof propertyEditFields[number];
@@ -12,7 +12,7 @@ const metadataSchema = z.object({ changedFields: z.array(z.enum(propertyEditFiel
 export function changedPropertyFields(previous: PropertyInput, current: PropertyInput): PropertyEditField[] {
   const fields = propertyEditFields.filter(field => JSON.stringify(previous[field]) !== JSON.stringify(current[field]));
   // A type change also clears relations and flags that may have changed on the server.
-  if (fields.includes('type')) return [...new Set<PropertyEditField>([...fields, 'elite', 'complexId', 'housingMarket'])];
+  if (fields.includes('type')) return [...new Set<PropertyEditField>([...fields, 'elite', 'complexId', 'housingMarket', 'availableFloors'])];
   return fields;
 }
 

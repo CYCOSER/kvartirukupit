@@ -106,6 +106,11 @@ test("property rejects invalid slug, price and missing attributes", () => {
     demo: true,
   };
   assert.equal(propertySchema.safeParse(p).success, true);
+  assert.deepEqual(propertySchema.parse({ ...p, availableFloors: [9, 2, 2, 6] }).availableFloors, [2, 6, 9]);
+  for (const availableFloors of [[0], [101], [1.5], ['2'], Array(101).fill(2)])
+    assert.equal(propertySchema.safeParse({ ...p, availableFloors }).success, false);
+  assert.equal(propertySchema.safeParse({ ...p, type: 'complex', availableFloors: [2] }).success, false);
+  assert.equal('layoutHash' in propertySchema.parse({ ...p, layoutHash: 'forged' }), false);
   assert.equal(propertySchema.parse(p).elite, false);
   for (const housingMarket of ["newbuild", "secondary", null, undefined]) {
     assert.equal(propertySchema.safeParse({ ...p, housingMarket }).success, true);

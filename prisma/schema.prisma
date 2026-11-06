@@ -29,6 +29,8 @@ model Property {
   landArea    Float?
   bedrooms    Int?
   floors      Int?
+  availableFloors Int[]       @default([])
+  layoutHash  String?
   readiness   String
   finish      String
   seaDistance Float?
@@ -60,6 +62,7 @@ model Property {
 
   @@index([published, status])
   @@index([complexId])
+  @@index([layoutHash])
 }
 
 model PropertyImportSource {
@@ -67,6 +70,8 @@ model PropertyImportSource {
   propertyId   String
   property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   apartmentKey String?
+  price        Int?
+  availableFloors Int[] @default([])
 
   @@index([propertyId])
   @@index([apartmentKey])

@@ -1,6 +1,6 @@
 const sourceFields = [
   'title', 'housingMarket', 'location', 'address', 'latitude', 'longitude', 'price', 'status',
-  'area', 'landArea', 'bedrooms', 'floors', 'readiness', 'finish', 'seaDistance', 'description', 'utilities',
+  'area', 'landArea', 'bedrooms', 'floors', 'availableFloors', 'readiness', 'finish', 'seaDistance', 'description', 'utilities',
   'developer', 'district', 'completionDate', 'constructionStatus', 'priceKind', 'priceSourceUrl', 'priceArea',
 ] as const;
 type Values = Record<string, unknown>;

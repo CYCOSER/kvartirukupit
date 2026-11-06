@@ -9,6 +9,7 @@ import type { nmarketDraft } from './nmarket-data';
 import type { rf39Draft } from './rf39-data';
 import { importInfrastructureError, type ImportExecution } from './import-execution';
 import { rf39FeedBaseline } from '../../shared/rf39-feed-merge';
+import { findApartmentLayout, indexApartmentLayouts, layoutScopeWhere, mergeLayoutAvailability, prepareApartmentLayout } from './apartment-layout';
 
 type Draft = ReturnType<typeof nmarketDraft> | ReturnType<typeof rf39Draft>;
 
@@ -52,6 +53,9 @@ export async function importProperty(draft: Draft, complexId?: string, detectPla
   try {
     const { images, warnings } = await prepareImportImages(draft, detectPlans);
     draft.warnings.push(...warnings);
+    const layoutHash = !warnings.length && layoutScopeWhere(draft.data, complexId)
+      ? await prepareApartmentLayout(draft.data, images) : null;
+    if (layoutHash) await indexApartmentLayouts(draft.data, complexId);
     const result = await db.$transaction(async tx => {
       await execution?.guard(tx);
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${draft.data.sourceId}))`;
@@ -62,14 +66,26 @@ export async function importProperty(draft: Draft, complexId?: string, detectPla
         await execution?.complete?.(tx, previous);
         return previous;
       }
+      const layout = layoutHash ? await findApartmentLayout(tx, draft.data, layoutHash, complexId) : null;
+      if (layout) {
+        await tx.property.update({ where: { id: layout.id }, data: {
+          ...mergeLayoutAvailability([layout, draft.data]), priceKind: 'from',
+          ...(complexId && !layout.complexId ? { complexId } : {}),
+        } });
+        await saveImportSources(tx, layout.id, sources, draft.data);
+        const result = { id: layout.id, created: false, linked: !!complexId && !layout.complexId,
+          warnings: [...draft.warnings, 'Такая планировка уже есть в ЖК. Сохранена одна карточка с минимальной ценой и списком этажей.'] };
+        await execution?.complete?.(tx, result);
+        return result;
+      }
       const property = await tx.property.create({ data: {
-        ...draft.data, complexId: complexId || null,
+        ...draft.data, complexId: complexId || null, layoutHash,
         ...(draft.data.sourceId.startsWith('rf39:') ? { rf39Baseline: rf39FeedBaseline(draft.data) as Prisma.InputJsonValue } : {}),
         slug: await tx.property.findUnique({ where: { slug: draft.data.slug } }) ? `${draft.data.slug}-${randomUUID().slice(0, 8)}` : draft.data.slug,
         sourceNote: [`Копия из ${draft.data.sourceName}. Проверьте цену, наличие и характеристики${draft.data.published ? '.' : ' перед публикацией.'}`, ...draft.warnings].join('\n'),
         images: { create: images },
       }, select: { id: true } });
-      await saveImportSources(tx, property.id, sources);
+      await saveImportSources(tx, property.id, sources, draft.data);
       const result = { id: property.id, created: true, linked: !!complexId, warnings: draft.warnings };
       await execution?.complete?.(tx, result);
       return result;

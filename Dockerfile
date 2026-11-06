@@ -16,7 +16,7 @@ COPY --from=builder --chown=node:node /app/prisma ./prisma
 COPY --from=builder --chown=node:node /app/shared ./shared
 COPY --from=builder --chown=node:node /app/package.json ./package.json
 COPY --chown=node:node scripts ./scripts
-COPY --from=builder --chown=node:node /app/server/utils/db.ts /app/server/utils/property-image.ts /app/server/utils/image-fingerprint.ts /app/server/utils/image-dedup.ts ./server/utils/
+COPY --from=builder --chown=node:node /app/server/utils ./server/utils
 COPY --chown=node:node data/curated ./data/curated
 RUN mkdir -p /app/uploads /app/rf39 && chown node:node /app/uploads /app/rf39
 USER node

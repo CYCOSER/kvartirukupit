@@ -56,3 +56,12 @@ test('explicit editor changes are preserved even before the first XML sync and w
   assert.deepEqual(mergeRf39Feed(current, { price: 900, latitude: 55, longitude: 21 }, first.baseline).changes, {});
   assert.equal(first.baseline.manualFields.includes('slug'), false);
 });
+
+test('manual available floors remain protected separately from building height', () => {
+  const original = { availableFloors: [2, 4], floors: 9 };
+  const current = { availableFloors: [3, 6], floors: 9 };
+  const baseline = rf39ManualBaseline(rf39FeedBaseline(original), ['availableFloors']);
+  const next = mergeRf39Feed(current, { availableFloors: [5, 7], floors: 10 }, baseline);
+  assert.deepEqual(next.changes, { floors: 10 });
+  assert.ok(next.baseline.manualFields.includes('availableFloors'));
+});

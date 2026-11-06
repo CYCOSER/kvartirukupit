@@ -1,12 +1,8 @@
 import { test, expect } from '@playwright/test';
-import type { Property } from '../../shared/property';
+import { propertyFixture } from './fixtures/property';
 
 test('apartment and complex cards share dates and full addresses, and apartments show their complex and plan', async ({ page }) => {
-  const response = await page.request.get('/api/properties');
-  expect(response.ok()).toBe(true);
-  const { items } = await response.json();
-  const base = items[0] as Property;
-  expect(base).toBeTruthy();
+  const base = propertyFixture();
   const complex = {
     ...base, id: 'card-complex', slug: 'card-complex', title: 'Тихий дом', type: 'complex',
     address: 'Калининград, Сержанта Мишина ул., д. 81', location: 'Калининград',
@@ -15,6 +11,7 @@ test('apartment and complex cards share dates and full addresses, and apartments
   };
   const apartment = {
     ...complex, id: 'card-apartment', slug: 'card-apartment', title: '2-к кв. 55.4 м²', type: 'apartment',
+    priceKind: 'from', price: 7200000,
     address: 'Сержанта Мишина ул., д. 81', constructionStatus: 'Сдан', readiness: 'Сдан, 2 кв. 2024',
     complex: { id: complex.id, title: complex.title, slug: complex.slug, published: true },
     images: [{ id: 'plan', file: '/images/baltic-coast.webp', alt: 'Планировка', order: 0, kind: 'plan' }],
@@ -36,6 +33,7 @@ test('apartment and complex cards share dates and full addresses, and apartments
   const apartmentCard = page.locator(`.property-card[href="/catalog/${apartment.slug}"]`);
   await expect(apartmentCard.locator('.card-specs')).toContainText('ЖК Тихий дом');
   await expect(apartmentCard.locator('.card-specs')).not.toContainText('Интер-Инвест');
+  await expect(apartmentCard.locator('.card-price-amount > small')).toHaveText('от');
   await expect(apartmentCard.locator('.card-image-link img')).toHaveCSS('object-fit', 'contain');
   await expect(page.locator(`.property-card[href="/catalog/${complex.slug}"] .card-specs`)).toContainText('Интер-Инвест');
 });

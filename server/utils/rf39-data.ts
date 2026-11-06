@@ -155,6 +155,7 @@ export function rf39Draft(item: Rf39Object, type: 'complex' | 'apartment' = rf39
     price: price || null, status: 'available',
     area, bedrooms,
     floors: number(param('floors-total'), 100, true) || null,
+    availableFloors: type === 'apartment' && number(param('floor'), 100, true) ? [number(param('floor'), 100, true)!] : [],
     landArea: null, seaDistance: null, readiness,
     finish: String(param('renovation') || param('decoration') || 'Уточняется'),
     description, utilities: [], published: type === 'apartment', featured: false, elite: type === 'apartment', demo: false,

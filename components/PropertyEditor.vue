@@ -35,6 +35,7 @@ const defaults: PropertyInput = {
   landArea: null,
   bedrooms: null,
   floors: null,
+  availableFloors: [],
   readiness: "Уточняется",
   finish: "Уточняется",
   seaDistance: null,
@@ -53,6 +54,7 @@ const form = reactive<PropertyInput & { seaDistance: number | null }>({
 const initialForm = propertySchema.safeParse(form);
 let savedForm = initialForm.success ? initialForm.data : { ...form, utilities: [...form.utilities] };
 const utils = ref(form.utilities.join("\n"));
+const availableFloors = ref((form.availableFloors || []).join(", "));
 const utilitiesField = useAutoResizeTextarea(() => utils.value);
 const descriptionField = useAutoResizeTextarea(() => form.description);
 const selectedType = computed({
@@ -73,6 +75,8 @@ watch(() => form.type, (type) => {
     form.elite = false;
     form.complexId = null;
     form.housingMarket = null;
+    form.availableFloors = [];
+    availableFloors.value = "";
   }
 });
 const pending = ref(false),
@@ -165,11 +169,14 @@ async function save() {
   form.nmarketComplexId = form.nmarketComplexId?.trim() || null;
   form.rf39ComplexId = form.rf39ComplexId?.trim() || null;
   form.rf39BuildingId = form.rf39BuildingId?.trim() || null;
+  form.availableFloors = availableFloors.value.trim()
+    ? availableFloors.value.trim().split(/[,;\s]+/).map(Number) : [];
   const parsed = propertySchema.safeParse(form);
   if (!parsed.success) {
     notice.value =
       "Проверьте поля: " +
-      parsed.error.issues.map((i) => i.path.join(".")).join(", ");
+      [...new Set(parsed.error.issues.map((i) => i.path[0] === 'availableFloors'
+        ? 'доступные этажи — целые числа от 1 до 100 через запятую' : i.path.join(".")))].join(", ");
     isError.value = true;
     pending.value = false;
     return;
@@ -177,6 +184,7 @@ async function save() {
   try {
     const submittedForm = { ...form, utilities: [...form.utilities] };
     const submittedUtilities = utils.value;
+    const submittedFloors = availableFloors.value;
     const submittedGallery = JSON.stringify(gallerySnapshot());
     const changedFields = changedPropertyFields(savedForm, parsed.data);
     const body = { ...parsed.data, ...(id.value ? { changedFields } : {}) };
@@ -196,6 +204,7 @@ async function save() {
           Object.assign(form, { [field]: saved[field] });
       }
       if (utils.value === submittedUtilities) utils.value = saved.utilities.join("\n");
+      if (availableFloors.value === submittedFloors) availableFloors.value = (saved.availableFloors || []).join(", ");
       savedForm = saved;
       if (JSON.stringify(gallerySnapshot()) !== JSON.stringify(savedGallery)) await saveGallery();
       else if (JSON.stringify(gallerySnapshot()) === submittedGallery) {
@@ -408,7 +417,7 @@ function move(index: number, offset: number) {
           min="0"
           max="100" /></label
       ><label
-        >Этажность<NumberField
+        >Этажей в доме<NumberField
           v-model="form.floors"
           numeric
           nullable
@@ -416,6 +425,12 @@ function move(index: number, offset: number) {
           control-label="этажность"
           min="1"
           max="100" /></label
+      ><label v-if="form.type === 'apartment'"
+        >Доступные этажи<input
+          v-model="availableFloors"
+          placeholder="Например: 2, 5, 8"
+          maxlength="500"
+      /></label
       ><label
         >Готовность<input
           v-model="form.readiness"

@@ -117,7 +117,7 @@ const constructionStatus = computed(() => {
             >
           </small>
           <div class="card-price-amount">
-            <small v-if="property.type === 'complex' && property.price != null && ['from', 'minimum'].includes(property.priceKind || '')">от</small>
+            <small v-if="property.price != null && ['from', 'minimum'].includes(property.priceKind || '')">от</small>
             <strong>{{ money(property.price) }}</strong>
           </div>
         </div>

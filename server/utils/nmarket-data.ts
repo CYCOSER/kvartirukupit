@@ -190,6 +190,7 @@ export function nmarketDraft(item: NmarketObject, snapshotDate?: string) {
     location: item.location || 'Уточняется', address: item.address,
     latitude: item.latitude, longitude: item.longitude, price: item.price, status: 'available',
     area: item.area, bedrooms: item.bedrooms, floors: item.floors, landArea: null, seaDistance: null,
+    availableFloors: item.type === 'apartment' && item.floor ? [item.floor] : [],
     description: item.description, readiness: formatReadiness(item.readiness, item.constructionStatus) || 'Уточняется', finish: item.finish,
     utilities: [], published: false, featured: false, elite: false, demo: false,
   });

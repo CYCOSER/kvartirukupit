@@ -5,7 +5,7 @@ test('property status cards keep keyboard semantics and the Russian photo picker
     id: 'property-ui-fixture', title: 'Квартира для проверки интерфейса', slug: 'property-ui-fixture', type: 'apartment',
     housingMarket: 'newbuild',
     location: 'Калининград', address: 'Тестовый адрес', price: 6000000, status: 'available',
-    area: 45, landArea: null, bedrooms: 1, floors: 5, latitude: null, longitude: null,
+    area: 45, landArea: null, bedrooms: 1, floors: 5, availableFloors: [2, 5], latitude: null, longitude: null,
     readiness: 'Готов', finish: 'Чистовая', seaDistance: null, description: '', utilities: [],
     published: false, featured: false, elite: false, demo: false, sourceId: 'nmarket:apartment:fixture',
     images: [
@@ -51,12 +51,16 @@ test('property status cards keep keyboard semantics and the Russian photo picker
   await page.getByRole('link', { name: item.title, exact: true }).click();
   const market = page.getByRole('combobox', { name: 'Рынок квартиры', exact: true });
   await expect(market).toHaveText('Новостройка');
+  await expect(page.getByRole('textbox', { name: 'Доступные этажи', exact: true })).toHaveValue('2, 5');
   await page.getByRole('combobox', { name: 'Тип объекта', exact: true }).click();
   await page.getByRole('option', { name: 'Жилой комплекс', exact: true }).click();
   await expect(market).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'Доступные этажи', exact: true })).toHaveCount(0);
   await page.getByRole('combobox', { name: 'Тип объекта', exact: true }).click();
   await page.getByRole('option', { name: 'Квартира', exact: true }).click();
   await expect(market).toHaveText('Не указан');
+  await expect(page.getByRole('textbox', { name: 'Доступные этажи', exact: true })).toHaveValue('');
+  await page.getByRole('textbox', { name: 'Доступные этажи', exact: true }).fill('5, 2, 5');
   await market.click();
   await page.getByRole('option', { name: 'Вторичка', exact: true }).click();
   const options = page.getByTestId('property-options');
@@ -98,7 +102,8 @@ test('property status cards keep keyboard semantics and the Russian photo picker
   await expect(media).not.toContainText('Choose Files');
   await page.getByRole('button', { name: 'Сохранить объект', exact: true }).click();
   await expect(page.getByText('Объект сохранён.', { exact: true })).toBeVisible();
-  expect(saved).toMatchObject({ published: true, featured: true, demo: true, elite: true, type: 'apartment', housingMarket: 'secondary' });
+  expect(saved).toMatchObject({ published: true, featured: true, demo: true, elite: true, type: 'apartment', housingMarket: 'secondary', availableFloors: [2, 5], floors: 5 });
+  await expect(page.getByRole('textbox', { name: 'Доступные этажи', exact: true })).toHaveValue('2, 5');
   expect(savedImages).toHaveLength(4);
   expect(new Set(savedImages!.map(image => image.id)).size).toBe(4);
 

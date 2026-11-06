@@ -109,6 +109,8 @@ export const propertySchema = z.object({
   landArea: z.number().min(0).max(10000).nullable(),
   bedrooms: z.number().int().min(0).max(100).nullable(),
   floors: z.number().int().min(1).max(100).nullable(),
+  availableFloors: z.array(z.number().int().min(1).max(100)).max(100)
+    .transform(floors => [...new Set(floors)].sort((a, b) => a - b)).optional(),
   readiness: z.string().trim().min(2).max(100),
   finish: z.string().trim().min(2).max(100),
   seaDistance: z.number().min(0).max(100000).nullish(),
@@ -120,6 +122,8 @@ export const propertySchema = z.object({
   demo: z.boolean(),
 }).refine((property) => !property.housingMarket || property.type === "apartment", {
   path: ["housingMarket"], message: "Рынок жилья можно указать только для квартиры",
+}).refine((property) => !property.availableFloors?.length || property.type === "apartment", {
+  path: ["availableFloors"], message: "Доступные этажи можно указать только для квартиры",
 }).refine((property) => (property.latitude === null) === (property.longitude === null), {
   path: ["latitude"],
   message: "Укажите широту и долготу вместе или оставьте оба поля пустыми",

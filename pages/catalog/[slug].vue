@@ -26,10 +26,9 @@ const seaDistance = computed(() =>
   p.value ? seaDistanceLabel(p.value) : null,
 );
 const priceCaption = computed(() =>
-  p.value?.type === "complex" &&
-  p.value.price !== null &&
+  p.value?.price != null &&
   ["from", "minimum"].includes(p.value.priceKind || "")
-    ? "Квартиры от"
+    ? p.value.type === "complex" ? "Квартиры от" : "Стоимость от"
     : "Стоимость",
 );
 const active = ref(0);
@@ -392,8 +391,12 @@ useHead({
           <dt>Комнаты</dt>
           <dd>{{ p.bedrooms }}</dd>
         </div>
+        <div v-if="p.type === 'apartment' && p.availableFloors?.length" :class="{ 'detail-spec-text': p.availableFloors.length > 3 }">
+          <dt>{{ p.availableFloors.length === 1 ? 'Этаж' : 'Этажи' }}</dt>
+          <dd>{{ p.availableFloors.join(', ') }}</dd>
+        </div>
         <div v-if="p.floors != null">
-          <dt>Этажность</dt>
+          <dt>{{ p.type === 'apartment' ? 'Этажей в доме' : 'Этажность' }}</dt>
           <dd>{{ p.floors }}</dd>
         </div>
         <div v-if="p.constructionStatus" class="detail-spec-text">

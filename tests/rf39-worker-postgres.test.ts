@@ -11,6 +11,7 @@ import { PrismaClient } from '@prisma/client';
 import sharp from 'sharp';
 import { DEFAULT_RF39_FEED_URL } from '../shared/feed-sync';
 import { rf39ManualBaseline } from '../shared/rf39-feed-merge';
+import { rf39Draft } from '../server/utils/rf39-data';
 
 const databaseUrl = process.env.RF39_TEST_DATABASE_URL;
 
@@ -141,5 +142,43 @@ test('PostgreSQL XML worker batches cards, preserves edits and isolates recovera
     assert.equal(feedRequests, requests);
     assert.equal(imageRequests, 1);
     assert.equal(await db.propertyImage.count({ where: { property: { sourceId: 'rf39:3001' } } }), 1);
+  });
+
+  await t.test('stored scoped XML jobs group plans across batches and retain a surviving offer when the primary and cheapest disappear', async () => {
+    const planUrl = 'https://rf39.ru/images/objects/test.png';
+    const draft = (id: number, price: number, floor: number) => {
+      const value = rf39Draft({ id, type: 'Квартиры в новостройках', deal_type: 'sale', city: 'Калининград',
+        address: 'Тестовая, 1', price, development: { id: 88 }, params: { area: { value: 27.9 }, rooms: { value: 0 },
+          floor: { value: floor }, 'floors-total': { value: 30 } } });
+      return { ...value, imageUrls: [planUrl], planImageUrls: [planUrl] };
+    };
+    async function stored(values: ReturnType<typeof draft>[]) {
+      const job = await startRf39FeedSync(owner.id, randomUUID());
+      await db.importJobItem.update({ where: { jobId_key: { jobId: job.id, key: 'feed-plan' } }, data: { status: 'completed', result: {
+        presentIds: values.map(value => Number(value.data.sourceId.split(':')[1])), authoritative: true,
+        snapshotDate: new Date().toISOString(), fetchedAt: new Date().toISOString(),
+      } } });
+      await db.importJobItem.createMany({ data: values.map((value, step) => ({ jobId: job.id, key: `feed:${value.data.sourceId}`,
+        kind: 'feed-import', source: 'rf39', title: value.data.title, groupOrder: 0, step,
+        payload: JSON.parse(JSON.stringify(value)),
+      })) });
+      await db.importJob.update({ where: { id: job.id }, data: { total: values.length } });
+      return execute(job.id);
+    }
+    const job = await stored(Array.from({ length: 26 }, (_, i) => draft(4001 + i, 9_000_000 - i * 1000, i + 1)));
+    assert.deepEqual([job.created, job.processed, job.failed], [1, 26, 0]);
+    const first = await db.property.findUniqueOrThrow({ where: { sourceId: 'rf39:4001' } });
+    assert.equal(first.price, 8_975_000);
+    assert.deepEqual(first.availableFloors, Array.from({ length: 26 }, (_, i) => i + 1));
+    assert.equal(await db.propertyImportSource.count({ where: { propertyId: first.id } }), 26);
+    await db.property.update({ where: { id: first.id }, data: { title: 'Ручное название планировки' } });
+    const repeat = await stored([draft(4002, 9_500_000, 30)]);
+    assert.deepEqual([repeat.created, repeat.failed], [0, 0]);
+    const remaining = await db.property.findUniqueOrThrow({ where: { id: first.id } });
+    assert.equal(remaining.published, true);
+    assert.equal(remaining.price, 9_500_000);
+    assert.deepEqual(remaining.availableFloors, [30]);
+    assert.equal(remaining.title, 'Ручное название планировки');
+    assert.equal(await db.property.count({ where: { rf39ComplexId: '88' } }), 1);
   });
 });

@@ -19,12 +19,14 @@ export async function findImportSourceProperty(tx: Prisma.TransactionClient, sou
   return matches.values().next().value || null;
 }
 
-export async function saveImportSources(tx: Prisma.TransactionClient, propertyId: string, sources: ImportSource[]) {
+export async function saveImportSources(tx: Prisma.TransactionClient, propertyId: string, sources: ImportSource[],
+  availability?: { price: number | null; availableFloors?: number[] }) {
   for (const source of sources) {
     const existing = await tx.propertyImportSource.findUnique({ where: { sourceId: source.sourceId } });
     if (existing && (existing.propertyId !== propertyId || existing.apartmentKey && source.apartmentKey && existing.apartmentKey !== source.apartmentKey)) throw conflict();
+    const offer = availability ? { price: availability.price, availableFloors: availability.availableFloors || [] } : {};
     await tx.propertyImportSource.upsert({ where: { sourceId: source.sourceId },
-      create: { ...source, propertyId }, update: source.apartmentKey ? { apartmentKey: source.apartmentKey } : {} });
+      create: { ...source, propertyId, ...offer }, update: { ...(source.apartmentKey ? { apartmentKey: source.apartmentKey } : {}), ...offer } });
   }
 }
 

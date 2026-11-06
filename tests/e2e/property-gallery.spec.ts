@@ -1,16 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { Property } from "../../shared/property";
+import { propertyFixture } from './fixtures/property';
 
-async function openGalleryFixture(
+async function prepareGalleryFixture(
   page: Page,
   photoCount = 3,
   values: Partial<Property> = {},
 ) {
-  const catalog = await page.request.get("/api/properties");
-  expect(catalog.ok()).toBe(true);
-  const { items } = await catalog.json();
-  expect(items.length).toBeGreaterThan(0);
-  const property = items[0] as Property;
+  const property = propertyFixture(values);
   const photos = [
     { name: "baltic-coast", width: 1200, height: 800 },
     { name: "baltic-terrace", width: 600, height: 900 },
@@ -25,7 +22,7 @@ async function openGalleryFixture(
       body: `<svg xmlns="http://www.w3.org/2000/svg" width="${photo.width}" height="${photo.height}"><rect width="100%" height="100%" fill="#abc"/></svg>`,
     });
   });
-  await page.unroute("**/api/properties/*");
+  await page.unroute(`**/api/properties/${property.slug}`);
   await page.route(`**/api/properties/${property.slug}`, async (route) => {
     await route.fulfill({
       json: {
@@ -42,8 +39,20 @@ async function openGalleryFixture(
       },
     });
   });
+  await page.unroute('**/api/properties?*');
+  await page.route('**/api/properties?*', route => route.fulfill({
+    json: { items: [property], total: 1, pages: 1, locations: ['Калининград'] },
+  }));
   // Client navigation lets the browser fixture replace only the detail response.
   await page.goto("/catalog?type=" + property.type);
+  await page.getByTestId('catalog-title-search-input').fill('Тестовая галерея');
+  await page.getByTestId('catalog-title-search-submit').click();
+  await expect(page.locator(`a[href="/catalog/${property.slug}"]`).first()).toBeVisible();
+  return property;
+}
+
+async function openGalleryFixture(page: Page, photoCount = 3, values: Partial<Property> = {}) {
+  const property = await prepareGalleryFixture(page, photoCount, values);
   await page.locator(`a[href="/catalog/${property.slug}"]`).first().click();
   await expect(page).toHaveURL(new RegExp(`/catalog/${property.slug}$`));
 }
@@ -94,6 +103,19 @@ test("missing photos stay empty and example prices are not advertised as a minim
     );
   expect(product).toBeTruthy();
   expect(product).not.toHaveProperty("offers");
+});
+
+test("apartment details show available floors separately from total building floors", async ({ page }) => {
+  for (const availableFloors of [[], [5], [2, 5, 7, 9]]) {
+    await openGalleryFixture(page, 1, { type: 'apartment', availableFloors, floors: 12, price: 5000000, priceKind: 'from' });
+    await expect(page.locator('.detail-hero .scene-aside')).toContainText('Стоимость от');
+    const floor = page.locator('.detail-specs dt').filter({ hasText: /^Этажи?$/ });
+    await expect(page.locator('.detail-specs dt').filter({ hasText: /^Этажей в доме$/ }).locator('..').locator('dd')).toHaveText('12');
+    if (availableFloors.length) {
+      await expect(floor).toHaveText(availableFloors.length === 1 ? 'Этаж' : 'Этажи');
+      await expect(floor.locator('..').locator('dd')).toHaveText(availableFloors.join(', '));
+    } else await expect(floor).toHaveCount(0);
+  }
 });
 
 test("floor plans and photographs remain fully visible in the gallery", async ({ page }) => {
@@ -227,28 +249,22 @@ test("mixed photo ratios scroll manually, loop and use a shorter ribbon", async 
   expect((await panorama.boundingBox())!.x).toBeGreaterThanOrEqual(0);
 });
 
-test("server-rendered photos loaded before hydration keep their original ratios", async ({ page }) => {
-  const catalog = await page.request.get("/api/properties");
-  const { items } = await catalog.json();
-  const property = items.find((item: Property) => item.images.length > 1) as Property;
-  expect(property).toBeTruthy();
-  const imagePaths = property.images.map((image) => new URL(image.file, "http://localhost").pathname);
-  await page.route((url) => imagePaths.includes(url.pathname), (route) => route.fulfill({
-    contentType: "image/svg+xml",
-    body: '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900"><rect width="100%" height="100%" fill="#abc"/></svg>',
-  }));
-  let hydrate!: () => void;
-  const ready = new Promise<void>((resolve) => { hydrate = resolve; });
-  await page.route("**/_nuxt/*.js", async (route) => {
-    await ready;
-    await route.continue();
-  });
-  await page.goto(`/catalog/${property.slug}`, { waitUntil: "commit" });
-  try {
-    await expect(page.locator(".gallery-thumbs img").first()).toHaveJSProperty("naturalWidth", 600);
-  } finally {
-    hydrate();
-  }
+test("photos loaded before the gallery mounts keep their original ratios", async ({ page }) => {
+  const property = await prepareGalleryFixture(page, 2, { images: [
+    { id: 'loaded-one', file: '/gallery-fixture/baltic-terrace.svg', alt: 'Загруженное фото', order: 0 },
+    { id: 'loaded-two', file: '/gallery-fixture/baltic-terrace.svg', alt: 'Второе фото', order: 1 },
+  ] });
+  // Prime the browser's decoded image cache before mounting the detail component.
+  await page.evaluate(async files => {
+    await Promise.all(files.map(file => new Promise<void>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error('Fixture image failed to load'));
+      image.src = file;
+    })));
+  }, property.images.map(image => image.file));
+  await page.locator(`a[href="/catalog/${property.slug}"]`).first().click();
+  await expect(page.locator(".gallery-thumbs img").first()).toHaveJSProperty("naturalWidth", 600);
   await expect(page.locator(".gallery-main").first()).toHaveCSS("aspect-ratio", "0.666667 / 1");
 });
 
