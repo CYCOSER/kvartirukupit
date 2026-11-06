@@ -59,6 +59,7 @@ model Property {
   images      PropertyImage[]
   leads       Lead[]
   importSources PropertyImportSource[]
+  tagRelations TagRelation[]
 
   @@index([published, status])
   @@index([complexId])
@@ -235,6 +236,31 @@ model Article {
   publishedAt    DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+  tagRelations   TagRelation[]
 
   @@index([published, publishedAt])
+}
+
+model Tag {
+  id        String         @id @default(cuid())
+  name      String         @unique
+  relations TagRelation[]
+
+  @@map("tags")
+}
+
+model TagRelation {
+  id         String   @id @default(cuid())
+  tagId      String   @map("tag_id")
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  propertyId String?  @map("property_id")
+  property   Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  articleId  String?  @map("article_id")
+  article    Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([tagId, propertyId])
+  @@unique([tagId, articleId])
+  @@index([propertyId])
+  @@index([articleId])
+  @@map("tags_relations")
 }

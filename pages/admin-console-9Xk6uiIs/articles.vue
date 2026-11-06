@@ -2,6 +2,7 @@
 import Button from "~/components/ui/button/Button.vue";
 import { emptyAdminExclusions, matchesAdminExclusions } from "~/shared/admin-exclusions";
 import {
+  articleSlugFromTitle,
   articleSchema,
   type Article,
   type ArticleInput,
@@ -29,6 +30,7 @@ const imageFile = ref<File>();
 const currentImage = ref("");
 const imagePreview = ref("");
 const removeImage = ref(false);
+const slugManuallyEdited = ref(false);
 const empty = (): ArticleForm => ({
   title: "",
   slug: "",
@@ -40,6 +42,13 @@ const empty = (): ArticleForm => ({
   publishedAt: "",
 });
 const form = reactive(empty());
+watch(
+  () => form.title,
+  (title) => {
+    if (editing.value && !editId.value && !slugManuallyEdited.value)
+      form.slug = articleSlugFromTitle(title);
+  },
+);
 const excerptField = useAutoResizeTextarea(() => form.excerpt);
 const contentField = useAutoResizeTextarea(() => form.content);
 const seoDescriptionField = useAutoResizeTextarea(() => form.seoDescription);
@@ -49,7 +58,10 @@ function clearPreview() {
 }
 function edit(article?: Article) {
   clearPreview();
+  editing.value = false;
   const parsed = article ? articleSchema.parse(article) : empty();
+  editId.value = article?.id || "";
+  slugManuallyEdited.value = !!article;
   Object.assign(form, {
     ...parsed,
     published: article
@@ -57,7 +69,6 @@ function edit(article?: Article) {
       : parsed.published,
     publishedAt: toDateTimeLocal(parsed.publishedAt),
   });
-  editId.value = article?.id || "";
   currentImage.value = article?.image || "";
   imageFile.value = undefined;
   removeImage.value = false;
@@ -186,6 +197,7 @@ async function remove(article: Article) {
         ><label
           >Адрес статьи<input
             v-model="form.slug"
+            @input="slugManuallyEdited = true"
             required
             pattern="[a-z0-9]+(-[a-z0-9]+)*"
             maxlength="150"

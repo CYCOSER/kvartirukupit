@@ -1,7 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { articlePublicationState } from "../server/utils/article-publication-state";
-import { articleSchema } from "../shared/article";
+import { articleSchema, articleSlugFromTitle } from "../shared/article";
+
+test("article title slug is transliterated and normalized", () => {
+  assert.equal(
+    articleSlugFromTitle("Как выбрать новостройку: ЖК «Северный»!"),
+    "kak-vybrat-novostroyku-zhk-severnyy",
+  );
+  assert.equal(
+    articleSlugFromTitle("  Ёжик и 100 квартир  "),
+    "yozhik-i-100-kvartir",
+  );
+});
 
 test("article publication dates schedule future articles and publish due ones", () => {
   const now = new Date("2026-11-05T12:00:00.000Z");

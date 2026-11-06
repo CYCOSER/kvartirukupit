@@ -4,6 +4,7 @@ import {
   Inbox,
   BookOpen,
   Rss,
+  Tags,
   ArrowUpRight,
   LogOut,
   LayoutDashboard,
@@ -23,9 +24,18 @@ const sections = [
   { to: "/admin-console-9Xk6uiIs/articles", label: "Блог", icon: BookOpen },
   { to: "/admin-console-9Xk6uiIs/feeds", label: "XML-выгрузка", icon: Rss },
 ];
+const toolSections = [
+  {
+    to: "/admin-console-9Xk6uiIs/tools/tags",
+    label: "Тэги",
+    icon: Tags,
+  },
+];
 const sectionTitle = computed(
   () =>
-    sections.find((section) => route.path.startsWith(section.to))?.label ||
+    [...sections, ...toolSections].find((section) =>
+      route.path.startsWith(section.to),
+    )?.label ||
     "Управление",
 );
 useHead({
@@ -60,6 +70,21 @@ async function logout() {
             section.label
           }}
         </NuxtLink>
+        <div class="admin-nav-group">
+          <span>Инструменты</span>
+          <NuxtLink
+            v-for="section in toolSections"
+            :key="section.to"
+            :to="section.to"
+            :class="{ 'is-active': route.path.startsWith(section.to) }"
+            :aria-current="
+              route.path.startsWith(section.to) ? 'page' : undefined
+            "
+          >
+            <component :is="section.icon" :size="19" aria-hidden="true" />
+            {{ section.label }}
+          </NuxtLink>
+        </div>
       </nav>
     </aside>
     <div class="admin-content">
