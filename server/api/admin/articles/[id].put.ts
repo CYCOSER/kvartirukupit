@@ -1,4 +1,6 @@
 import { articleSchema } from '~/shared/article';
+import { articlePublicationState } from '~/server/utils/article-publication-state';
+import { scheduleArticlePublication } from '~/server/utils/article-publication';
 export default defineEventHandler(async (event) => {
   const parsed = articleSchema.safeParse(await readBody(event));
   if (!parsed.success)
@@ -7,15 +9,21 @@ export default defineEventHandler(async (event) => {
   const current = await db.article.findUnique({ where: { id } });
   if (!current)
     throw createError({ statusCode: 404, statusMessage: 'Article not found' });
+  const publication = articlePublicationState(
+    parsed.data.published,
+    parsed.data.publishedAt ? new Date(parsed.data.publishedAt) : null,
+    current.published ? current.publishedAt : null,
+  );
   try {
-    return await db.article.update({
+    const article = await db.article.update({
       where: { id },
       data: {
         ...parsed.data,
-        publishedAt:
-          current.publishedAt ?? (parsed.data.published ? new Date() : null),
+        ...publication,
       },
     });
+    scheduleArticlePublication(article.id, article.publishedAt);
+    return article;
   } catch (error: any) {
     if (error.code === 'P2002')
       throw createError({ statusCode: 409, statusMessage: 'Slug exists' });

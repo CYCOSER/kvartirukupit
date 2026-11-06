@@ -1,6 +1,9 @@
 export default defineEventHandler(() =>
   db.article.findMany({
-    where: { published: true },
+    where: {
+      published: true,
+      OR: [{ publishedAt: null }, { publishedAt: { lte: new Date() } }],
+    },
     orderBy: { publishedAt: 'desc' },
     select: {
       id: true,

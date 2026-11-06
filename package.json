@@ -25,6 +25,7 @@
     "leaflet.markercluster": "^1.5.3",
     "lucide-vue-next": "^0.511.0",
     "nuxt": "^3.17.5",
+    "node-cron": "^4.2.1",
     "prisma": "6.19.0",
     "reka-ui": "^2.3.0",
     "sax": "1.6.1",

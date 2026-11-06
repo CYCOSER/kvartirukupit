@@ -10,6 +10,7 @@ export const articleSchema = z.object({
   seoTitle: z.string().trim().max(150).default(''),
   seoDescription: z.string().trim().max(300).default(''),
   published: z.boolean().default(false),
+  publishedAt: z.string().datetime({ offset: true }).nullable().optional(),
 });
 export type ArticleInput = z.infer<typeof articleSchema>;
 export type Article = ArticleInput & {

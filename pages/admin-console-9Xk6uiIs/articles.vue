@@ -6,6 +6,7 @@ import {
   type Article,
   type ArticleInput,
 } from "~/shared/article";
+type ArticleForm = Omit<ArticleInput, "publishedAt"> & { publishedAt: string };
 definePageMeta({ middleware: "admin", layout: "admin" });
 const { data, refresh, error } = await useFetch<Article[]>(
   "/api/admin/articles",
@@ -28,7 +29,7 @@ const imageFile = ref<File>();
 const currentImage = ref("");
 const imagePreview = ref("");
 const removeImage = ref(false);
-const empty = (): ArticleInput => ({
+const empty = (): ArticleForm => ({
   title: "",
   slug: "",
   excerpt: "",
@@ -36,6 +37,7 @@ const empty = (): ArticleInput => ({
   seoTitle: "",
   seoDescription: "",
   published: false,
+  publishedAt: "",
 });
 const form = reactive(empty());
 const excerptField = useAutoResizeTextarea(() => form.excerpt);
@@ -47,7 +49,14 @@ function clearPreview() {
 }
 function edit(article?: Article) {
   clearPreview();
-  Object.assign(form, article ? articleSchema.parse(article) : empty());
+  const parsed = article ? articleSchema.parse(article) : empty();
+  Object.assign(form, {
+    ...parsed,
+    published: article
+      ? article.published || !!article.publishedAt
+      : parsed.published,
+    publishedAt: toDateTimeLocal(parsed.publishedAt),
+  });
   editId.value = article?.id || "";
   currentImage.value = article?.image || "";
   imageFile.value = undefined;
@@ -55,6 +64,27 @@ function edit(article?: Article) {
   editing.value = true;
   notice.value = "";
   preview.value = false;
+}
+function toDateTimeLocal(value: string | null | undefined) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+function toIsoDateTime(value: string) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toISOString();
+}
+function togglePublished() {
+  if (!form.published) form.publishedAt = "";
+}
+function articleStatus(article: Article) {
+  if (article.published) return "Опубликована";
+  if (article.publishedAt)
+    return `Запланирована · ${new Date(article.publishedAt).toLocaleString("ru-RU")}`;
+  return "Черновик";
 }
 function selectImage(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0];
@@ -79,7 +109,10 @@ function clearImage() {
 }
 onBeforeUnmount(clearPreview);
 async function save() {
-  const parsed = articleSchema.safeParse(form);
+  const parsed = articleSchema.safeParse({
+    ...form,
+    publishedAt: toIsoDateTime(form.publishedAt),
+  });
   if (!parsed.success) {
     notice.value =
       "Проверьте поля: заголовок от 3 символов, анонс от 10, текст от 30. Адрес — латиница, цифры и дефисы.";
@@ -232,8 +265,21 @@ async function remove(article: Article) {
           </label>
         </details>
         <label class="article-publish"
-          ><input v-model="form.published" type="checkbox" /><span
+          ><input
+            v-model="form.published"
+            type="checkbox"
+            @change="togglePublished"
+          /><span
             ><strong>Опубликовать статью</strong></span
+          ></label
+        >
+        <label v-if="form.published"
+          >Дата и время публикации<input
+            v-model="form.publishedAt"
+            type="datetime-local"
+          /><small
+            >Время указано по часовому поясу браузера. Оставьте поле пустым для
+            немедленной публикации.</small
           ></label
         >
         <div class="article-actions">
@@ -287,7 +333,7 @@ async function remove(article: Article) {
               <td>
                 {{ article.title }}<small>/blog/{{ article.slug }}</small>
               </td>
-              <td>{{ article.published ? "Опубликована" : "Черновик" }}</td>
+              <td>{{ articleStatus(article) }}</td>
               <td>
                 <div class="article-actions">
                   <button class="btn-secondary" @click="edit(article)">

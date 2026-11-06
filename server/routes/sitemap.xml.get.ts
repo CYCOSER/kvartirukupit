@@ -8,7 +8,10 @@ export default defineEventHandler(async (event) => {
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
   setHeader(event, 'Content-Type', 'application/xml');
   const articles = await db.article.findMany({
-    where: { published: true },
+    where: {
+      published: true,
+      OR: [{ publishedAt: null }, { publishedAt: { lte: new Date() } }],
+    },
     select: { slug: true, updatedAt: true },
   });
   const pages = ['', '/elite', '/catalog', '/ipoteka', '/blog', '/privacy'].map((path) => ({
