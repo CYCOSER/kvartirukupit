@@ -208,7 +208,7 @@ useHead({
           >{{ p.type === "complex" ? "Жилой комплекс" : statuses[p.status] }} /
           {{ priceCaption }}</small
         >
-        <strong v-reveal="255" class="detail-hero-price">{{ money(p.price) }}</strong>
+        <strong v-reveal="255" class="detail-hero-price" data-textfit data-fill="1">{{ money(p.price) }}</strong>
         <p v-reveal="340">{{ readiness }}</p>
       </template>
     </SceneHero>

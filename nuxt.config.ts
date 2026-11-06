@@ -30,6 +30,7 @@ export default defineNuxtConfig({
         { rel: 'preload', href: '/fonts/anticva-regular.otf', as: 'font', type: 'font/otf', crossorigin: 'anonymous' },
         { rel: 'preload', href: '/fonts/miama-nueva.otf', as: 'font', type: 'font/otf', crossorigin: 'anonymous' },
       ],
+      script: [{ src: '/js/textfit.js', defer: true }],
     },
   },
   routeRules: {
