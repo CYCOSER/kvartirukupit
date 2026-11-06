@@ -5,6 +5,7 @@ import { mkdtemp, open, readFile, readdir, rm, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os';
 import { basename, join, resolve, sep } from 'node:path';
 import { getRf39Snapshot } from '../server/utils/rf39-snapshot';
+import { rf39Draft } from '../server/utils/rf39-data';
 import { rf39Offer, rf39Xml } from './fixtures/rf39-feed';
 
 const source = 'https://feed.rf39.ru/201.xml';
@@ -34,6 +35,22 @@ test('XML snapshot persists complete safe data and serves it after restart', asy
   module.searchParams.set('restart', String(Date.now()));
   assert.deepEqual(await (await import(module.href)).getRf39Snapshot(source, path), first);
   assert.equal(calls, 1);
+});
+
+test('saved snapshots preserve incomplete galleries and recover the flag from older photo errors', async t => {
+  const path = await temporary(t);
+  t.mock.method(globalThis, 'fetch', async () => new Response(rf39Xml(rf39Offer(1,
+    '<image>https://rf39.ru/images/objects/1/a.jpg</image><image>https://evil.test/b.jpg</image>'), rf39Offer(2))));
+  const first = await getRf39Snapshot(source, path, true);
+  assert.equal(first.items[0]!.imagesIncomplete, true);
+  assert.equal((await getRf39Snapshot(source, path, 'saved')).items[0]!.imagesIncomplete, true);
+  const saved = JSON.parse(await readFile(path, 'utf8'));
+  for (const item of saved.items) delete item.imagesIncomplete;
+  await writeFile(path, JSON.stringify(saved));
+  const legacy = await getRf39Snapshot(source, path, 'saved');
+  assert.equal(legacy.items[0]!.imagesIncomplete, true);
+  assert.equal(rf39Draft(legacy.items[0]!).imagesIncomplete, true);
+  assert.equal(rf39Draft(legacy.items[1]!).imagesIncomplete, false);
 });
 
 test('concurrent refresh shares one download and readers keep previous complete snapshot', async t => {

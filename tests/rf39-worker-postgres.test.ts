@@ -53,15 +53,20 @@ test('PostgreSQL XML worker batches cards, preserves edits and isolates recovera
   const owner = await db.adminUser.create({ data: { email: `${randomUUID()}@test.invalid`, passwordHash: 'unused' } });
   const config = { rf39SnapshotPath: join(dir, 'feed.json'), nmarketFeedUrl: '', nmarketSnapshotPath: '' };
   const image = await sharp({ create: { width: 16, height: 16, channels: 3, background: '#33aa77' } }).png().toBuffer();
+  const imageUrls = ['test.png', 'secondary-b.png', 'secondary-c.png', 'secondary-missing.png'].map(name => `https://rf39.ru/images/objects/${name}`);
+  const imageBodies = new Map<string, Buffer>([[imageUrls[0]!, image],
+    [imageUrls[1]!, await sharp({ create: { width: 16, height: 16, channels: 3, background: '#aa3377' } }).png().toBuffer()],
+    [imageUrls[2]!, await sharp({ create: { width: 16, height: 16, channels: 3, background: '#3377aa' } }).png().toBuffer()]]);
   const offer = (id: number, price = 10000000, extra = '') => `<offer internal-id="test-${id}"><url>https://rf39.ru/catalog/sale/flat/object/${id}/</url><type>продажа</type><property-type>жилая</property-type><category>квартира</category><location><locality-name>Калининград</locality-name><address>Тестовая, ${id}</address></location><price><value>${price}</value><currency>RUR</currency></price><area><value>50</value><unit>кв. м</unit></area><rooms>2</rooms><description>Описание тестовой квартиры из XML.</description>${extra}</offer>`;
   let xml = '', feedRequests = 0, imageRequests = 0, stopOnImage = false, activeId = '';
   const feed = (offers: string[]) => { xml = `<realty-feed xmlns="http://webmaster.yandex.ru/schemas/feed/realty/2010-06">${offers.join('')}</realty-feed>`; };
   globalThis.fetch = async input => {
     if (String(input) === DEFAULT_RF39_FEED_URL) { feedRequests++; return new Response(xml); }
-    assert.equal(String(input), 'https://rf39.ru/images/objects/test.png', 'Integration tests must not access external networks.');
+    assert.ok(imageUrls.includes(String(input)), 'Integration tests must not access external networks.');
     imageRequests++;
     if (stopOnImage) await db.importJob.update({ where: { id: activeId }, data: { stopRequested: true } });
-    return new Response(image, { headers: { 'content-type': 'image/png' } });
+    const body = imageBodies.get(String(input));
+    return body ? new Response(new Uint8Array(body), { headers: { 'content-type': 'image/png' } }) : new Response('', { status: 404 });
   };
   async function execute(id?: string) {
     activeId = id || (await startRf39FeedSync(owner.id, randomUUID())).id;
@@ -180,5 +185,64 @@ test('PostgreSQL XML worker batches cards, preserves edits and isolates recovera
     assert.deepEqual(remaining.availableFloors, [30]);
     assert.equal(remaining.title, 'Ручное название планировки');
     assert.equal(await db.property.count({ where: { rf39ComplexId: '88' } }), 1);
+  });
+
+  await t.test('unlinked secondary XML cards group complete galleries at one address and refresh availability from surviving offers', async () => {
+    const secondary = (id: number, price: number, floor: number, address = 'Общая, 15', photos = imageUrls.slice(0, 2)) =>
+      offer(id, price, `<floor>${floor}</floor><floors-total>30</floors-total>${photos.map(url => `<image>${url}</image>`).join('')}`)
+        .replace(`Тестовая, ${id}`, address);
+    feed([
+      ...Array.from({ length: 26 }, (_, i) => secondary(5001 + i, 9_000_000 - i * 1000, i + 1,
+        i % 2 ? 'ОБЩАЯ, 15' : 'Общая, 15', i % 2 ? imageUrls.slice(0, 2).reverse() : imageUrls.slice(0, 2))),
+      secondary(5101, 8_000_000, 1, 'Общая, 16'),
+      secondary(5102, 7_000_000, 2, 'Общая, 15', [imageUrls[0]!]),
+      secondary(5103, 6_000_000, 3, 'Общая, 15', [imageUrls[0]!, imageUrls[2]!]),
+      secondary(5104, 5_000_000, 4, 'Общая, 15', [imageUrls[0]!, imageUrls[3]!]),
+    ]);
+    const job = await execute();
+    assert.deepEqual([job.created, job.processed, job.failed], [5, 30, 0]);
+    const first = await db.property.findUniqueOrThrow({ where: { sourceId: 'rf39:5001' }, include: { images: true } });
+    assert.equal(first.housingMarket, 'secondary');
+    assert.equal(first.complexId, null);
+    assert.equal(first.price, 8_975_000);
+    assert.equal(first.priceKind, 'from');
+    assert.deepEqual(first.availableFloors, Array.from({ length: 26 }, (_, i) => i + 1));
+    assert.equal(first.images.length, 2);
+    assert.equal(await db.propertyImportSource.count({ where: { propertyId: first.id } }), 26);
+    const separate = await db.property.findMany({ where: { sourceId: { in: [5101, 5102, 5103, 5104].map(id => `rf39:${id}`) } } });
+    assert.equal(separate.length, 4, 'Different addresses and incomplete or different galleries must retain separate cards.');
+    assert.equal(separate.find(property => property.sourceId === 'rf39:5104')!.layoutHash, '',
+      'A failed download must not match a card with the surviving subset of photos.');
+    await db.property.update({ where: { id: first.id }, data: { title: 'Ручное название квартиры' } });
+    feed([secondary(5002, 9_500_000, 30)]);
+    const repeat = await execute();
+    assert.deepEqual([repeat.created, repeat.failed], [0, 0]);
+    const remaining = await db.property.findUniqueOrThrow({ where: { id: first.id }, include: { images: true } });
+    assert.equal(remaining.published, true);
+    assert.equal(remaining.price, 9_500_000);
+    assert.deepEqual(remaining.availableFloors, [30]);
+    assert.equal(remaining.title, 'Ручное название квартиры');
+    assert.equal(remaining.images.length, 2);
+  });
+
+  await t.test('an incomplete gallery stays excluded from later hash backfill and does not absorb a complete subset', async () => {
+    const secondary = (id: number, photos: string[]) => offer(id, 8_000_000,
+      photos.map(url => `<image>${url}</image>`).join('')).replace(`Тестовая, ${id}`, 'Отдельная, 17');
+    const partial = secondary(5201, [imageUrls[0]!, imageUrls[3]!]);
+    feed([partial]);
+    const firstJob = await execute();
+    assert.deepEqual([firstJob.created, firstJob.failed], [1, 0]);
+    const incomplete = await db.property.findUniqueOrThrow({ where: { sourceId: 'rf39:5201' }, include: { images: true } });
+    assert.equal(incomplete.layoutHash, '');
+    assert.equal(incomplete.images.length, 1);
+    feed([partial, secondary(5202, [imageUrls[0]!])]);
+    const later = await execute();
+    assert.deepEqual([later.created, later.failed], [1, 0]);
+    const complete = await db.property.findUniqueOrThrow({ where: { sourceId: 'rf39:5202' } });
+    assert.notEqual(complete.id, incomplete.id);
+    assert.ok(complete.layoutHash);
+    assert.equal((await db.property.findUniqueOrThrow({ where: { id: incomplete.id } })).layoutHash, '',
+      'Later indexing must not reinterpret a failed gallery as a complete one.');
+    assert.equal(await db.propertyImportSource.count({ where: { propertyId: incomplete.id } }), 1);
   });
 });

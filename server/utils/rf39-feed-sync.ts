@@ -142,7 +142,7 @@ async function writeBatch(job: ImportJob, batch: Prepared[], execution: ImportEx
         else aliases.push({ sourceId: source.sourceId, propertyId: id, ...offer });
         results.push({ item: row.item, result: { id, created: false, updated,
           warnings: [...row.warnings, grouped
-            ? 'Такая планировка уже есть в ЖК. Сохранена одна карточка с минимальной ценой и списком этажей.'
+            ? 'Квартира с таким набором фотографий или планировок уже есть. Сохранена одна карточка с минимальной ценой и списком этажей.'
             : 'Объект связан с карточкой другого основного источника. Его характеристики и ручные правки сохранены.'] } });
         continue;
       }
@@ -208,8 +208,8 @@ async function prepareBatch(job: ImportJob, items: ImportJobItem[], execution: I
         const state = await db.importJob.findUniqueOrThrow({ where: { id: job.id }, select: { stopRequested: true } });
         if (state.stopRequested) return;
         const imagesPrepared = current.matches(draft.data.sourceId).length === 0;
-        const prepared = imagesPrepared ? await prepareImportImages(draft, true) : { images: [], warnings: [] };
-        const layoutHash = imagesPrepared && !prepared.warnings.length && layoutScopeWhere(draft.data)
+        const prepared = imagesPrepared ? await prepareImportImages(draft, true) : { images: [], warnings: [], complete: true };
+        const layoutHash = !prepared.complete ? '' : imagesPrepared && layoutScopeWhere(draft.data)
           ? await prepareApartmentLayout(draft.data, prepared.images) : null;
         if (layoutHash) await indexApartmentLayouts(draft.data);
         settled[index] = { status: 'fulfilled', value: { item, draft, images: prepared.images, imagesPrepared, layoutHash, warnings: [...draft.warnings, ...prepared.warnings] } };
@@ -248,7 +248,7 @@ async function finish(job: ImportJob, plan: Plan, execution: ImportExecution) {
       }).map(property => property.id);
       for (let offset = 0; offset < absent.length; offset += 500)
         unpublished += (await tx.property.updateMany({ where: { id: { in: absent.slice(offset, offset + 500) }, published: true }, data: { published: false } })).count;
-      const groups = await tx.property.findMany({ where: { type: 'apartment', housingMarket: 'newbuild', layoutHash: { not: null } } });
+      const groups = await tx.property.findMany({ where: { type: 'apartment', layoutHash: { not: null, notIn: [''] } } });
       const offers = await tx.propertyImportSource.findMany({ where: { propertyId: { in: groups.map(property => property.id) } } });
       for (const group of groups) {
         const sources = offers.filter(offer => offer.propertyId === group.id);

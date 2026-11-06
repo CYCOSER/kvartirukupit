@@ -51,9 +51,9 @@ export async function importProperty(draft: Draft, complexId?: string, detectPla
   const existing = await existingImportedProperty(draft.data.sourceId, complexId, sources, execution);
   if (existing) return existing;
   try {
-    const { images, warnings } = await prepareImportImages(draft, detectPlans);
+    const { images, warnings, complete } = await prepareImportImages(draft, detectPlans);
     draft.warnings.push(...warnings);
-    const layoutHash = !warnings.length && layoutScopeWhere(draft.data, complexId)
+    const layoutHash = !complete ? '' : layoutScopeWhere(draft.data, complexId)
       ? await prepareApartmentLayout(draft.data, images) : null;
     if (layoutHash) await indexApartmentLayouts(draft.data, complexId);
     const result = await db.$transaction(async tx => {
@@ -74,7 +74,7 @@ export async function importProperty(draft: Draft, complexId?: string, detectPla
         } });
         await saveImportSources(tx, layout.id, sources, draft.data);
         const result = { id: layout.id, created: false, linked: !!complexId && !layout.complexId,
-          warnings: [...draft.warnings, 'Такая планировка уже есть в ЖК. Сохранена одна карточка с минимальной ценой и списком этажей.'] };
+          warnings: [...draft.warnings, 'Квартира с такими фото или планировками уже есть. Сохранена одна карточка с минимальной ценой и списком этажей.'] };
         await execution?.complete?.(tx, result);
         return result;
       }

@@ -1,5 +1,5 @@
 import { db } from '../server/utils/db';
-import { deduplicateApartmentLayout, importedNewbuilds, type LayoutSourceOffer } from '../server/utils/apartment-layout-cleanup';
+import { deduplicateApartmentLayout, importedApartments, type LayoutSourceOffer } from '../server/utils/apartment-layout-cleanup';
 import { fetchNmarketSnapshot } from '../server/utils/nmarket';
 
 const args = process.argv.slice(2);
@@ -17,7 +17,7 @@ try {
     total.warnings++;
   }
   for (;;) {
-    const properties = await db.property.findMany({ where: { ...importedNewbuilds, ...(cursor ? { id: { gt: cursor } } : {}) },
+    const properties = await db.property.findMany({ where: { ...importedApartments, ...(cursor ? { id: { gt: cursor } } : {}) },
       select: { id: true }, orderBy: { id: 'asc' }, take: 100 });
     if (!properties.length) break;
     for (const property of properties) {

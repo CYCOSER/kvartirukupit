@@ -37,6 +37,8 @@ async function readSnapshot(path: string, sourceHash: string): Promise<Rf39Snaps
         saved.items.some(item => !present.has(item.id)) || saved.errors.some(error => error.id !== null && !present.has(error.id)) ||
         saved.authoritative && saved.errors.some(error => error.id === null)) throw new Error('Invalid snapshot identities');
     const { version: _version, sourceHash: _sourceHash, ...snapshot } = saved;
+    const incompleteImages = new Set(saved.errors.filter(error => error.message.startsWith('Часть фотографий пропущена:')).map(error => error.id));
+    for (const item of snapshot.items) if (incompleteImages.has(item.id)) item.imagesIncomplete = true;
     cached = { key, signature, snapshot };
     return snapshot;
   } finally { await file.close(); }

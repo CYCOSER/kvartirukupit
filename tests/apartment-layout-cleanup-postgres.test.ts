@@ -117,6 +117,55 @@ test('PostgreSQL safely merges imported apartments with equal complete layouts',
     assert.equal(await db.property.count({ where: { id: { in: [base.id, otherDevelopment.id, fullSet.id, manual.id, secondary.id, noPlan.id] } } }), 6);
   });
 
+  await t.test('unlinked secondary duplicates require the full gallery and numbered address, preserving the oldest manual edits', async () => {
+    const secondary = (photos: string[], extra: Record<string, unknown> = {}) => apartment(photos[0]!, {
+      housingMarket: 'secondary', nmarketComplexId: null, address: 'Тестовая, 12',
+      images: { create: photos.map((file, order) => ({ file, originalFile: file, kind: 'photo', alt: 'Фото', order })) }, ...extra,
+    });
+    const keeper = await secondary([plan, otherPlan], { createdAt: new Date('2018-01-01'), title: 'Моя квартира',
+      slug: 'manual-unlinked-card', published: true, availableFloors: [2] });
+    const duplicate = await secondary([otherPlan, samePlan, plan], { createdAt: new Date('2019-01-01'),
+      location: 'г. ТЕСТ', address: 'ТЕСТОВАЯ 12', price: 6000000, availableFloors: [7] });
+    const others = await Promise.all([
+      secondary([plan, otherPlan], { address: 'Тестовая, 14' }),
+      secondary([plan, otherPlan], { location: 'Другой город' }),
+      secondary([plan, otherPlan], { address: 'Тестовая' }),
+      secondary([plan, otherPlan], { nmarketComplexId: 'different-source-building' }),
+      secondary([plan]),
+    ]);
+    const lead = await db.lead.create({ data: { propertyId: duplicate.id, name: 'Тест', phone: '+70000000000', consent: true } });
+    const preview = await deduplicateApartmentLayout(duplicate.id);
+    assert.equal(preview.keeperId, keeper.id);
+    assert.deepEqual(preview.duplicateIds, [duplicate.id]);
+    assert.equal(preview.merged, 0);
+    const result = await deduplicateApartmentLayout(duplicate.id, true);
+    assert.equal(result.merged, 1);
+    const card = await db.property.findUniqueOrThrow({ where: { id: keeper.id }, include: { images: true, importSources: true } });
+    assert.equal(card.complexId, null);
+    assert.equal(card.title, keeper.title);
+    assert.equal(card.description, keeper.description);
+    assert.equal(card.slug, keeper.slug);
+    assert.equal(card.published, true);
+    assert.equal(card.price, 6000000);
+    assert.equal(card.priceKind, 'from');
+    assert.deepEqual(card.availableFloors, [2, 7]);
+    assert.equal(card.images.length, 2);
+    assert.deepEqual(new Set(card.importSources.map(source => source.sourceId)), new Set([keeper.sourceId, duplicate.sourceId]));
+    assert.equal((await db.lead.findUniqueOrThrow({ where: { id: lead.id } })).propertyId, keeper.id);
+    assert.equal(await db.property.count({ where: { id: { in: others.map(property => property.id) } } }), others.length);
+    assert.equal((await deduplicateApartmentLayout(keeper.id, true)).merged, 0);
+  });
+
+  await t.test('unlinked newbuild cleanup groups the full plan set only within the same address', async () => {
+    const keeper = await apartment(plan, { nmarketComplexId: null, address: 'Новая, 1', createdAt: new Date('2018-01-01') });
+    const duplicate = await apartment(samePlan, { nmarketComplexId: null, address: 'НОВАЯ 1', price: 5500000 });
+    const otherHouse = await apartment(samePlan, { nmarketComplexId: null, address: 'Новая, 2' });
+    assert.equal((await deduplicateApartmentLayout(duplicate.id, true)).keeperId, keeper.id);
+    assert.equal(await db.property.findUnique({ where: { id: duplicate.id } }), null);
+    assert.ok(await db.property.findUnique({ where: { id: otherHouse.id } }));
+    assert.equal((await db.property.findUniqueOrThrow({ where: { id: keeper.id } })).price, 5500000);
+  });
+
   await t.test('conflicting local complex links and source ownership prevent destructive merges', async () => {
     const complex = (title: string) => db.property.create({ data: { title, slug: randomUUID(), type: 'complex', location: 'Тест', readiness: '', finish: '', description: '', utilities: [] } });
     const a = await complex('A'), b = await complex('B');

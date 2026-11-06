@@ -41,7 +41,22 @@ test('RF39 maps a real response shape into a published elite apartment without p
   assert.equal(rf39Summary(item).floors, 7);
   assert.deepEqual(draft.imageUrls, ['https://crm.rf39.ru/images/objects/123/photo.jpg']);
   assert.deepEqual(draft.planImageUrls, []);
+  assert.equal(draft.imagesIncomplete, false);
   assert.equal(JSON.stringify([item, draft, rf39Summary(item)]).includes('PRIVATE_'), false);
+});
+
+test('RF39 distinguishes repeated URLs from invalid or truncated image sets', () => {
+  const same = rf39Draft(parse({ ...fixture, images: [fixture.images[0], fixture.images[0]] }));
+  assert.equal(same.imageUrls.length, 1);
+  assert.equal(same.imagesIncomplete, false);
+  const invalid = rf39Draft(parse({ ...fixture, images: [...fixture.images, 'https://evil.test/photo.jpg'] }));
+  assert.equal(invalid.imageUrls.length, 1);
+  assert.equal(invalid.imagesIncomplete, true);
+  assert.ok(invalid.warnings.some(warning => warning.includes('отклонены')));
+  const limited = rf39Draft(parse({ ...fixture, images: Array.from({ length: 101 }, (_, i) => `/images/objects/123/${i}.jpg`) }));
+  assert.equal(limited.imageUrls.length, 100);
+  assert.equal(limited.imagesIncomplete, true);
+  assert.ok(limited.warnings.some(warning => warning.includes('первые 100')));
 });
 
 test('RF39 corpus remains a complex without borrowing characteristics from an arbitrary layout', () => {
@@ -206,6 +221,22 @@ test('XML preserves invalid record IDs while independent records continue', asyn
   assert.deepEqual(result.presentIds, [1, 2, 4]);
   assert.deepEqual(result.errors.map(error => error.id), [1, null, 4]);
   assert.equal(result.authoritative, false);
+  assert.equal(result.items.find(item => item.id === 4)?.imagesIncomplete, true);
+  assert.equal(rf39Draft(result.items.find(item => item.id === 4)!).imagesIncomplete, true);
+});
+
+test('XML retains incomplete galleries through drafts but repeated URLs at the limit remain complete', async () => {
+  const photos = Array.from({ length: 100 }, (_, i) => `<image>https://rf39.ru/images/objects/123/${i}.jpg</image>`).join('');
+  const extra = '<image>https://rf39.ru/images/objects/123/extra.jpg</image>';
+  const repeated = '<image>https://rf39.ru/images/objects/123/0.jpg</image>';
+  const snapshot = await parseRf39Feed(rf39Chunks(rf39Xml(
+    rf39Offer(10, photos + extra), rf39Offer(11, photos + repeated),
+    rf39Offer(12, repeated + '<image>https://evil.test/private.jpg</image>'),
+  )));
+  assert.deepEqual(snapshot.items.map(item => item.images?.length), [100, 100, 1]);
+  assert.deepEqual(snapshot.items.map(item => item.imagesIncomplete), [true, false, true]);
+  assert.deepEqual(snapshot.items.map(item => rf39Draft(item).imagesIncomplete), [true, false, true]);
+  assert.deepEqual(snapshot.errors.map(error => error.id), [10, 12]);
 });
 
 test('XML rejects empty, truncated, duplicate, oversized and entity-bearing documents', async () => {

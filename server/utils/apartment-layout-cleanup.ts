@@ -1,11 +1,11 @@
 import type { Prisma } from '@prisma/client';
 import { db } from './db';
-import { layoutScopeWhere, mergeLayoutAvailability, prepareApartmentLayout } from './apartment-layout';
+import { layoutScopeWhere, mergeLayoutAvailability, prepareApartmentLayout, sameApartmentLayoutScope } from './apartment-layout';
 import { propertyImageFingerprint } from './image-fingerprint';
 import { lockPropertyRelations } from './property-relations';
 
-export const importedNewbuilds = {
-  type: 'apartment', housingMarket: 'newbuild', OR: [
+export const importedApartments = {
+  type: 'apartment', OR: [
     { sourceId: { startsWith: 'nmarket:' } }, { sourceId: { startsWith: 'rf39:' } }, { sourceId: { startsWith: 'rf39-layout:' } },
   ],
 } satisfies Prisma.PropertyWhereInput;
@@ -16,14 +16,15 @@ export async function deduplicateApartmentLayout(propertyId: string, apply = fal
   const warnings = new Set<string>();
   const empty = () => ({ keeperId: propertyId, duplicateIds: [] as string[], merged: 0,
     price: null as number | null, availableFloors: [] as number[], warnings: [...warnings] });
-  const initial = await db.property.findFirst({ where: { id: propertyId, ...importedNewbuilds }, include });
+  const initial = await db.property.findFirst({ where: { id: propertyId, ...importedApartments }, include });
   if (!initial) return empty();
   const scope = layoutScopeWhere(initial, initial.complexId || undefined);
   if (!scope) return empty();
   const externalScope = layoutScopeWhere({ ...initial, complexId: null });
-  const where = { AND: [importedNewbuilds, { OR: [scope, ...(externalScope ? [externalScope] : [])] }] };
+  const where = { AND: [importedApartments, { OR: [scope, ...(externalScope ? [externalScope] : [])] }] };
   const warm = await db.property.findMany({ where, include });
   for (const property of warm) {
+    if (!sameApartmentLayoutScope(initial, property) && !sameApartmentLayoutScope({ ...initial, complexId: null }, property)) continue;
     await prepareApartmentLayout(property, property.images);
     for (const image of property.images) {
       try { await propertyImageFingerprint(image.file); }
@@ -34,26 +35,30 @@ export async function deduplicateApartmentLayout(propertyId: string, apply = fal
     try {
       return await db.$transaction(async tx => {
         await lockPropertyRelations(tx);
-        const current = await tx.property.findFirst({ where: { id: propertyId, ...importedNewbuilds } });
+        const current = await tx.property.findFirst({ where: { id: propertyId, ...importedApartments } });
         if (!current) return empty();
         const currentScope = layoutScopeWhere(current, current.complexId || undefined);
         if (!currentScope) return empty();
         const externalScope = layoutScopeWhere({ ...current, complexId: null });
-        const allScope = { AND: [importedNewbuilds, { OR: [currentScope, ...(externalScope ? [externalScope] : [])] }] };
-        const ids = (await tx.property.findMany({ where: allScope, select: { id: true } })).map(property => property.id).sort();
+        const allScope = { AND: [importedApartments, { OR: [currentScope, ...(externalScope ? [externalScope] : [])] }] };
+        const ids = (await tx.property.findMany({ where: allScope, select: {
+          id: true, type: true, housingMarket: true, complexId: true, location: true, address: true,
+          nmarketComplexId: true, rf39ComplexId: true, rf39BuildingId: true,
+        } })).filter(property => sameApartmentLayoutScope(current, property) || sameApartmentLayoutScope({ ...current, complexId: null }, property))
+          .map(property => property.id).sort();
         // Upload locks precede row locks so an upload's foreign key cannot deadlock with deletion.
         for (const id of ids) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
         await tx.$queryRaw`SELECT "id" FROM "Property" WHERE "id" = ANY(${ids}::text[]) ORDER BY "id" FOR UPDATE`;
         await tx.$queryRaw`SELECT "id" FROM "PropertyImage" WHERE "propertyId" = ANY(${ids}::text[]) ORDER BY "id" FOR UPDATE`;
-        const seed = await tx.property.findFirst({ where: { id: propertyId, ...importedNewbuilds }, include });
+        const seed = await tx.property.findFirst({ where: { id: propertyId, ...importedApartments }, include });
         if (!seed) return empty();
         const hash = await prepareApartmentLayout(seed, seed.images, tx);
         if (!hash) return empty();
-        const candidates = await tx.property.findMany({ where: { AND: [importedNewbuilds, currentScope, { id: { in: ids } }] },
+        const candidates = await tx.property.findMany({ where: { AND: [importedApartments, currentScope, { id: { in: ids } }] },
           include, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
         const group: typeof candidates = [];
         for (const property of candidates) {
-          if (await prepareApartmentLayout(property, property.images, tx) === hash) group.push(property);
+          if (sameApartmentLayoutScope(seed, property) && await prepareApartmentLayout(property, property.images, tx) === hash) group.push(property);
         }
         const keeper = group[0];
         if (!keeper) return empty();
@@ -63,7 +68,7 @@ export async function deduplicateApartmentLayout(propertyId: string, apply = fal
           return empty();
         }
         if (externalScope && complexIds.length && group.some(property => !property.complexId)) {
-          const otherLinks = await tx.property.findMany({ where: { AND: [importedNewbuilds, externalScope,
+          const otherLinks = await tx.property.findMany({ where: { AND: [importedApartments, externalScope,
             { complexId: { not: null, notIn: complexIds } }] }, include });
           for (const property of otherLinks) if (await prepareApartmentLayout(property, property.images, tx) === hash) {
             warnings.add('Непривязанная квартира подходит к разным карточкам ЖК; объединение пропущено.');

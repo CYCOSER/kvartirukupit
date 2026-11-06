@@ -100,7 +100,7 @@ test('PostgreSQL imports one apartment per full layout set with minimum price an
     assert.equal(requests, previousRequests, 'Saved offer aliases do not download their plans again.');
   });
 
-  await t.test('different complete sets, different complexes, unknown scopes and missing plans stay separate', async () => {
+  await t.test('different complete sets, different complexes, unknown addresses and missing plans stay separate', async () => {
     const parent = await complex(), other = await complex();
     const a = await importProperty(await draft('72', 5_000_000, 3, [commonUrl, redUrl]), parent.id);
     const b = await importProperty(await draft('72', 5_000_000, 4, [commonUrl, blueUrl]), parent.id);
@@ -115,12 +115,90 @@ test('PostgreSQL imports one apartment per full layout set with minimum price an
     const noPlans = await Promise.all([importProperty(await draft('72', 5_000_000, 2, []), parent.id),
       importProperty(await draft('72', 5_000_000, 3, []), parent.id)]);
     assert.notEqual(noPlans[0]!.id, noPlans[1]!.id);
-    const noScope = await Promise.all([importProperty(await draft(null, 5_000_000, 2, [redUrl])),
-      importProperty(await draft(null, 5_000_000, 3, [redUrl]))]);
+    const unknown = await Promise.all([draft(null, 5_000_000, 2, [redUrl]), draft(null, 5_000_000, 3, [redUrl])]);
+    for (const value of unknown) value.data.address = 'Тестовая';
+    const noScope = await Promise.all(unknown.map(value => importProperty(value)));
     assert.notEqual(noScope[0]!.id, noScope[1]!.id);
     const external = await Promise.all([importProperty(await draft('73', 5_000_000, 2, [redUrl])),
       importProperty(await draft('74', 5_000_000, 3, [redUrl]))]);
     assert.notEqual(external[0]!.id, external[1]!.id);
+  });
+
+  await t.test('unlinked newbuilds without external IDs group at the same numbered address', async () => {
+    const drafts = await Promise.all([draft(null, 5_200_000, 5, [redUrl]), draft(null, 4_882_500, 2, [redCopy])]);
+    drafts[1]!.data.location = 'г. Калининград';
+    drafts[1]!.data.address = 'тестовая 1';
+    const results = await Promise.all(drafts.map(value => importProperty(value)));
+    assert.equal(results[0]!.id, results[1]!.id);
+    const card = await db.property.findUniqueOrThrow({ where: { id: results[0]!.id } });
+    assert.equal(card.complexId, null);
+    assert.equal(card.price, 4_882_500);
+    assert.deepEqual(card.availableFloors, [2, 5]);
+    const elsewhere = await draft(null, 5_000_000, 3, [redUrl]);
+    elsewhere.data.address = 'Тестовая, 2';
+    assert.notEqual((await importProperty(elsewhere)).id, card.id);
+  });
+
+  await t.test('unlinked secondary imports reuse a complete gallery and preserve the first card and source aliases', async () => {
+    async function secondary(price: number, floor: number, photos: string[]) {
+      const value = await draft(null, price, floor, photos);
+      value.data.housingMarket = 'secondary';
+      value.planImageUrls = [];
+      return value;
+    }
+    const firstDraft = await secondary(5_200_000, 5, [redUrl, commonUrl]);
+    const first = await importProperty(firstDraft);
+    const manual = await db.property.update({ where: { id: first.id }, data: { layoutHash: null, title: 'Ручная карточка',
+      description: 'Сохранить описание', slug: 'manual-unlinked-apartment', published: true } });
+    const secondDraft = await secondary(4_882_500, 2, [commonUrl, redCopy]);
+    const second = await importProperty(secondDraft);
+    assert.equal(second.id, first.id);
+    assert.equal(second.created, false);
+    const card = await db.property.findUniqueOrThrow({ where: { id: first.id }, include: { images: true, importSources: true } });
+    assert.equal(card.price, 4_882_500);
+    assert.equal(card.priceKind, 'from');
+    assert.deepEqual(card.availableFloors, [2, 5]);
+    assert.equal(card.floors, 20);
+    assert.equal(card.complexId, null);
+    assert.equal(card.images.length, 2);
+    assert.equal(card.importSources.length, 2);
+    assert.equal(card.importSources.find(source => source.sourceId === firstDraft.data.sourceId)?.price, 5_200_000);
+    for (const key of ['title', 'description', 'slug', 'published'] as const) assert.equal(card[key], manual[key]);
+    const before = requests;
+    assert.equal((await importProperty(secondDraft)).id, first.id);
+    assert.equal(requests, before, 'Repeat source IDs do not redownload images.');
+    const sharedPhoto = await importProperty(await secondary(5_000_000, 3, [commonUrl, blueUrl]));
+    assert.notEqual(sharedPhoto.id, first.id);
+    const elsewhere = await secondary(5_000_000, 3, [redUrl, commonUrl]);
+    elsewhere.data.address = 'Тестовая, 2';
+    assert.notEqual((await importProperty(elsewhere)).id, first.id);
+    const partial = await secondary(5_000_000, 3, [redUrl, commonUrl, image(blue)]);
+    media.delete(partial.imageUrls.at(-1)!);
+    const failed = await importProperty(partial);
+    assert.notEqual(failed.id, first.id);
+    assert.ok(failed.warnings.some(warning => warning.includes('пропущена')));
+  });
+
+  await t.test('later imports and cleanup cannot turn a previously incomplete gallery into a match', async () => {
+    const partial = await draft(null, 5_000_000, 2, [redUrl, image(blue)]);
+    partial.data.housingMarket = 'secondary';
+    partial.data.address = 'Неполная, 9';
+    partial.planImageUrls = [];
+    media.delete(partial.imageUrls.at(-1)!);
+    const first = await importProperty(partial);
+    assert.equal((await db.property.findUniqueOrThrow({ where: { id: first.id } })).layoutHash, '');
+    const full = await draft(null, 4_000_000, 3, [redUrl]);
+    full.data.housingMarket = 'secondary';
+    full.data.address = partial.data.address;
+    full.planImageUrls = [];
+    const second = await importProperty(full);
+    assert.notEqual(second.id, first.id);
+    const { deduplicateApartmentLayout } = await import('../server/utils/apartment-layout-cleanup');
+    assert.equal((await deduplicateApartmentLayout(first.id, true)).merged, 0);
+    assert.equal((await deduplicateApartmentLayout(second.id, true)).merged, 0);
+    await db.property.update({ where: { id: first.id }, data: { layoutHash: null } });
+    assert.equal((await deduplicateApartmentLayout(first.id, true)).merged, 0, 'Legacy notes also keep failed galleries separate.');
+    assert.equal(await db.property.count({ where: { address: partial.data.address } }), 2);
   });
 
   await t.test('concurrent offers in one external complex create a single group without losing lower prices or floors', async () => {

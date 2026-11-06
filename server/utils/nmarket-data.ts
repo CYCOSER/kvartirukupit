@@ -201,5 +201,5 @@ export function nmarketDraft(item: NmarketObject, snapshotDate?: string) {
     priceSourceUrl: item.price !== null ? NMARKET_SOURCE : null,
     nmarketComplexId: item.complexId,
   }, imageUrls: (item.type === 'apartment' ? plans : photos).map(image => image.url),
-  planImageUrls: item.type === 'apartment' ? [...planUrls] : [], warnings };
+  planImageUrls: item.type === 'apartment' ? [...planUrls] : [], imagesIncomplete: item.rejectedImages, warnings };
 }

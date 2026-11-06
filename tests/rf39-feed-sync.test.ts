@@ -365,7 +365,7 @@ test('XML newbuild apartments without plans are not grouped by their shared comp
       JSON.parse(JSON.stringify(layoutDraft(id, 11, 8_000_000, id, false)));
     await f.run();
     assert.equal(f.tables.property!.length, 2);
-    assert.ok(f.tables.property!.every(row => row.layoutHash === null));
+    assert.ok(f.tables.property!.every(row => row.layoutHash === ''));
     assert.equal(f.tables.importJob![0].created, 2);
   } finally { await f.close(); }
 });

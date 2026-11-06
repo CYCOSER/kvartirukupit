@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { db } from '../server/utils/db';
-import { findApartmentLayout, layoutScopeWhere, mergeLayoutAvailability, prepareApartmentLayout } from '../server/utils/apartment-layout';
+import { findApartmentLayout, layoutScopeWhere, mergeLayoutAvailability, prepareApartmentLayout, sameApartmentLayoutScope } from '../server/utils/apartment-layout';
 import { mockImageFingerprintCache } from './fixtures/image-fingerprint-cache';
 
 const apartment = { type: 'apartment', housingMarket: 'newbuild', nmarketComplexId: '71' };
@@ -64,15 +64,55 @@ test('layout availability uses the cheapest known price and distinct apartment f
   assert.deepEqual(mergeLayoutAvailability([{ price: null }, { price: 0 }]), { price: null, availableFloors: [] });
 });
 
-test('layout matching requires a known complex and refuses candidates assigned to conflicting local complexes', async () => {
+test('layout matching requires a known complex or numbered address and refuses conflicting local complexes', async () => {
   assert.equal(layoutScopeWhere({ type: 'apartment', housingMarket: 'newbuild' }), null);
   assert.equal(layoutScopeWhere({ ...apartment, housingMarket: 'secondary' }), null);
   let queries = 0;
-  const candidates = [{ id: 'first', complexId: 'local-a' }, { id: 'second', complexId: 'local-b' }];
+  const candidates = [{ ...apartment, id: 'first', complexId: 'local-a' }, { ...apartment, id: 'second', complexId: 'local-b' }];
   const tx = { property: { findMany: async () => { queries++; return candidates; } } } as any;
   assert.equal(await findApartmentLayout(tx, { type: 'apartment', housingMarket: 'newbuild' }, 'hash'), null);
   assert.equal(queries, 0);
   assert.equal(await findApartmentLayout(tx, apartment, 'hash'), null);
   candidates[1]!.complexId = 'local-a';
   assert.equal((await findApartmentLayout(tx, apartment, 'hash'))?.id, 'first');
+});
+
+test('unlinked apartments compare normalized city and numbered address within the same market', async () => {
+  const source = { type: 'apartment', housingMarket: 'newbuild', location: 'г. Калининград', address: 'Тестовая, 1' };
+  const same = { ...source, location: 'Калининград', address: 'тестовая 1' };
+  assert.ok(layoutScopeWhere(source));
+  assert.equal(sameApartmentLayoutScope(source, same), true);
+  for (const change of [{ address: 'Тестовая, 2' }, { location: 'Москва' }, { address: 'Тестовая' },
+    { housingMarket: 'secondary' }, { complexId: 'local' }, { nmarketComplexId: '71' }]) {
+    assert.equal(sameApartmentLayoutScope(source, { ...same, ...change }), false);
+  }
+  const secondary = { ...source, housingMarket: 'secondary' };
+  assert.ok(layoutScopeWhere(secondary));
+  assert.equal(layoutScopeWhere(secondary, 'local'), null);
+  assert.equal(sameApartmentLayoutScope(secondary, { ...secondary, rf39BuildingId: '1' }), false);
+  const unknownCity = { ...source, location: 'Уточняется' };
+  assert.equal(layoutScopeWhere(unknownCity), null);
+  assert.equal(sameApartmentLayoutScope(unknownCity, unknownCity), false);
+  const candidates = [{ ...same, id: 'other', address: 'Тестовая, 2' }, { ...same, id: 'match' }];
+  const tx = { property: { findMany: async () => candidates } } as any;
+  assert.equal((await findApartmentLayout(tx, source, 'same-image-hash'))?.id, 'match');
+});
+
+test('unlinked secondary identity compares the entire gallery, not one common plan or photo', async t => {
+  const file = await fixture(t), bytes = await png('#bb4411');
+  const photo = await file(bytes, 'photo'), duplicate = await file(await sharp(bytes).withMetadata().png().toBuffer(), 'photo');
+  const plan = await file(await png('#555555')), other = await file(await png('#1144bb'), 'photo');
+  const source = { type: 'apartment', housingMarket: 'secondary', location: 'Калининград', address: 'Тестовая, 1' };
+  const hash = await prepareApartmentLayout(source, [photo, plan]);
+  assert.ok(hash);
+  assert.equal(await prepareApartmentLayout(source, [plan, duplicate, photo]), hash);
+  assert.notEqual(await prepareApartmentLayout(source, [other, plan]), hash);
+  assert.notEqual(await prepareApartmentLayout(source, [photo]), hash);
+  assert.notEqual(await prepareApartmentLayout(source, [plan]), await prepareApartmentLayout(apartment, [plan]));
+  assert.equal(await prepareApartmentLayout(source, []), null);
+  t.mock.method(console, 'warn', () => {});
+  assert.equal(await prepareApartmentLayout(source, [photo, { kind: 'photo', file: '/uploads/missing.webp' }]), null);
+  assert.equal(await prepareApartmentLayout({ ...source, layoutHash: '' }, [photo]), null);
+  assert.equal(await prepareApartmentLayout({ ...source, layoutHash: null,
+    sourceNote: 'Не удалось загрузить фотографию №2. Она пропущена.' }, [photo]), null);
 });

@@ -30,7 +30,7 @@ function sourceId(value: string | undefined): number | null {
   } catch { return null; }
 }
 
-function feedObject(id: number, values: Record<string, string>, images: string[]): Rf39Object {
+function feedObject(id: number, values: Record<string, string>, images: string[], imagesIncomplete: boolean): Rf39Object {
   const apartment = values.category === 'квартира' && values['property-type'] === 'жилая';
   const rooms = ['1', 'true', 'да'].includes(values.studio || '') ? 0 : rf39Number(values.rooms);
   const area = /^(?:кв\.?\s*м|м[²2])$/i.test(values['area/unit'] || '') ? rf39Number(values['area/value']) : null;
@@ -48,7 +48,7 @@ function feedObject(id: number, values: Record<string, string>, images: string[]
     district: values['location/sub-locality-name'] || values['location/district'] || null,
     coordinates: values['location/latitude'] && values['location/longitude'] ? [values['location/latitude'], values['location/longitude']] : null,
     price: ['RUR', 'RUB'].includes(values['price/currency'] || '') ? rf39Number(values['price/value']) : null,
-    images, params,
+    images, imagesIncomplete, params,
     // Yandex building IDs are not CRM IDs and must never overwrite existing source mappings.
     development: values['building-name'] ? { title: values['building-name'] } : null,
   });
@@ -96,8 +96,11 @@ export async function parseRf39Feed(chunks: AsyncIterable<Uint8Array>, limit = M
           snapshotDate = new Date(value).toISOString();
       } else if (path === 'image') {
         const url = rf39ImageUrl(value);
-        if (!url || images.length >= 100) rejectedImages = true;
-        else if (!images.includes(url)) images.push(url);
+        if (!url) rejectedImages = true;
+        else if (!images.includes(url)) {
+          if (images.length >= 100) rejectedImages = true;
+          else images.push(url);
+        }
       } else {
         if (values[path] !== undefined) { invalid = true; if (path === 'url' && values[path] !== value) ambiguousIdentity = true; }
         values[path] = value;
@@ -111,7 +114,7 @@ export async function parseRf39Feed(chunks: AsyncIterable<Uint8Array>, limit = M
         presentIds.add(id);
         try {
           if (invalid) throw new Error('Duplicate fields');
-          items.push(feedObject(id, values, images));
+          items.push(feedObject(id, values, images, rejectedImages));
           if (rejectedImages) errors.push({ id, message: 'Часть фотографий пропущена: недопустимый адрес или превышен лимит галереи.' });
         } catch { errors.push({ id, message: 'Данные объекта некорректны. Объект пропущен, его существующая карточка сохранена.' }); }
       }

@@ -58,6 +58,7 @@ test('NMarket streams UTF-8 XML into filled drafts and strips agent/private fiel
   assert.ok(draft.imageUrls.every(url => url.startsWith('https://img.nmarket.pro/')));
   assert.deepEqual(draft.planImageUrls, draft.imageUrls.filter(url => url.includes(plan)));
   assert.equal(draft.data.nmarketComplexId, '456');
+  assert.equal(draft.imagesIncomplete, false);
   assert.equal(JSON.stringify([nmarketSummary(item), draft.data]).includes('PRIVATE_'), false);
   assert.equal(JSON.stringify(objects).includes('PRIVATE_PHONE'), false);
   assert.equal(JSON.stringify(objects).includes('PRIVATE_EMAIL'), false);
@@ -102,7 +103,16 @@ test('NMarket retains an explicit plan tag when a URL is repeated earlier as a g
   assert.equal(draft.planImageUrls.length, 1);
   assert.ok(draft.planImageUrls[0]!.includes(plan));
   assert.equal(draft.imageUrls[0], draft.planImageUrls[0]);
+  assert.equal(draft.imagesIncomplete, false);
   assert.deepEqual(nmarketDraft(objects.find(item => item.type === 'complex')!).planImageUrls, []);
+});
+
+test('NMarket drafts retain the rejected-image flag for duplicate detection', async () => {
+  const objects = await parse(feed().replace(image(plan, 'plan'), '<image tag="plan">https://evil.test/plan.jpg</image>' + image(plan, 'plan')));
+  const draft = nmarketDraft(objects.find(item => item.type === 'apartment')!);
+  assert.equal(draft.imageUrls.length, 1);
+  assert.equal(draft.imagesIncomplete, true);
+  assert.ok(draft.warnings.some(warning => warning.includes('отклонены')));
 });
 
 test('NMarket excludes a plan from the complex even when another offer labels its URL as a photo', async () => {

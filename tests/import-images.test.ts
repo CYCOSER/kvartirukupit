@@ -67,6 +67,7 @@ test('image downloads share a bounded pool, preserve ordering and deduplicate UR
     assert.equal(second.images[0]!.file, first.images[1]!.file);
     assert.equal(second.images[1]!.file, first.images[0]!.file);
     assert.deepEqual(first.warnings, []);
+    assert.equal(first.complete, true);
     assert.equal((await readdir(f.dir)).length, 3);
     const repeated = await prepareImportImages(draft(urls));
     assert.deepEqual(repeated, first);
@@ -214,12 +215,36 @@ test('invalid hosts, oversized and corrupt images are skipped while good photos 
     assert.equal(requests.length, 3);
     assert.equal(result.images.length, 1);
     assert.deepEqual(result.warnings.map(warning => warning.match(/№\d+/)![0]), ['№1', '№2', '№3']);
+    assert.equal(result.complete, false);
     assert.equal((await readdir(f.dir)).length, 1);
     const none = await prepareImportImages(draft([imageUrl('corrupt')]));
     assert.equal(none.images.length, 0);
+    assert.equal(none.complete, false);
     assert.ok(none.warnings.at(-1)!.startsWith('В источнике нет доступных фотографий.'));
     const failure = Object.assign(new Error('Database unavailable'), { code: 'P1001' });
     db.importImageCache.findUnique = (async () => { throw failure; }) as any;
     await assert.rejects(prepareImportImages(draft([imageUrl('database-error')])), error => error === failure);
+  } finally { await f.close(); }
+});
+
+test('truncated or previously rejected image sets remain incomplete even when every requested photo loads', async () => {
+  const f = await fixture();
+  try {
+    const source = await png('#336699'), requests: string[] = [];
+    globalThis.fetch = async input => {
+      requests.push(String(input));
+      return new Response(source, { headers: { 'Content-Type': 'image/png' } });
+    };
+    const urls = Array.from({ length: 101 }, (_, i) => imageUrl(`limit-${i}`));
+    const result = await prepareImportImages(draft(urls));
+    assert.equal(requests.length, 100);
+    assert.equal(result.images.length, 1);
+    assert.equal(result.complete, false);
+    assert.ok(result.warnings.some(warning => warning.includes('первые 100 фотографий')));
+    const rejected = await prepareImportImages({ ...draft([urls[0]!]), imagesIncomplete: true });
+    assert.equal(rejected.images.length, 1);
+    assert.equal(rejected.complete, false);
+    assert.deepEqual(rejected.warnings, []);
+    assert.equal((await prepareImportImages(draft([urls[0]!, urls[0]!]))).complete, true);
   } finally { await f.close(); }
 });

@@ -15,7 +15,7 @@ type CachedImage = {
   planFile: string | null; planHueShift: number | null; detectedPlan: boolean | null;
 };
 type PreparedImage = { file: string; originalFile: string; hueShift: number; kind: 'photo' | 'plan'; alt: string; order: number };
-type DraftImages = { imageUrls: string[]; planImageUrls: string[]; data: { title: string; type?: string; housingMarket?: string | null } };
+type DraftImages = { imageUrls: string[]; planImageUrls: string[]; imagesIncomplete?: boolean; data: { title: string; type?: string; housingMarket?: string | null } };
 
 function limit(concurrency: number) {
   let active = 0;
@@ -131,12 +131,13 @@ async function planImage(image: CachedImage, dir: string) {
   return plan;
 }
 
-export async function prepareImportImages(draft: DraftImages, detectPlans = false): Promise<{ images: PreparedImage[]; warnings: string[] }> {
+export async function prepareImportImages(draft: DraftImages, detectPlans = false): Promise<{ images: PreparedImage[]; warnings: string[]; complete: boolean }> {
   const dir = resolve(process.env.UPLOAD_DIR || '.data/uploads');
   const warnings: string[] = [], plans = new Set(draft.planImageUrls);
   const plansOnly = draft.data.type === 'apartment' && draft.data.housingMarket === 'newbuild';
   const urls = [...new Set(draft.imageUrls)].filter(input => !plansOnly || plans.has(input) ||
     rf39ImageUrl(input)?.includes('/images/objects/layouts/'));
+  if (urls.length > 100) warnings.push(`В галерею можно перенести только первые 100 ${plansOnly ? 'планировок' : 'фотографий'}.`);
   const settled = await Promise.allSettled(urls.slice(0, 100).map(async (input, index) => {
     try {
       const url = rf39ImageUrl(input) || nmarketImageUrl(input);
@@ -168,5 +169,5 @@ export async function prepareImportImages(draft: DraftImages, detectPlans = fals
     else if (image.kind === 'plan') images[previous] = image;
   }
   if (!images.length) warnings.push(`В источнике нет доступных ${plansOnly ? 'планировок' : 'фотографий'}. Добавьте их в карточку.`);
-  return { images, warnings };
+  return { images, warnings, complete: !draft.imagesIncomplete && !warnings.length };
 }

@@ -32,6 +32,7 @@ export const rf39ObjectSchema = z.object({
   coordinates: z.union([z.array(z.union([z.number(), z.string()])), z.string()]).nullish(),
   price: z.union([z.number(), z.string()]).nullish(),
   images: z.array(z.string()).nullish(),
+  imagesIncomplete: z.boolean().optional(),
   params: paramsSchema,
   layouts: z.union([z.record(layoutSchema), z.array(layoutSchema)]).nullish(),
   development: z.object({
@@ -160,8 +161,10 @@ export function rf39Draft(item: Rf39Object, type: 'complex' | 'apartment' = rf39
     finish: String(param('renovation') || param('decoration') || 'Уточняется'),
     description, utilities: [], published: type === 'apartment', featured: false, elite: type === 'apartment', demo: false,
   });
-  const imageUrls = [...new Set((item.images || []).map(rf39ImageUrl).filter((url): url is string => !!url))];
-  if (imageUrls.length !== (item.images || []).length) warnings.push('Некоторые адреса фотографий отклонены или повторяются.');
+  const normalizedImages = (item.images || []).map(rf39ImageUrl);
+  const rejectedImages = normalizedImages.some(url => !url);
+  const imageUrls = [...new Set(normalizedImages.filter((url): url is string => !!url))];
+  if (rejectedImages || item.imagesIncomplete) warnings.push('Некоторые адреса фотографий отклонены или превышают лимит.');
   if (imageUrls.length > 100) warnings.push('В галерею можно перенести только первые 100 фотографий.');
   return {
     data: { ...data, sourceId: `rf39:${item.id}`, sourceName: 'CRM RF39', sourceMode: 'rf39-copy',
@@ -171,7 +174,7 @@ export function rf39Draft(item: Rf39Object, type: 'complex' | 'apartment' = rf39
       rf39ComplexId: item.development?.id ? String(item.development.id) : null,
       rf39BuildingId: item.complex?.id ? String(item.complex.id) : null,
     },
-    imageUrls: imageUrls.slice(0, 100), planImageUrls: [] as string[], warnings, requiresDraft,
+    imageUrls: imageUrls.slice(0, 100), planImageUrls: [] as string[], imagesIncomplete: !!item.imagesIncomplete || rejectedImages || imageUrls.length > 100, warnings, requiresDraft,
   };
 }
 
@@ -185,7 +188,7 @@ export function rf39LayoutDraft(parent: Rf39Object, layoutId: number) {
   const draft = rf39Draft({
     ...parent, layouts: null,
     apartment: layout.apartment, description: layout.description, external_description: layout.external_description, price: layout.price,
-    images: layout.images, params,
+    images: layout.images, imagesIncomplete: undefined, params,
   }, 'apartment');
   draft.data.sourceId = `rf39-layout:${parent.id}:${id}`;
   draft.data.slug = `robj-layout-${parent.id}-${id}`;
