@@ -36,6 +36,7 @@ async function fixture(ids: number[], extraPlan = {}) {
       if (key === 'OR') return value.some((branch: any) => matches(row, branch));
       if (key === 'AND') return (Array.isArray(value) ? value : [value]).every((branch: any) => matches(row, branch));
       if (key === 'images' && value.some) return tables.propertyImage!.some(image => image.propertyId === row.id && matches(image, value.some));
+      if (key === 'importSources' && value.some) return tables.propertyImportSource!.some(source => source.propertyId === row.id && matches(source, value.some));
       if (key === 'jobId_key') return matches(row, value);
       if (value === null || typeof value !== 'object' || value instanceof Date) return row[key] === value;
       return Object.entries(value).every(([op, wanted]: [string, any]) => {

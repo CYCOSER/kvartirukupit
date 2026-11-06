@@ -8,6 +8,7 @@ import sharp from 'sharp';
 import { db } from '../server/utils/db';
 import { deduplicatePropertyImages } from '../server/utils/image-dedup';
 import { mockImageFingerprintCache } from './fixtures/image-fingerprint-cache';
+import { detailedPhoto } from './fixtures/photo';
 
 const png = (color: string) => sharp({ create: { width: 48, height: 32, channels: 3, background: color } }).png().toBuffer();
 
@@ -112,6 +113,33 @@ test('database failures are not treated as broken photos', async t => {
   await assert.rejects(deduplicatePropertyImages('property', true), error => error === failure);
   assert.equal(f.gallery.length, 1);
   assert.equal(f.transaction.mock.callCount(), 0);
+});
+
+test('cleanup removes resized and slightly cropped source copies but preserves plans, manual edits and other cards', async t => {
+  const f = await fixture(t), source = await detailedPhoto();
+  const original = await f.file(source);
+  const copy = await f.file(await sharp(source).resize(480, 360).jpeg({ quality: 82 }).toBuffer());
+  const cropped = await f.file(await sharp(source).extract({ left: 0, top: 3, width: 640, height: 474 }).resize(320, 240).jpeg({ quality: 72 }).toBuffer());
+  const changed = await f.file(await sharp(source).modulate({ hue: 80 }).png().toBuffer());
+  const recoloured = await f.file(await sharp(source).modulate({ hue: 4 }).jpeg({ quality: 73 }).toBuffer());
+  f.add('original', original, 0);
+  f.add('copy', copy, 1);
+  f.add('source-crop', cropped, 2);
+  f.add('changed', changed, 3);
+  f.add('edited', cropped, 4);
+  f.gallery.at(-1).crop = { left: 0, top: 3, width: 640, height: 474 };
+  f.add('colour-edit', recoloured, 5);
+  f.gallery.at(-1).hueShift = 4;
+  const planCopy = await f.file(await sharp(source).resize(400, 300).jpeg({ quality: 90 }).toBuffer());
+  f.add('plan-copy', planCopy, 6, 'plan');
+  f.add('other', copy, 0, 'photo', 'other');
+  const preview = await deduplicatePropertyImages('property');
+  assert.equal(preview.duplicates, 2);
+  assert.equal(preview.deleted, 0);
+  const result = await deduplicatePropertyImages('property', true);
+  assert.equal(result.deleted, 2);
+  assert.deepEqual(f.gallery.map(image => image.id), ['original', 'changed', 'edited', 'colour-edit', 'plan-copy', 'other']);
+  assert.equal((await deduplicatePropertyImages('property', true)).deleted, 0);
 });
 
 test('cleanup retries known transaction conflicts at most three times', async t => {

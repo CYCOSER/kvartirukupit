@@ -7,7 +7,7 @@ const fields = new Set(['type', 'property-type', 'category', 'description', 'com
   'rooms', 'studio', 'floor', 'floors-total', 'building-name', 'building-state', 'built-year',
   'ready-quarter', 'nmarket-complex-id', 'nmarket-building-id', 'building-section', 'building-phase', 'renovation', 'location/locality-name', 'location/address', 'location/apartment',
   'location/district', 'location/latitude', 'location/longitude', 'price/value', 'price/currency', 'area/value', 'area/unit']);
-type Image = { url: string; plan: boolean };
+type Image = { url: string; plan: boolean; planRole?: 'unit' | 'floor' | null };
 export type NmarketObject = {
   id: string; type: 'apartment' | 'complex'; title: string; location: string; address: string;
   price: number | null; area: number | null; bedrooms: number | null; floors: number | null;
@@ -77,7 +77,7 @@ export async function parseNmarketSnapshot(chunks: AsyncIterable<Uint8Array>, li
   const decoder = new StringDecoder('utf8');
   const items: NmarketObject[] = [];
   const ids = new Set<string>();
-  const stack: { name: string; text: string; capture: boolean; plan: boolean }[] = [];
+  const stack: { name: string; text: string; capture: boolean; plan: boolean; planRole: Image['planRole'] }[] = [];
   let size = 0, root = false, offerId = '', values: Record<string, string> = {}, images: Image[] = [], rejectedImages = false;
   let generationDate: string | null = null;
   parser.onerror = error => { throw error; };
@@ -94,7 +94,8 @@ export async function parseNmarketSnapshot(chunks: AsyncIterable<Uint8Array>, li
       ids.add(offerId); values = {}; images = []; rejectedImages = false;
     }
     const path = [...stack.slice(2).map(frame => frame.name), node.name].join('/');
-    stack.push({ name: node.name, text: '', capture: (stack.length === 1 && node.name === 'generation-date') || (!!offerId && (fields.has(path) || path === 'image')), plan: ['plan', 'floorplan'].includes(node.attributes.tag || '') });
+    const planRole = node.attributes.tag === 'plan' ? 'unit' : node.attributes.tag === 'floorplan' ? 'floor' : null;
+    stack.push({ name: node.name, text: '', capture: (stack.length === 1 && node.name === 'generation-date') || (!!offerId && (fields.has(path) || path === 'image')), plan: planRole !== null, planRole });
   };
   parser.ontext = parser.oncdata = text => {
     const frame = stack.at(-1);
@@ -113,9 +114,12 @@ export async function parseNmarketSnapshot(chunks: AsyncIterable<Uint8Array>, li
       } else if (path === 'image') {
         const url = nmarketImageUrl(text);
         const existing = images.find(image => image.url === url);
-        if (existing) existing.plan ||= frame.plan;
+        if (existing) {
+          if (frame.plan) existing.planRole = !existing.plan || existing.planRole === frame.planRole ? frame.planRole : null;
+          existing.plan ||= frame.plan;
+        }
         else if (!url || images.length >= 100) rejectedImages = true;
-        else images.push({ url, plan: frame.plan });
+        else images.push({ url, plan: frame.plan, ...(frame.plan ? { planRole: frame.planRole } : {}) });
       } else {
         if (values[path] !== undefined) throw new Error('Duplicate XML field');
         values[path] = text;
@@ -201,5 +205,8 @@ export function nmarketDraft(item: NmarketObject, snapshotDate?: string) {
     priceSourceUrl: item.price !== null ? NMARKET_SOURCE : null,
     nmarketComplexId: item.complexId,
   }, imageUrls: (item.type === 'apartment' ? plans : photos).map(image => image.url),
-  planImageUrls: item.type === 'apartment' ? [...planUrls] : [], imagesIncomplete: item.rejectedImages, warnings };
+  planImageUrls: item.type === 'apartment' ? [...planUrls] : [],
+  unitPlanImageUrls: item.type === 'apartment' ? plans.filter(image => image.planRole === 'unit').map(image => image.url) : [],
+  floorPlanImageUrls: item.type === 'apartment' ? plans.filter(image => image.planRole === 'floor').map(image => image.url) : [],
+  imagesIncomplete: item.rejectedImages, warnings };
 }

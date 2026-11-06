@@ -151,11 +151,13 @@ test('PostgreSQL XML worker batches cards, preserves edits and isolates recovera
 
   await t.test('stored scoped XML jobs group plans across batches and retain a surviving offer when the primary and cheapest disappear', async () => {
     const planUrl = 'https://rf39.ru/images/objects/test.png';
-    const draft = (id: number, price: number, floor: number) => {
+    const draft = (id: number, price: number, floor: number, floorUrl?: string) => {
       const value = rf39Draft({ id, type: 'Квартиры в новостройках', deal_type: 'sale', city: 'Калининград',
         address: 'Тестовая, 1', price, development: { id: 88 }, params: { area: { value: 27.9 }, rooms: { value: 0 },
           floor: { value: floor }, 'floors-total': { value: 30 } } });
-      return { ...value, imageUrls: [planUrl], planImageUrls: [planUrl] };
+      return { ...value, imageUrls: [planUrl, ...(floorUrl ? [floorUrl] : [])],
+        planImageUrls: [planUrl, ...(floorUrl ? [floorUrl] : [])], unitPlanImageUrls: [planUrl],
+        floorPlanImageUrls: floorUrl ? [floorUrl] : [] };
     };
     async function stored(values: ReturnType<typeof draft>[]) {
       const job = await startRf39FeedSync(owner.id, randomUUID());
@@ -170,12 +172,16 @@ test('PostgreSQL XML worker batches cards, preserves edits and isolates recovera
       await db.importJob.update({ where: { id: job.id }, data: { total: values.length } });
       return execute(job.id);
     }
-    const job = await stored(Array.from({ length: 26 }, (_, i) => draft(4001 + i, 9_000_000 - i * 1000, i + 1)));
+    const job = await stored(Array.from({ length: 26 }, (_, i) => draft(4001 + i, 9_000_000 - i * 1000, i + 1,
+      i === 25 ? imageUrls[2] : i > 0 ? imageUrls[1] : undefined)));
     assert.deepEqual([job.created, job.processed, job.failed], [1, 26, 0]);
     const first = await db.property.findUniqueOrThrow({ where: { sourceId: 'rf39:4001' } });
     assert.equal(first.price, 8_975_000);
     assert.deepEqual(first.availableFloors, Array.from({ length: 26 }, (_, i) => i + 1));
     assert.equal(await db.propertyImportSource.count({ where: { propertyId: first.id } }), 26);
+    const gallery = await db.propertyImage.findMany({ where: { propertyId: first.id }, orderBy: { order: 'asc' } });
+    assert.deepEqual(gallery.map(value => value.planRole), ['unit', 'floor', 'floor']);
+    assert.deepEqual(gallery.map(value => value.order), [0, 1, 2]);
     await db.property.update({ where: { id: first.id }, data: { title: 'Ручное название планировки' } });
     const repeat = await stored([draft(4002, 9_500_000, 30)]);
     assert.deepEqual([repeat.created, repeat.failed], [0, 0]);
@@ -185,6 +191,16 @@ test('PostgreSQL XML worker batches cards, preserves edits and isolates recovera
     assert.deepEqual(remaining.availableFloors, [30]);
     assert.equal(remaining.title, 'Ручное название планировки');
     assert.equal(await db.property.count({ where: { rf39ComplexId: '88' } }), 1);
+    assert.equal(await db.propertyImage.count({ where: { propertyId: first.id } }), 3, 'Unavailable offers do not discard their floor diagrams.');
+    await stored([draft(4002, 9_500_000, 30, imageUrls[2])]);
+    assert.equal(await db.propertyImage.count({ where: { propertyId: first.id } }), 3, 'Refreshing an alias keeps floor diagrams unique.');
+    const laterFloor = 'https://rf39.ru/images/objects/later-floor.png';
+    imageUrls.push(laterFloor);
+    imageBodies.set(laterFloor, await sharp({ create: { width: 16, height: 16, channels: 3, background: '#aacc33' } }).png().toBuffer());
+    await stored([draft(4002, 9_500_000, 30, laterFloor)]);
+    const refreshed = await db.propertyImage.findMany({ where: { propertyId: first.id }, orderBy: { order: 'asc' } });
+    assert.equal(refreshed.length, 4, 'A later XML refresh adds a newly supplied floor diagram to the same card.');
+    assert.deepEqual(refreshed.slice(0, 3).map(value => value.id), gallery.map(value => value.id));
   });
 
   await t.test('unlinked secondary XML cards group complete galleries at one address and refresh availability from surviving offers', async () => {

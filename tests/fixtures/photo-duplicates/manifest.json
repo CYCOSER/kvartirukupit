@@ -1,0 +1,74 @@
+[
+  {
+    "file": "aerial-a.png",
+    "group": "aerial",
+    "width": 1920,
+    "height": 1081
+  },
+  {
+    "file": "aerial-b.png",
+    "group": "aerial",
+    "width": 1080,
+    "height": 600
+  },
+  {
+    "file": "aerial-bright-a.png",
+    "group": "aerial-bright",
+    "width": 1080,
+    "height": 600
+  },
+  {
+    "file": "aerial-bright-b.png",
+    "group": "aerial-bright",
+    "width": 1066,
+    "height": 600
+  },
+  {
+    "file": "courtyard-a.png",
+    "group": "courtyard",
+    "width": 1080,
+    "height": 600
+  },
+  {
+    "file": "courtyard-b.png",
+    "group": "courtyard",
+    "width": 1066,
+    "height": 600
+  },
+  {
+    "file": "facade-a.png",
+    "group": "facade",
+    "width": 1024,
+    "height": 576
+  },
+  {
+    "file": "facade-b.png",
+    "group": "facade",
+    "width": 1066,
+    "height": 600
+  },
+  {
+    "file": "facade-c.png",
+    "group": "facade",
+    "width": 1080,
+    "height": 600
+  },
+  {
+    "file": "street-portrait.png",
+    "group": "street-portrait",
+    "width": 480,
+    "height": 600
+  },
+  {
+    "file": "street-landscape.png",
+    "group": "street-landscape",
+    "width": 1080,
+    "height": 600
+  },
+  {
+    "file": "aerial-night.png",
+    "group": "aerial-night",
+    "width": 1066,
+    "height": 600
+  }
+]

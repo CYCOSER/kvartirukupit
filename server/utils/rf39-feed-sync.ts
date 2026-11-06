@@ -9,10 +9,11 @@ import { rf39Draft, rf39Supported } from './rf39-data';
 import { prepareImportImages } from './import-images';
 import { lockPropertyRelations } from './property-relations';
 import { ImportOwnershipLost, importInfrastructureError, type ImportConfig, type ImportExecution } from './import-execution';
-import { findApartmentLayout, indexApartmentLayouts, layoutScopeWhere, mergeLayoutAvailability, prepareApartmentLayout, sameApartmentLayoutScope } from './apartment-layout';
+import { findApartmentLayout, indexApartmentLayouts, layoutScopeWhere, mergeLayoutAvailability, prepareApartmentLayout, sameApartmentLayout } from './apartment-layout';
+import { missingApartmentFloorPlans } from './apartment-layout-gallery';
 
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
-type FeedDraft = ReturnType<typeof rf39Draft>;
+type FeedDraft = ReturnType<typeof rf39Draft> & { unitPlanImageUrls?: string[]; floorPlanImageUrls?: string[] };
 type Prepared = { item: ImportJobItem; draft: FeedDraft; images: Awaited<ReturnType<typeof prepareImportImages>>['images']; imagesPrepared: boolean; layoutHash: string | null; warnings: string[] };
 type Plan = { presentIds: number[]; authoritative: boolean; snapshotDate: string; fetchedAt: string };
 const pending = ['queued', 'running'];
@@ -116,8 +117,13 @@ async function writeBatch(job: ImportJob, batch: Prepared[], execution: ImportEx
       let queued: Prisma.PropertyCreateManyInput | undefined;
       const newLayoutMatch = !property && !!row.layoutHash;
       if (!property && row.layoutHash) {
-        property = await findApartmentLayout(tx, source, row.layoutHash) || undefined;
-        if (!property) queued = creates.find(candidate => candidate.layoutHash === row.layoutHash && sameApartmentLayoutScope(source, candidate));
+        property = await findApartmentLayout(tx, source, row.layoutHash, undefined, row.images) || undefined;
+        if (!property) for (const candidate of creates) {
+          if (await sameApartmentLayout(source, row.images, candidate, images.filter(image => image.propertyId === candidate.id), tx)) {
+            queued = candidate;
+            break;
+          }
+        }
       }
       if (property) {
         property = propertiesById.get(property.id) || property;
@@ -126,13 +132,23 @@ async function writeBatch(job: ImportJob, batch: Prepared[], execution: ImportEx
       const target = property || queued;
       if (property && property.type !== 'apartment') throw createError({ statusCode: 409,
         data: { message: 'Тип существующей карточки изменён вручную. Синхронизация квартиры пропущена.' } });
+      let addedFloors = 0;
+      let galleryWarnings: string[] = [];
+      if (target && row.images.some(image => image.planRole === 'floor')) {
+        const gallery = queued ? images.filter(image => image.propertyId === target.id)
+          : [...await tx.propertyImage.findMany({ where: { propertyId: target.id } }), ...images.filter(image => image.propertyId === target.id)];
+        const floors = await missingApartmentFloorPlans(gallery.map(image => ({ ...image, order: image.order || 0 })), row.images, tx);
+        images.push(...floors.images.map(image => ({ ...image, propertyId: target.id! })));
+        addedFloors = floors.images.length;
+        galleryWarnings = floors.warnings;
+      }
       if (target && target.sourceId !== source.sourceId) {
         if (newLayoutMatch) groupedIds.set(target.id!, true);
         const grouped = !!target.layoutHash && await isGrouped(target.id!);
         const availability = grouped ? { ...mergeLayoutAvailability([
           { price: target.price, availableFloors: Array.isArray(target.availableFloors) ? target.availableFloors : [] }, source,
         ]), priceKind: 'from' } : {};
-        const updated = !target.published || !target.elite || Object.entries(availability).some(([key, value]) => JSON.stringify(target[key as keyof typeof target]) !== JSON.stringify(value));
+        const updated = addedFloors > 0 || !target.published || !target.elite || Object.entries(availability).some(([key, value]) => JSON.stringify(target[key as keyof typeof target]) !== JSON.stringify(value));
         if (queued) Object.assign(queued, { published: true, elite: true, ...availability });
         else if (updated) Object.assign(property!, await tx.property.update({ where: { id: property!.id }, data: { published: true, elite: true, ...availability } }));
         const id = target.id!;
@@ -141,7 +157,7 @@ async function writeBatch(job: ImportJob, batch: Prepared[], execution: ImportEx
         if (existingAlias) await tx.propertyImportSource.update({ where: { sourceId: source.sourceId }, data: offer });
         else aliases.push({ sourceId: source.sourceId, propertyId: id, ...offer });
         results.push({ item: row.item, result: { id, created: false, updated,
-          warnings: [...row.warnings, grouped
+          warnings: [...row.warnings, ...galleryWarnings, grouped
             ? 'Квартира с таким набором фотографий или планировок уже есть. Сохранена одна карточка с минимальной ценой и списком этажей.'
             : 'Объект связан с карточкой другого основного источника. Его характеристики и ручные правки сохранены.'] } });
         continue;
@@ -153,7 +169,7 @@ async function writeBatch(job: ImportJob, batch: Prepared[], execution: ImportEx
         const availability = property.layoutHash && await isGrouped(id)
           ? { ...mergeLayoutAvailability([property, source]), priceKind: 'from' } : {};
         propertySchema.parse({ ...property, ...merge.changes, ...availability, elite: true, published: true });
-        updated = Object.keys(merge.changes).length > 0 || !property.published || !property.elite ||
+        updated = addedFloors > 0 || Object.keys(merge.changes).length > 0 || !property.published || !property.elite ||
           Object.entries(availability).some(([key, value]) => JSON.stringify(property![key as keyof typeof property]) !== JSON.stringify(value));
         Object.assign(property, await tx.property.update({ where: { id }, data: { ...merge.changes, ...availability, published: true, elite: true,
           sourceFetchedAt: source.sourceFetchedAt, rf39Baseline: json(merge.baseline) } }));
@@ -170,7 +186,7 @@ async function writeBatch(job: ImportJob, batch: Prepared[], execution: ImportEx
       if (current.aliases.some(alias => alias.sourceId === source.sourceId))
         await tx.propertyImportSource.update({ where: { sourceId: source.sourceId }, data: offer });
       else aliases.push({ sourceId: source.sourceId, propertyId: id, ...offer });
-      results.push({ item: row.item, result: { id, created: !property, updated, warnings: row.warnings } });
+      results.push({ item: row.item, result: { id, created: !property, updated, warnings: [...row.warnings, ...galleryWarnings] } });
     }
     if (creates.length) await tx.property.createMany({ data: creates });
     if (images.length) await tx.propertyImage.createMany({ data: images });
@@ -207,7 +223,7 @@ async function prepareBatch(job: ImportJob, items: ImportJobItem[], execution: I
       try {
         const state = await db.importJob.findUniqueOrThrow({ where: { id: job.id }, select: { stopRequested: true } });
         if (state.stopRequested) return;
-        const imagesPrepared = current.matches(draft.data.sourceId).length === 0;
+        const imagesPrepared = current.matches(draft.data.sourceId).length === 0 || !!draft.floorPlanImageUrls?.length;
         const prepared = imagesPrepared ? await prepareImportImages(draft, true) : { images: [], warnings: [], complete: true };
         const layoutHash = !prepared.complete ? '' : imagesPrepared && layoutScopeWhere(draft.data)
           ? await prepareApartmentLayout(draft.data, prepared.images) : null;

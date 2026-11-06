@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import sharp from 'sharp';
+import { detailedPhoto } from './fixtures/photo';
 
 const databaseUrl = process.env.RF39_TEST_DATABASE_URL;
 
@@ -71,6 +72,11 @@ test('PostgreSQL safely merges imported apartments with equal complete layouts',
       { sourceId: 'rf39:123', propertyId: duplicate.id, apartmentKey: 'unit-b' },
     ] });
     const lead = await db.lead.create({ data: { propertyId: duplicate.id, name: 'Тест', phone: '+70000000000', consent: true } });
+    const commonTag = await db.tag.create({ data: { name: 'Общий' } }), extraTag = await db.tag.create({ data: { name: 'Дополнительный' } });
+    await db.tagRelation.createMany({ data: [
+      { tagId: commonTag.id, propertyId: keeper.id }, { tagId: commonTag.id, propertyId: duplicate.id },
+      { tagId: extraTag.id, propertyId: duplicate.id },
+    ] });
     const files = await readdir(dir);
     const floors = new Map([[duplicate.sourceId!, { availableFloors: [9], price: 6000000 }], ['rf39:123', { availableFloors: [12], price: 6500000 }]]);
     const preview = await deduplicateApartmentLayout(duplicate.id, false, floors);
@@ -99,9 +105,39 @@ test('PostgreSQL safely merges imported apartments with equal complete layouts',
     assert.deepEqual(remaining.importSources.find(source => source.sourceId === duplicate.sourceId)?.availableFloors, [9]);
     assert.equal(remaining.importSources.find(source => source.sourceId === 'rf39:123')?.price, 6500000);
     assert.equal((await db.lead.findUniqueOrThrow({ where: { id: lead.id } })).propertyId, keeper.id);
+    assert.deepEqual(new Set((await db.tagRelation.findMany({ where: { propertyId: keeper.id } })).map(relation => relation.tagId)),
+      new Set([commonTag.id, extraTag.id]));
     assert.equal(await db.property.findUnique({ where: { id: duplicate.id } }), null);
     assert.deepEqual(await readdir(dir), files);
     assert.equal((await deduplicateApartmentLayout(keeper.id, true, floors)).merged, 0);
+  });
+
+  await t.test('merging card galleries removes resized photo copies while retaining explicit crops and colour edits', async () => {
+    const keeper = await apartment(plan, { nmarketComplexId: 'photo-merge', createdAt: new Date('2018-01-01') });
+    const duplicate = await apartment(samePlan, { nmarketComplexId: 'photo-merge', createdAt: new Date('2019-01-01') });
+    const source = await detailedPhoto();
+    async function photo(bytes: Buffer) {
+      const name = randomUUID() + '.webp';
+      await writeFile(join(dir, name), bytes);
+      return '/uploads/' + name;
+    }
+    const original = await photo(source);
+    const resized = await photo(await sharp(source).resize(320, 240).jpeg({ quality: 75 }).toBuffer());
+    const shifted = await photo(await sharp(source).modulate({ hue: 4 }).jpeg({ quality: 73 }).toBuffer());
+    const first = await db.propertyImage.create({ data: { propertyId: keeper.id, file: original, originalFile: original, alt: 'Первое фото', order: 1 } });
+    const repeated = await db.propertyImage.create({ data: { propertyId: duplicate.id, file: resized, originalFile: resized, alt: 'Копия', order: 1 } });
+    const cropped = await db.propertyImage.create({ data: { propertyId: duplicate.id, file: resized, originalFile: original,
+      crop: { left: 0, top: 0, width: 320, height: 240 }, alt: 'Ручная обрезка', order: 2 } });
+    const recoloured = await db.propertyImage.create({ data: { propertyId: duplicate.id, file: shifted, originalFile: original,
+      hueShift: 4, alt: 'Ручной цвет', order: 3 } });
+    const result = await deduplicateApartmentLayout(duplicate.id, true);
+    assert.equal(result.merged, 1);
+    const gallery = await db.propertyImage.findMany({ where: { propertyId: keeper.id }, orderBy: { order: 'asc' } });
+    assert.equal(gallery.length, 4);
+    assert.equal(gallery[0]!.kind, 'plan');
+    assert.deepEqual(gallery.slice(1).map(image => image.id), [first.id, cropped.id, recoloured.id]);
+    assert.equal(await db.propertyImage.findUnique({ where: { id: repeated.id } }), null);
+    assert.equal((await deduplicateApartmentLayout(keeper.id, true)).merged, 0);
   });
 
   await t.test('different developments, incomplete plan sets, secondary and manual cards remain separate', async () => {
@@ -115,6 +151,29 @@ test('PostgreSQL safely merges imported apartments with equal complete layouts',
     await db.propertyImage.updateMany({ where: { propertyId: noPlan.id }, data: { kind: 'photo' } });
     assert.equal((await deduplicateApartmentLayout(base.id, true)).merged, 0);
     assert.equal(await db.property.count({ where: { id: { in: [base.id, otherDevelopment.id, fullSet.id, manual.id, secondary.id, noPlan.id] } } }), 6);
+  });
+
+  await t.test('explicit unit plans group apartments and retain every unique floor diagram, including trusted legacy roles', async () => {
+    const keeper = await apartment(plan, { nmarketComplexId: 'floor-roles', createdAt: new Date('2018-01-01'), availableFloors: [2] });
+    const duplicate = await apartment(samePlan, { nmarketComplexId: 'floor-roles', createdAt: new Date('2019-01-01'), availableFloors: [5, 6] });
+    const floor2 = await file('#445566'), floorUpper = await file('#665544');
+    await db.propertyImage.createMany({ data: [
+      { propertyId: keeper.id, file: floor2, originalFile: floor2, kind: 'plan', alt: 'Этаж 2', order: 1 },
+      { propertyId: duplicate.id, file: floorUpper, originalFile: floorUpper, kind: 'plan', alt: 'Этажи 3–7', order: 1 },
+      { propertyId: duplicate.id, file: floor2, originalFile: floor2, kind: 'plan', alt: 'Этаж 2 повтор', order: 2 },
+    ] });
+    const before = await db.propertyImage.findMany({ where: { propertyId: { in: [keeper.id, duplicate.id] } } });
+    const roles = new Map(before.map(image => [image.id, { role: image.order === 0 ? 'unit' as const : 'floor' as const,
+      originalFile: image.originalFile || image.file }]));
+    const preview = await deduplicateApartmentLayout(duplicate.id, false, new Map(), roles);
+    assert.deepEqual(preview.duplicateIds, [duplicate.id]);
+    assert.equal(await db.propertyImage.count({ where: { planRole: { not: null }, propertyId: { in: [keeper.id, duplicate.id] } } }), 0);
+    assert.equal((await deduplicateApartmentLayout(duplicate.id, true, new Map(), roles)).merged, 1);
+    const card = await db.property.findUniqueOrThrow({ where: { id: keeper.id }, include: { images: { orderBy: { order: 'asc' } } } });
+    assert.deepEqual(card.availableFloors, [2, 5, 6]);
+    assert.deepEqual(card.images.map(image => [image.file, image.planRole]), [[plan, 'unit'], [floor2, 'floor'], [floorUpper, 'floor']]);
+    assert.equal(card.layoutHash, await prepareApartmentLayout(card, card.images));
+    assert.equal((await deduplicateApartmentLayout(keeper.id, true)).merged, 0);
   });
 
   await t.test('unlinked secondary duplicates require the full gallery and numbered address, preserving the oldest manual edits', async () => {
@@ -154,6 +213,23 @@ test('PostgreSQL safely merges imported apartments with equal complete layouts',
     assert.equal((await db.lead.findUniqueOrThrow({ where: { id: lead.id } })).propertyId, keeper.id);
     assert.equal(await db.property.count({ where: { id: { in: others.map(property => property.id) } } }), others.length);
     assert.equal((await deduplicateApartmentLayout(keeper.id, true)).merged, 0);
+  });
+
+  await t.test('approximate matches cannot bridge two plans that differ from the oldest keeper', async () => {
+    const cards = [];
+    for (const [index, shade] of [255, 185, 115].entries()) {
+      const name = randomUUID() + '.webp';
+      const svg = `<svg width="128" height="128"><rect width="128" height="128" fill="white"/><rect x="40" width="32" height="128" fill="black"/><rect x="10" y="10" width="5" height="5" fill="rgb(${shade},${shade},${shade})"/></svg>`;
+      await writeFile(join(dir, name), await sharp(Buffer.from(svg)).webp({ lossless: true }).toBuffer());
+      cards.push(await apartment('/uploads/' + name, { nmarketComplexId: 'nontransitive', area: 45, bedrooms: 1,
+        createdAt: new Date(`202${index}-01-01`) }));
+    }
+    await db.propertyImage.updateMany({ where: { propertyId: { in: cards.map(card => card.id) } }, data: { planRole: 'unit' } });
+    const result = await deduplicateApartmentLayout(cards[1]!.id, true);
+    assert.equal(result.keeperId, cards[0]!.id);
+    assert.deepEqual(result.duplicateIds, [cards[1]!.id]);
+    assert.ok(await db.property.findUnique({ where: { id: cards[2]!.id } }));
+    assert.equal((await deduplicateApartmentLayout(cards[2]!.id, true)).merged, 0);
   });
 
   await t.test('unlinked newbuild cleanup groups the full plan set only within the same address', async () => {

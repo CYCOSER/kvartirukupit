@@ -10,6 +10,7 @@ import type { rf39Draft } from './rf39-data';
 import { importInfrastructureError, type ImportExecution } from './import-execution';
 import { rf39FeedBaseline } from '../../shared/rf39-feed-merge';
 import { findApartmentLayout, indexApartmentLayouts, layoutScopeWhere, mergeLayoutAvailability, prepareApartmentLayout } from './apartment-layout';
+import { missingApartmentFloorPlans } from './apartment-layout-gallery';
 
 type Draft = ReturnType<typeof nmarketDraft> | ReturnType<typeof rf39Draft>;
 
@@ -66,8 +67,14 @@ export async function importProperty(draft: Draft, complexId?: string, detectPla
         await execution?.complete?.(tx, previous);
         return previous;
       }
-      const layout = layoutHash ? await findApartmentLayout(tx, draft.data, layoutHash, complexId) : null;
+      const layout = layoutHash ? await findApartmentLayout(tx, draft.data, layoutHash, complexId, images) : null;
       if (layout) {
+        if (images.some(image => image.planRole === 'floor')) {
+          const gallery = await tx.propertyImage.findMany({ where: { propertyId: layout.id } });
+          const floors = await missingApartmentFloorPlans(gallery, images, tx);
+          draft.warnings.push(...floors.warnings);
+          if (floors.images.length) await tx.propertyImage.createMany({ data: floors.images.map(image => ({ ...image, propertyId: layout.id })) });
+        }
         await tx.property.update({ where: { id: layout.id }, data: {
           ...mergeLayoutAvailability([layout, draft.data]), priceKind: 'from',
           ...(complexId && !layout.complexId ? { complexId } : {}),

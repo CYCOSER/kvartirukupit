@@ -7,10 +7,36 @@ import sharp from 'sharp';
 import { db } from '../server/utils/db';
 import { prepareImportImages } from '../server/utils/import-images';
 import { mockImageFingerprintCache } from './fixtures/image-fingerprint-cache';
+import { detailedPhoto } from './fixtures/photo';
 
 const imageUrl = (name: string) => `https://crm.rf39.ru/images/objects/${name}.png`;
 const draft = (imageUrls: string[], planImageUrls: string[] = []) => ({ imageUrls, planImageUrls, data: { title: 'Квартира у парка' } });
 const png = (background: string) => sharp({ create: { width: 48, height: 32, channels: 3, background } }).png().toBuffer();
+
+test('complex and secondary imports remove resized and slightly cropped source photos while retaining different pictures and exact plan sets', async () => {
+  const f = await fixture();
+  try {
+    const source = await detailedPhoto();
+    const copy = await sharp(source).resize(480, 360).jpeg({ quality: 82 }).toBuffer();
+    const cropped = await sharp(source).extract({ left: 0, top: 3, width: 640, height: 474 }).resize(320, 240).jpeg({ quality: 72 }).toBuffer();
+    const other = await sharp(source).modulate({ hue: 80 }).png().toBuffer();
+    const urls = ['visual-original', 'visual-copy', 'visual-crop', 'visual-other'].map(imageUrl);
+    const media = new Map(urls.map((url, i) => [url, [source, copy, cropped, other][i]!]));
+    let downloads = 0;
+    globalThis.fetch = async input => { downloads++; return new Response(new Uint8Array(media.get(String(input))!), { headers: { 'Content-Type': 'image/png' } }); };
+    for (const data of [{ title: 'Включи', type: 'complex' }, { title: 'Квартира', type: 'apartment', housingMarket: 'secondary' }]) {
+      const result = await prepareImportImages({ ...draft(urls), data });
+      assert.equal(result.images.length, 2);
+      assert.equal(result.complete, true);
+      assert.deepEqual(result.images.map(image => image.order), [0, 1]);
+      assert.equal(result.images[0]!.originalFile, f.rows.get(urls[0]!).originalFile);
+    }
+    assert.equal(downloads, 4, 'Later cards reuse the cached downloads.');
+    const plans = await prepareImportImages({ ...draft(urls.slice(0, 3), urls.slice(0, 3)),
+      data: { title: 'Планировки', type: 'apartment', housingMarket: 'newbuild' } });
+    assert.equal(plans.images.length, 3, 'Plan comparison remains exact even for visually similar files.');
+  } finally { await f.close(); }
+});
 
 async function fixture() {
   const fingerprints = mockImageFingerprintCache();
@@ -128,6 +154,43 @@ test('duplicate plan wins over the same photo, retains first position and reuses
   } finally { await f.close(); }
 });
 
+test('plan roles require explicit source metadata and survive image preparation without assuming legacy roles', async () => {
+  const f = await fixture();
+  try {
+    const urls = ['unit-role', 'floor-role', 'legacy-role', 'photo-role'].map(imageUrl);
+    const sources = await Promise.all(['#123456', '#345678', '#56789a', '#789abc'].map(png));
+    globalThis.fetch = async input => new Response(sources[urls.indexOf(String(input))], { headers: { 'content-type': 'image/png' } });
+    const result = await prepareImportImages({ ...draft(urls, urls.slice(0, 3)), unitPlanImageUrls: [urls[0]!], floorPlanImageUrls: [urls[1]!] });
+    assert.deepEqual(result.images.map(image => [image.kind, image.planRole]), [['plan', 'unit'], ['plan', 'floor'], ['plan', null], ['photo', null]]);
+    const legacy = await prepareImportImages(draft(urls.slice(0, 2), urls.slice(0, 2)));
+    assert.deepEqual(legacy.images.map(image => image.planRole), [null, null]);
+    const conflict = await prepareImportImages({ ...draft([urls[0]!], [urls[0]!]), unitPlanImageUrls: [urls[0]!], floorPlanImageUrls: [urls[0]!] });
+    assert.equal(conflict.images[0]!.planRole, null);
+  } finally { await f.close(); }
+});
+
+test('identical plan files combine conflicting and unknown roles conservatively in either order', async () => {
+  const f = await fixture();
+  try {
+    const source = await png('#f4d15b');
+    globalThis.fetch = async () => new Response(source, { headers: { 'content-type': 'image/png' } });
+    const [unit, floor, unknown, otherUnit, photo] = ['unit-copy', 'floor-copy', 'unknown-copy', 'other-unit-copy', 'photo-copy'].map(imageUrl) as [string, string, string, string, string];
+    const roleDraft = (urls: string[]) => ({ ...draft(urls, urls.filter(url => url !== photo)), unitPlanImageUrls: [unit, otherUnit], floorPlanImageUrls: [floor] });
+    for (const urls of [[unit, floor, otherUnit], [floor, unit, otherUnit], [otherUnit, unit, floor], [unit, unknown], [unknown, unit]]) {
+      const result = await prepareImportImages(roleDraft(urls));
+      assert.equal(result.images.length, 1);
+      assert.equal(result.images[0]!.kind, 'plan');
+      assert.equal(result.images[0]!.planRole, null);
+      assert.equal(result.images[0]!.order, 0);
+    }
+    for (const urls of [[unit, otherUnit], [otherUnit, unit], [photo, unit], [unit, photo]]) {
+      const result = await prepareImportImages(roleDraft(urls));
+      assert.equal(result.images.length, 1);
+      assert.equal(result.images[0]!.planRole, 'unit');
+    }
+  } finally { await f.close(); }
+});
+
 test('same pixels at different URLs and encodings appear once, with a plan retaining the first position', async () => {
   const f = await fixture();
   try {
@@ -195,6 +258,7 @@ test('CRM newbuilds inspect only layout candidates and retain actual plans from 
     const result = await prepareImportImages(stored);
     assert.deepEqual(requests.sort(), [interior, plan].sort());
     assert.deepEqual(result.images.map(image => [image.kind, image.order]), [['plan', 0]]);
+    assert.equal(result.images[0]!.planRole, null);
     assert.deepEqual(result.warnings, []);
     assert.deepEqual(await prepareImportImages(stored), result);
     assert.equal(requests.length, 2);

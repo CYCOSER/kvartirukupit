@@ -124,6 +124,32 @@ test('PostgreSQL imports one apartment per full layout set with minimum price an
     assert.notEqual(external[0]!.id, external[1]!.id);
   });
 
+  await t.test('grouped imports append every unique floor diagram while preserving the unit plan and gallery edits', async () => {
+    const parent = await complex();
+    async function withFloor(floor: number, floorUrl: string) {
+      const value = await draft('76', 5_000_000 - floor * 1000, floor, [redUrl, floorUrl]);
+      value.unitPlanImageUrls = [redUrl];
+      value.floorPlanImageUrls = [floorUrl];
+      return value;
+    }
+    const first = await importProperty(await withFloor(2, commonUrl), parent.id);
+    const original = await db.propertyImage.findMany({ where: { propertyId: first.id }, orderBy: { order: 'asc' } });
+    await db.propertyImage.update({ where: { id: original[0]!.id }, data: { alt: 'Ручная подпись', hueShift: 17 } });
+    const next = await importProperty(await withFloor(5, blueUrl), parent.id);
+    assert.equal(next.id, first.id);
+    assert.equal((await importProperty(await withFloor(6, image(await sharp(blue).withMetadata().png().toBuffer())), parent.id)).id, first.id);
+    const card = await db.property.findUniqueOrThrow({ where: { id: first.id }, include: { images: { orderBy: { order: 'asc' } } } });
+    assert.equal(card.images.length, 3);
+    assert.deepEqual(card.images.map(value => value.planRole), ['unit', 'floor', 'floor']);
+    assert.deepEqual(card.images.map(value => value.order), [0, 1, 2]);
+    assert.equal(card.images[0]!.id, original[0]!.id);
+    assert.equal(card.images[0]!.alt, 'Ручная подпись');
+    assert.equal(card.images[0]!.hueShift, 17);
+    assert.equal(card.images[1]!.id, original[1]!.id);
+    assert.deepEqual(card.availableFloors, [2, 5, 6]);
+    assert.equal(card.price, 4_994_000);
+  });
+
   await t.test('unlinked newbuilds without external IDs group at the same numbered address', async () => {
     const drafts = await Promise.all([draft(null, 5_200_000, 5, [redUrl]), draft(null, 4_882_500, 2, [redCopy])]);
     drafts[1]!.data.location = 'г. Калининград';
@@ -137,6 +163,41 @@ test('PostgreSQL imports one apartment per full layout set with minimum price an
     const elsewhere = await draft(null, 5_000_000, 3, [redUrl]);
     elsewhere.data.address = 'Тестовая, 2';
     assert.notEqual((await importProperty(elsewhere)).id, card.id);
+  });
+
+  await t.test('a full gallery rejects a new floor diagram without losing the incoming offer or changing the keeper', async () => {
+    const parent = await complex();
+    const initial = await draft('77', 5_000_000, 2, [redUrl]);
+    const first = await importProperty(initial, parent.id);
+    await db.propertyImage.createMany({ data: Array.from({ length: 99 }, (_, index) => ({ propertyId: first.id,
+      file: `/uploads/manual-${index}.webp`, alt: 'Ручное фото', order: index + 1 })) });
+    const incoming = await draft('77', 4_000_000, 3, [redUrl, blueUrl]);
+    incoming.unitPlanImageUrls = [redUrl];
+    incoming.floorPlanImageUrls = [blueUrl];
+    await assert.rejects(importProperty(incoming, parent.id), { statusCode: 409 });
+    const unchanged = await db.property.findUniqueOrThrow({ where: { id: first.id }, include: { images: true, importSources: true } });
+    assert.equal(unchanged.price, 5_000_000);
+    assert.deepEqual(unchanged.availableFloors, [2]);
+    assert.equal(unchanged.images.length, 100);
+    assert.deepEqual(unchanged.importSources.map(value => value.sourceId), [initial.data.sourceId]);
+  });
+
+  await t.test('an unavailable old floor diagram keeps its row and reports a warning while new floor diagrams are added', async () => {
+    const parent = await complex();
+    const first = await importProperty(await draft('78', 5_000_000, 2, [redUrl]), parent.id);
+    const manual = await db.propertyImage.create({ data: { propertyId: first.id, file: '/uploads/unavailable-manual.webp',
+      kind: 'plan', planRole: 'floor', alt: 'План этажа', order: 5 } });
+    const incoming = await draft('78', 4_000_000, 3, [redUrl, blueUrl]);
+    incoming.unitPlanImageUrls = [redUrl];
+    incoming.floorPlanImageUrls = [blueUrl];
+    const merged = await importProperty(incoming, parent.id);
+    assert.equal(merged.id, first.id);
+    assert.ok(merged.warnings.some(value => value.includes('сохранённый план №6')));
+    const images = await db.propertyImage.findMany({ where: { propertyId: first.id }, orderBy: { order: 'asc' } });
+    assert.equal(images.length, 3);
+    assert.equal(images[1]!.id, manual.id);
+    assert.equal(images[2]!.planRole, 'floor');
+    assert.equal(images[2]!.order, 6);
   });
 
   await t.test('unlinked secondary imports reuse a complete gallery and preserve the first card and source aliases', async () => {

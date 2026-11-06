@@ -1,45 +1,50 @@
 import { db } from './db';
-import { propertyImageFingerprint } from './image-fingerprint';
+import { propertyImageFingerprint, propertyPhotoFingerprint, samePhoto, type PhotoFingerprint } from './image-fingerprint';
 import type { Prisma } from '@prisma/client';
 
-type GalleryImage = { id: string; file: string; kind: string; order: number };
+type GalleryImage = { id: string; file: string; kind: string; order: number; crop?: Prisma.JsonValue; hueShift?: number };
 
 export async function deduplicatePropertyImages(propertyId: string, apply = false) {
   const skipped = new Map<string, string>();
-  async function fingerprint(file: string, client: Pick<Prisma.TransactionClient, 'imageFingerprint'> = db) {
-    try { return await propertyImageFingerprint(file, undefined, client); }
+  async function fingerprint(image: Pick<GalleryImage, 'file' | 'kind' | 'crop' | 'hueShift'>, client: Pick<Prisma.TransactionClient, 'imageFingerprint'> = db) {
+    try {
+      const hash = await propertyImageFingerprint(image.file, undefined, client);
+      const photo = image.kind === 'photo' && !image.crop && !image.hueShift ? await propertyPhotoFingerprint(image.file, client) : null;
+      return { hash, photo };
+    }
     catch (error) {
       if ((error as { statusCode?: number }).statusCode !== 400) throw error;
-      skipped.set(file, `Не удалось проверить файл ${file}; изображение сохранено.`);
+      skipped.set(image.file, `Не удалось проверить файл ${image.file}; изображение сохранено.`);
       return null;
     }
   }
   // Decode old galleries before locking rows; the locked pass normally reads cached hashes.
-  for (const image of await db.propertyImage.findMany({ where: { propertyId }, select: { file: true } }))
-    await fingerprint(image.file);
+  for (const image of await db.propertyImage.findMany({ where: { propertyId }, select: { file: true, kind: true, crop: true, hueShift: true } }))
+    await fingerprint(image);
   for (let attempt = 0; ; attempt++) {
     try {
       return await db.$transaction(async tx => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${propertyId}))`;
         // Row locks also protect against edits and upscale workers that do not take the upload lock.
-        const gallery = await tx.$queryRaw<GalleryImage[]>`SELECT "id", "file", "kind", "order" FROM "PropertyImage"
+        const gallery = await tx.$queryRaw<GalleryImage[]>`SELECT "id", "file", "kind", "order", "crop", "hueShift" FROM "PropertyImage"
           WHERE "propertyId" = ${propertyId} ORDER BY "order", "id" FOR UPDATE`;
-        const unique = new Map<string, { image: GalleryImage; order: number }>();
+        const unique: { hash: string; photo: PhotoFingerprint | null; image: GalleryImage; order: number }[] = [];
         const duplicates: string[] = [];
         for (const image of gallery) {
-          const hash = await fingerprint(image.file, tx);
-          if (!hash) continue;
-          const previous = unique.get(hash);
-          if (!previous) unique.set(hash, { image, order: image.order });
+          const value = await fingerprint(image, tx);
+          if (!value) continue;
+          const previous = unique.find(entry => entry.hash === value.hash || samePhoto(entry.photo, value.photo));
+          if (!previous) unique.push({ ...value, image, order: image.order });
           else if (previous.image.kind !== 'plan' && image.kind === 'plan') {
             duplicates.push(previous.image.id);
             previous.image = image;
+            previous.photo = null;
           } else duplicates.push(image.id);
         }
         let deleted = 0;
         if (apply && duplicates.length) {
           deleted = (await tx.propertyImage.deleteMany({ where: { propertyId, id: { in: duplicates } } })).count;
-          for (const { image, order } of unique.values()) {
+          for (const { image, order } of unique) {
             if (image.order !== order) await tx.propertyImage.update({ where: { id: image.id }, data: { order } });
           }
         }

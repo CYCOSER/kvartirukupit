@@ -88,6 +88,7 @@ model PropertyImage {
   hueShift   Int      @default(0)
   alt        String
   kind       String   @default("photo")
+  planRole   String?
   order      Int      @default(0)
   upscale    ImageUpscale?
 }

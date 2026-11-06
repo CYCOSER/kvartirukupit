@@ -1,18 +1,20 @@
 import { createHash } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import { db } from './db';
-import { propertyImageFingerprint } from './image-fingerprint';
+import { propertyImageFingerprint, propertyUnitPlanFingerprint, sameUnitPlan } from './image-fingerprint';
 import { lockPropertyRelations } from './property-relations';
 import { saveImportSources } from './import-sources';
 import { apartmentAddress } from './apartment-matching';
+import { backfillNmarketPlanRoles } from './apartment-plan-roles';
 
 type LayoutProperty = {
   type: string; housingMarket?: string | null; complexId?: string | null;
   nmarketComplexId?: string | null; rf39ComplexId?: string | null; rf39BuildingId?: string | null;
   location?: string | null; address?: string | null;
   layoutHash?: string | null; sourceNote?: string | null;
+  area?: number | null; bedrooms?: number | null;
 };
-type LayoutImage = { kind?: string; file: string; originalFile?: string | null };
+type LayoutImage = { kind?: string; planRole?: string | null; file: string; originalFile?: string | null };
 const externalIds = ['nmarketComplexId', 'rf39ComplexId', 'rf39BuildingId'] as const;
 function unlinkedAddress(data: LayoutProperty) {
   const address = apartmentAddress(data.location || '', data.address || '');
@@ -53,7 +55,7 @@ export async function prepareApartmentLayout(data: LayoutProperty, images: Layou
   if (data.type !== 'apartment' || !['newbuild', 'secondary'].includes(data.housingMarket || '')) return null;
   const gallery = data.housingMarket === 'secondary';
   if (gallery && !layoutScopeWhere(data)) return null;
-  const files = [...new Set(images.filter(image => gallery || image.kind === 'plan').map(image => image.originalFile || image.file))];
+  const files = [...new Set(images.filter(image => gallery || image.kind === 'plan' && image.planRole !== 'floor').map(image => image.originalFile || image.file))];
   if (!files.length) return null;
   const hashes: string[] = [];
   for (const file of files) {
@@ -64,8 +66,41 @@ export async function prepareApartmentLayout(data: LayoutProperty, images: Layou
       return null;
     }
   }
-  // Compare the complete set: a shared floor diagram alone does not identify an apartment layout.
+  // Unknown legacy plans remain in the complete set; only explicit floor diagrams are excluded.
   return createHash('sha256').update((gallery ? 'photos-v1\n' : '') + [...new Set(hashes)].sort().join('\n')).digest('hex');
+}
+
+export async function sameApartmentLayout(left: LayoutProperty, leftImages: LayoutImage[], right: LayoutProperty, rightImages: LayoutImage[],
+  client: Pick<Prisma.TransactionClient, 'imageFingerprint'> = db) {
+  if (!sameApartmentLayoutScope(left, right)) return false;
+  const leftHash = await prepareApartmentLayout(left, leftImages, client), rightHash = await prepareApartmentLayout(right, rightImages, client);
+  if (!leftHash || !rightHash) return false;
+  if (leftHash === rightHash) return true;
+  if (left.housingMarket !== 'newbuild' || !left.area || left.area !== right.area || left.bedrooms == null || left.bedrooms !== right.bedrooms) return false;
+  const plans = (images: LayoutImage[]) => images.filter(image => image.kind === 'plan' && image.planRole !== 'floor');
+  const first = plans(leftImages), second = plans(rightImages);
+  if ([...first, ...second].some(image => image.planRole !== 'unit')) return false;
+  async function unique(images: LayoutImage[]) {
+    const files = new Map<string, string>();
+    for (const image of images) {
+      const file = image.originalFile || image.file;
+      files.set(await propertyImageFingerprint(file, undefined, client), file);
+    }
+    return [...files.values()];
+  }
+  const firstFiles = await unique(first), secondFiles = await unique(second);
+  if (!firstFiles.length || firstFiles.length !== secondFiles.length) return false;
+  const remaining = [...secondFiles];
+  for (const file of firstFiles) {
+    const plan = await propertyUnitPlanFingerprint(file, client);
+    let index = -1;
+    for (let i = 0; i < remaining.length; i++) {
+      if (sameUnitPlan(plan, await propertyUnitPlanFingerprint(remaining[i]!, client))) { index = i; break; }
+    }
+    if (index < 0) return false;
+    remaining.splice(index, 1);
+  }
+  return true;
 }
 
 export function mergeLayoutAvailability(properties: { price?: number | null; availableFloors?: number[] }[]) {
@@ -78,8 +113,9 @@ export function mergeLayoutAvailability(properties: { price?: number | null; ava
 export async function indexApartmentLayouts(data: LayoutProperty, complexId?: string) {
   const scope = layoutScopeWhere(data, complexId);
   if (!scope) return;
+  await backfillNmarketPlanRoles(scope);
   const source = { ...data, complexId: complexId || data.complexId };
-  const include = { images: { select: { kind: true, file: true, originalFile: true } } } as const;
+  const include = { images: { select: { kind: true, planRole: true, file: true, originalFile: true } } } as const;
   const previous = await db.property.findMany({ where: { AND: [scope], layoutHash: null,
     images: { some: data.housingMarket === 'newbuild' ? { kind: 'plan' } : {} } }, include });
   for (const property of previous) {
@@ -99,12 +135,22 @@ export async function indexApartmentLayouts(data: LayoutProperty, complexId?: st
   }
 }
 
-export async function findApartmentLayout(tx: Prisma.TransactionClient, data: LayoutProperty, layoutHash: string, complexId?: string) {
+export async function findApartmentLayout(tx: Prisma.TransactionClient, data: LayoutProperty, layoutHash: string, complexId?: string, images?: LayoutImage[]) {
   if (!layoutHash) return null;
   const scope = layoutScopeWhere(data, complexId);
   if (!scope) return null;
-  const candidates = await tx.property.findMany({ where: { AND: [scope], layoutHash }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
-  const matches = candidates.filter(property => sameApartmentLayoutScope({ ...data, complexId: complexId || data.complexId }, property));
+  const source = { ...data, complexId: complexId || data.complexId };
+  const candidates = await tx.property.findMany({ where: { AND: [scope], layoutHash }, include: { images: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+  const matches: typeof candidates = [];
+  for (const property of candidates) {
+    if (sameApartmentLayoutScope(source, property) && (!images || await sameApartmentLayout(source, images, property, property.images, tx))) matches.push(property);
+  }
+  if (images && data.housingMarket === 'newbuild' && data.area && data.bedrooms != null) {
+    const similar = await tx.property.findMany({ where: { AND: [scope], area: data.area, bedrooms: data.bedrooms,
+      layoutHash: { not: null, notIn: ['', layoutHash] } }, include: { images: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+    for (const property of similar) if (await sameApartmentLayout(source, images, property, property.images, tx)) matches.push(property);
+    matches.sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime() || left.id.localeCompare(right.id));
+  }
   if (new Set(matches.map(property => property.complexId).filter(Boolean)).size > 1) return null;
   return matches[0] || null;
 }

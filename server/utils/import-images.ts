@@ -7,15 +7,15 @@ import { rf39ImageUrl } from './rf39-data';
 import { nmarketImageUrl } from './nmarket-data';
 import { rf39ReadBody } from './rf39';
 import { importInfrastructureError } from './import-execution';
-import { propertyImageFingerprint } from './image-fingerprint';
+import { propertyImageFingerprint, propertyPhotoFingerprint, samePhoto, type PhotoFingerprint } from './image-fingerprint';
 
 type CachedImage = {
   url: string; contentHash: string; contentType: string; originalFile: string;
   etag: string | null; lastModified: string | null; checkedAt: Date;
   planFile: string | null; planHueShift: number | null; detectedPlan: boolean | null;
 };
-type PreparedImage = { file: string; originalFile: string; hueShift: number; kind: 'photo' | 'plan'; alt: string; order: number };
-type DraftImages = { imageUrls: string[]; planImageUrls: string[]; imagesIncomplete?: boolean; data: { title: string; type?: string; housingMarket?: string | null } };
+type PreparedImage = { file: string; originalFile: string; hueShift: number; kind: 'photo' | 'plan'; planRole: 'unit' | 'floor' | null; alt: string; order: number };
+type DraftImages = { imageUrls: string[]; planImageUrls: string[]; unitPlanImageUrls?: string[]; floorPlanImageUrls?: string[]; imagesIncomplete?: boolean; data: { title: string; type?: string; housingMarket?: string | null } };
 
 function limit(concurrency: number) {
   let active = 0;
@@ -134,6 +134,7 @@ async function planImage(image: CachedImage, dir: string) {
 export async function prepareImportImages(draft: DraftImages, detectPlans = false): Promise<{ images: PreparedImage[]; warnings: string[]; complete: boolean }> {
   const dir = resolve(process.env.UPLOAD_DIR || '.data/uploads');
   const warnings: string[] = [], plans = new Set(draft.planImageUrls);
+  const unitPlans = new Set(draft.unitPlanImageUrls), floorPlans = new Set(draft.floorPlanImageUrls);
   const plansOnly = draft.data.type === 'apartment' && draft.data.housingMarket === 'newbuild';
   const urls = [...new Set(draft.imageUrls)].filter(input => !plansOnly || plans.has(input) ||
     rf39ImageUrl(input)?.includes('/images/objects/layouts/'));
@@ -146,8 +147,10 @@ export async function prepareImportImages(draft: DraftImages, detectPlans = fals
       const isPlan = plans.has(input) || ((detectPlans || plansOnly) && await detectPlan(cached, dir));
       if (plansOnly && !isPlan) return null;
       const hash = await propertyImageFingerprint(cached.originalFile);
+      const photo = isPlan ? null : await propertyPhotoFingerprint(cached.originalFile);
       const image = isPlan ? await planImage(cached, dir) : { file: cached.originalFile, hueShift: 0 };
-      return { ...image, originalFile: cached.originalFile, kind: isPlan ? 'plan' as const : 'photo' as const, hash };
+      const planRole = !isPlan || unitPlans.has(input) === floorPlans.has(input) ? null : unitPlans.has(input) ? 'unit' as const : 'floor' as const;
+      return { ...image, originalFile: cached.originalFile, kind: isPlan ? 'plan' as const : 'photo' as const, planRole, hash, photo };
     } catch (error) {
       if (importInfrastructureError(error) || ['ENOSPC', 'EACCES', 'EPERM', 'EROFS', 'EMFILE'].includes((error as NodeJS.ErrnoException).code || '')) throw error;
       return { warning: `Не удалось загрузить ${plansOnly ? 'планировку' : 'фотографию'} №${index + 1}. Она пропущена.` };
@@ -156,17 +159,25 @@ export async function prepareImportImages(draft: DraftImages, detectPlans = fals
   const fatal = settled.find(result => result.status === 'rejected');
   if (fatal?.status === 'rejected') throw fatal.reason;
   const images: PreparedImage[] = [], hashes = new Map<string, number>();
+  const photos: (PhotoFingerprint | null)[] = [];
   for (const entry of settled) {
     if (entry.status !== 'fulfilled') continue;
     const result = entry.value;
     if (!result) continue;
     if ('warning' in result) { if (result.warning) warnings.push(result.warning); continue; }
-    const previous = hashes.get(result.hash);
+    const exact = hashes.get(result.hash);
+    const visual = exact === undefined && result.photo ? photos.findIndex(photo => samePhoto(photo, result.photo)) : -1;
+    const previous = exact ?? (visual >= 0 ? visual : undefined);
     const order = previous ?? images.length;
     const image: PreparedImage = { file: result.file, originalFile: result.originalFile, hueShift: result.hueShift,
-      kind: result.kind, alt: draft.data.title.slice(0, 200), order };
-    if (previous === undefined) { hashes.set(result.hash, order); images.push(image); }
-    else if (image.kind === 'plan') images[previous] = image;
+      kind: result.kind, planRole: result.planRole, alt: draft.data.title.slice(0, 200), order };
+    hashes.set(result.hash, order);
+    if (previous === undefined) { images.push(image); photos.push(result.photo); }
+    else if (image.kind === 'plan') {
+      const before = images[previous]!;
+      if (before.kind === 'plan' && before.planRole !== image.planRole) image.planRole = null;
+      images[previous] = image; photos[previous] = null;
+    }
   }
   if (!images.length) warnings.push(`В источнике нет доступных ${plansOnly ? 'планировок' : 'фотографий'}. Добавьте их в карточку.`);
   return { images, warnings, complete: !draft.imagesIncomplete && !warnings.length };

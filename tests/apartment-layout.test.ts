@@ -1,12 +1,12 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { db } from '../server/utils/db';
-import { findApartmentLayout, layoutScopeWhere, mergeLayoutAvailability, prepareApartmentLayout, sameApartmentLayoutScope } from '../server/utils/apartment-layout';
+import { findApartmentLayout, layoutScopeWhere, mergeLayoutAvailability, prepareApartmentLayout, sameApartmentLayout, sameApartmentLayoutScope } from '../server/utils/apartment-layout';
 import { mockImageFingerprintCache } from './fixtures/image-fingerprint-cache';
 
 const apartment = { type: 'apartment', housingMarket: 'newbuild', nmarketComplexId: '71' };
@@ -40,6 +40,65 @@ test('layout identity compares the full unordered plan set and uses originals be
   assert.notEqual(await prepareApartmentLayout(apartment, [common, other]), hash);
   assert.notEqual(await prepareApartmentLayout(apartment, [common]), hash);
   assert.equal(await prepareApartmentLayout(apartment, [common, first, { ...other, kind: 'photo' }]), hash);
+});
+
+test('explicit floor diagrams do not identify an apartment or prevent matching its complete unit-plan set', async t => {
+  const file = await fixture(t), unit = { ...await file(await png('#bb4411')), planRole: 'unit' };
+  const anotherUnit = { ...await file(await png('#1144bb')), planRole: 'unit' };
+  const floor = { ...await file(await png('#555555')), planRole: 'floor' };
+  const anotherFloor = { ...await file(await png('#111111')), planRole: 'floor' };
+  assert.equal(await prepareApartmentLayout(apartment, [floor]), null);
+  assert.equal(await sameApartmentLayout(apartment, [unit, floor], apartment, [unit, anotherFloor]), true);
+  assert.equal(await sameApartmentLayout(apartment, [unit, floor], apartment, [unit, anotherUnit, anotherFloor]), false);
+  assert.equal(await sameApartmentLayout(apartment, [unit, floor], apartment, [unit, { ...anotherFloor, planRole: null }]), false);
+});
+
+test('real unit plans allow only faint label rendering differences at the same area and room count', async t => {
+  const file = await fixture(t);
+  const image = async (name: string) => ({ ...await file(await readFile(new URL(`./fixtures/unit-plans/${name}.webp`, import.meta.url))), planRole: 'unit' });
+  const first = await image('45-13-upper'), duplicate = await image('45-13-second'), other = await image('45-16');
+  const source = { ...apartment, area: 45.13, bedrooms: 1 };
+  assert.notEqual(await prepareApartmentLayout(source, [first]), await prepareApartmentLayout(source, [duplicate]));
+  assert.equal(await sameApartmentLayout(source, [first], source, [duplicate]), true);
+  assert.equal(await sameApartmentLayout(source, [first], source, [other]), false);
+  assert.equal(await sameApartmentLayout(source, [first], { ...source, area: 45.16 }, [duplicate]), false);
+  assert.equal(await sameApartmentLayout(source, [first], { ...source, bedrooms: 2 }, [duplicate]), false);
+  assert.equal(await sameApartmentLayout(source, [first], source, [{ ...duplicate, planRole: null }]), false);
+  assert.equal(await sameApartmentLayout(source, [first], { ...source, layoutHash: '' }, [duplicate]), false);
+  // A small real wall change must fail even when the overall pixel difference is very low.
+  const changed = { ...await file(await sharp(await readFile(new URL('./fixtures/unit-plans/45-13-upper.webp', import.meta.url)))
+    .composite([{ input: await sharp({ create: { width: 2, height: 24, channels: 3, background: '#000' } }).png().toBuffer(), left: 30, top: 30 }]).png().toBuffer()), planRole: 'unit' };
+  assert.equal(await sameApartmentLayout(source, [first], source, [changed]), false);
+  assert.equal(await sameApartmentLayout(source, [first, other], source, [other, duplicate]), true);
+});
+
+test('unit-plan fallback finds the oldest compatible card and rejects conflicting local complexes', async t => {
+  const file = await fixture(t);
+  const original = { ...await file(await readFile(new URL('./fixtures/unit-plans/45-13-upper.webp', import.meta.url))), planRole: 'unit' };
+  const incoming = { ...await file(await readFile(new URL('./fixtures/unit-plans/45-13-second.webp', import.meta.url))), planRole: 'unit' };
+  const source = { ...apartment, area: 45.13, bedrooms: 1 };
+  const hash = await prepareApartmentLayout(source, [incoming]);
+  const exact = { ...source, id: 'newer', complexId: 'local', createdAt: new Date('2026-11-02'), layoutHash: hash, images: [incoming] };
+  const previous = { ...source, id: 'oldest', complexId: 'local', createdAt: new Date('2026-11-01'),
+    images: [original], layoutHash: await prepareApartmentLayout(source, [original]) };
+  const tx = { imageFingerprint: db.imageFingerprint, property: { findMany: async ({ where }: any) => typeof where.layoutHash === 'string' ? [exact] : [previous] } } as any;
+  assert.equal((await findApartmentLayout(tx, source, hash!, undefined, [incoming]))?.id, 'oldest');
+  previous.complexId = 'other';
+  assert.equal(await findApartmentLayout(tx, source, hash!, undefined, [incoming]), null);
+});
+
+test('cached exact layout hashes are rechecked against the complete current gallery before import', async t => {
+  const file = await fixture(t), unit = { ...await file(await png('#bb4411')), planRole: 'unit' };
+  const other = { ...await file(await png('#1144bb')), planRole: 'unit' };
+  const floor = { ...await file(await png('#555555')), planRole: 'floor' };
+  const hash = await prepareApartmentLayout(apartment, [unit, floor]);
+  const candidate = { ...apartment, id: 'existing', layoutHash: hash, images: [unit, floor] };
+  const tx = { imageFingerprint: db.imageFingerprint, property: { findMany: async () => [candidate] } } as any;
+  assert.equal((await findApartmentLayout(tx, apartment, hash!, undefined, [unit]))?.id, candidate.id);
+  for (const changed of [[floor], [other, floor], [unit, other, floor]]) {
+    candidate.images = changed;
+    assert.equal(await findApartmentLayout(tx, apartment, hash!, undefined, [unit]), null);
+  }
 });
 
 test('missing plans and unsupported objects never create a partial layout identity; DB failures propagate', async t => {

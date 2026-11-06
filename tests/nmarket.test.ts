@@ -57,6 +57,8 @@ test('NMarket streams UTF-8 XML into filled drafts and strips agent/private fiel
   assert.ok(draft.imageUrls[0]!.includes(plan));
   assert.ok(draft.imageUrls.every(url => url.startsWith('https://img.nmarket.pro/')));
   assert.deepEqual(draft.planImageUrls, draft.imageUrls.filter(url => url.includes(plan)));
+  assert.deepEqual(draft.unitPlanImageUrls, draft.planImageUrls);
+  assert.deepEqual(draft.floorPlanImageUrls, []);
   assert.equal(draft.data.nmarketComplexId, '456');
   assert.equal(draft.imagesIncomplete, false);
   assert.equal(JSON.stringify([nmarketSummary(item), draft.data]).includes('PRIVATE_'), false);
@@ -103,8 +105,34 @@ test('NMarket retains an explicit plan tag when a URL is repeated earlier as a g
   assert.equal(draft.planImageUrls.length, 1);
   assert.ok(draft.planImageUrls[0]!.includes(plan));
   assert.equal(draft.imageUrls[0], draft.planImageUrls[0]);
+  assert.deepEqual(draft.unitPlanImageUrls, []);
+  assert.deepEqual(draft.floorPlanImageUrls, draft.planImageUrls);
   assert.equal(draft.imagesIncomplete, false);
   assert.deepEqual(nmarketDraft(objects.find(item => item.type === 'complex')!).planImageUrls, []);
+});
+
+test('NMarket keeps apartment and floor plans distinct and leaves conflicting or legacy roles unknown', async () => {
+  const floor = '12345678-1234-1234-1234-123456789014';
+  const objects = await parse(feed().replace(image(plan, 'plan'), image(plan, 'plan') + image(floor, 'floorplan')));
+  const item = objects.find(item => item.type === 'apartment')!;
+  const draft = nmarketDraft(item);
+  assert.deepEqual(item.images.filter(image => image.plan).map(image => image.planRole), ['unit', 'floor']);
+  assert.deepEqual(draft.planImageUrls, draft.imageUrls);
+  assert.deepEqual(draft.unitPlanImageUrls, [draft.imageUrls[0]]);
+  assert.deepEqual(draft.floorPlanImageUrls, [draft.imageUrls[1]]);
+  const legacy = nmarketDraft({ ...item, images: item.images.map(({ url, plan }) => ({ url, plan })) });
+  assert.deepEqual(legacy.planImageUrls, draft.planImageUrls);
+  assert.deepEqual(legacy.unitPlanImageUrls, []);
+  assert.deepEqual(legacy.floorPlanImageUrls, []);
+  for (const tags of [['plan', 'floorplan', 'plan'], ['floorplan', 'plan', 'floorplan'], ['housemain', 'floorplan', 'plan']]) {
+    const items = await parse(feed().replace(image(plan, 'plan'), tags.map(tag => image(plan, tag)).join('')));
+    const conflicting = items.find(item => item.type === 'apartment')!;
+    assert.equal(conflicting.images.find(image => image.plan)!.planRole, null);
+    const unknown = nmarketDraft(conflicting);
+    assert.equal(unknown.planImageUrls.length, 1);
+    assert.deepEqual(unknown.unitPlanImageUrls, []);
+    assert.deepEqual(unknown.floorPlanImageUrls, []);
+  }
 });
 
 test('NMarket drafts retain the rejected-image flag for duplicate detection', async () => {
