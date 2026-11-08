@@ -66,7 +66,7 @@ test('manual description preserves a concurrent feed update and unchanged galler
   expect(state.galleries).toHaveLength(0);
   await expect(page.getByLabel('Цена, ₽ (пусто — по запросу)', { exact: true })).toHaveValue('6200000');
   await expect(page.getByRole('checkbox', { name: 'Опубликован', exact: true })).toBeChecked();
-  await expect(page.getByRole('combobox', { name: 'Тип объекта', exact: true })).toHaveText('Элитная квартира');
+  await expect(page.getByRole('combobox', { name: 'Тип объекта', exact: true })).toHaveText('Квартира с ремонтом');
   await expect(page.getByTestId('property-photos').locator('.property-photo-card')).toHaveCount(2);
   state.item.price = 7100000;
   await page.getByRole('checkbox', { name: 'На главной', exact: true }).check();

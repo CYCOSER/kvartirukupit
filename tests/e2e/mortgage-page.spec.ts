@@ -21,11 +21,22 @@ test("mortgage page calculator, questions and enquiry work on desktop and mobile
   await page.goto("/ipoteka");
   await page.getByRole("link", { name: "Рассчитать платёж ↓" }).click();
   const calculator = page.locator("#mortgage");
+  await expect(page.locator('.purchase-disclaimer')).toContainText('Ипотечные кредиты предоставляются банками-партнёрами.');
+  await expect(page.locator('.purchase-disclaimer')).toContainText('не выступаем кредиторами');
+  await expect(calculator.locator('.mortgage-disclaimer')).toContainText('Мы не выступаем кредиторами.');
   await expect(calculator.locator(".mortgage-payment")).toHaveText("0 ₽");
   await expect(calculator.locator("dd")).toHaveText(["0 ₽", "0 ₽", "0 ₽", "0 ₽"]);
   await calculator.getByLabel("Стоимость квартиры, ₽", { exact: true }).fill("1200000");
   await calculator.getByLabel("Первоначальный взнос, %", { exact: true }).fill("0");
-  await calculator.getByLabel("Срок, лет", { exact: true }).fill("10");
+  const term = calculator.getByLabel("Срок, лет", { exact: true });
+  await term.fill("31");
+  await expect(term).toHaveValue("30");
+  await term.fill("300");
+  await expect(term).toHaveValue("30");
+  await term.fill("");
+  await expect(term).toHaveValue("");
+  await expect(calculator.locator(".mortgage-payment")).toHaveText("0 ₽");
+  await term.fill("10");
   await calculator.getByLabel("Ставка, % годовых", { exact: true }).fill("0");
   await expect(calculator.locator(".mortgage-payment")).toHaveText("10 000 ₽");
   const question = page.locator("details").first();
@@ -69,17 +80,15 @@ test("mortgage programmes link to published articles with official sources", asy
 });
 
 test("partner logos show names on hover and keyboard focus", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/ipoteka");
+  await page.waitForFunction(() => !!(document.querySelector('#__nuxt') as Element & { __vue_app__?: unknown })?.__vue_app__);
   const partners = page.locator(".purchase-banks");
   await expect(partners.getByRole("heading", { name: "Партнёры" })).toBeVisible();
   await expect(partners.getByRole("button")).toHaveCount(10);
   await expect(partners.locator("ul")).toHaveText("");
   await expect(page.locator(".bank-tooltip")).toHaveCount(0);
   await partners.scrollIntoViewIfNeeded();
-  await expect.poll(() => page.locator(".mortgage-unfold").evaluate(element =>
-    Math.abs(element.clientHeight - (element.firstElementChild as HTMLElement).offsetHeight),
-  )).toBeLessThan(1);
-
   await partners.getByRole("button", { name: "Сбер", exact: true }).hover();
   await expect(page.locator(".bank-tooltip")).toBeVisible();
   await expect(partners.getByRole("button", { name: "Сбер", exact: true })).toHaveAccessibleDescription("Сбер");

@@ -129,7 +129,7 @@ export const propertySchema = z.object({
   message: "Укажите широту и долготу вместе или оставьте оба поля пустыми",
 }).refine((property) => !property.elite || property.type === "apartment", {
   path: ["elite"],
-  message: "В элитный каталог можно добавить только квартиру",
+  message: "В каталог квартир с ремонтом можно добавить только квартиру",
 }).refine((property) => !property.complexId || property.type === "apartment", {
   path: ["complexId"],
   message: "К жилому комплексу можно привязать только квартиру",

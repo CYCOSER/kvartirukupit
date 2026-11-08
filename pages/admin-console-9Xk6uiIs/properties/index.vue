@@ -55,7 +55,7 @@ const exclusionFields = computed(() => [
   { key: "type", label: "Тип объекта", options: Object.entries(adminPropertyTypes).map(([value, label]) => ({ value, label })) },
   { key: "city", label: "Город", options: [...new Set((data.value || []).map(property => property.location).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru")).map(value => ({ value, label: value })) },
   { key: "status", label: "Статус", options: Object.entries(statuses).map(([value, label]) => ({ value, label })) },
-  { key: "catalog", label: "Каталог", options: [{ value: "newbuilds", label: "Новостройки" }, { value: "elite", label: "Элитные квартиры" }] },
+  { key: "catalog", label: "Каталог", options: [{ value: "newbuilds", label: "Новостройки" }, { value: "elite", label: "Квартиры с ремонтом" }] },
   { key: "publication", label: "Публикация", options: [{ value: "published", label: "Опубликованные" }, { value: "draft", label: "Черновики" }] },
   { key: "featured", label: "На главной", options: [{ value: "yes", label: "Да" }, { value: "no", label: "Нет" }] },
   { key: "housingMarket", label: "Рынок квартиры", options: [...Object.entries(housingMarkets).map(([value, label]) => ({ value, label })), { value: "unknown", label: "Не указан" }] },
@@ -356,7 +356,7 @@ async function publish(p: AdminPropertyListItem) {
             ><AppSelectOption value="">Все каталоги</AppSelectOption
             ><AppSelectOption value="newbuilds">Новостройки</AppSelectOption
             ><AppSelectOption value="elite"
-              >Элитные квартиры</AppSelectOption
+              >Квартиры с ремонтом</AppSelectOption
             ></AppSelect
           ></label
         >

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowUpRight, House, MapPin, Menu, MessageCircle, Phone } from "lucide-vue-next";
+import { ArrowUpRight, MapPin, Menu, MessageCircle, Phone } from "lucide-vue-next";
 import Sheet from "~/components/ui/sheet/Sheet.vue";
 const config = useRuntimeConfig();
 const menu = ref(false);
@@ -38,7 +38,7 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
     :class="{
       'glass-inner-layout': route.path !== '/',
       'glass-photo-layout':
-        /^\/(elite|catalog|blog|privacy|ipoteka)(\/|$)/.test(route.path),
+        /^\/(elite|catalog|blog|privacy|ipoteka|tours)(\/|$)/.test(route.path),
     }"
   >
     <a href="#main" class="skip-link">Перейти к содержимому</a>
@@ -56,9 +56,9 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
           ></NuxtLink
         >
         <nav class="desktop-nav" aria-label="Основная навигация">
-          <NuxtLink to="/elite">Элитные квартиры</NuxtLink
-          ><NuxtLink to="/catalog">Новостройки</NuxtLink
-          ><NuxtLink to="/#process">Как купить</NuxtLink
+          <NuxtLink to="/catalog">Новостройки</NuxtLink
+          ><NuxtLink to="/elite">Квартиры с ремонтом</NuxtLink
+          ><NuxtLink to="/tours">Туры</NuxtLink
           ><NuxtLink to="/ipoteka">Ипотека</NuxtLink
           ><NuxtLink to="/blog">Блог</NuxtLink>
         </nav>
@@ -90,20 +90,19 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
               aria-label="Меню сайта"
               @click="menu = false"
             >
-              <NuxtLink to="/elite"
-                ><span
-                  ><small aria-hidden="true">01</small>Элитные квартиры</span
-                ><ArrowUpRight :size="19" aria-hidden="true"
-              /></NuxtLink>
               <NuxtLink to="/catalog"
-                ><span><small aria-hidden="true">02</small>Новостройки</span
+                ><span
+                  ><small aria-hidden="true">01</small>Новостройки</span
                 ><ArrowUpRight :size="19" aria-hidden="true"
               /></NuxtLink>
-              <NuxtLink to="/#process"
-                ><span><small aria-hidden="true">03</small>Как купить</span
+              <NuxtLink to="/elite"
+                ><span><small aria-hidden="true">02</small>Квартиры с ремонтом</span
                 ><ArrowUpRight :size="19" aria-hidden="true"
               /></NuxtLink>
-
+              <NuxtLink to="/tours"
+                ><span><small aria-hidden="true">03</small>Туры по новостройкам</span
+                ><ArrowUpRight :size="19" aria-hidden="true"
+              /></NuxtLink>
               <NuxtLink to="/ipoteka"
                 ><span><small aria-hidden="true">04</small>Ипотека</span
                 ><ArrowUpRight :size="19" aria-hidden="true"
@@ -113,19 +112,6 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
                 ><ArrowUpRight :size="19" aria-hidden="true"
               /></NuxtLink>
             </nav>
-            <div class="menu-selection">
-              <p class="menu-label">
-                <House :size="14" aria-hidden="true" />Ваш формат жизни
-              </p>
-              <nav
-                class="menu-types"
-                aria-label="Выбрать тип недвижимости"
-                @click="menu = false"
-              >
-                <NuxtLink to="/catalog?type=complex">Жилые комплексы</NuxtLink>
-                <NuxtLink to="/catalog?type=apartment">Квартиры</NuxtLink>
-              </nav>
-            </div>
             <div class="menu-contact">
               <p class="menu-label">
                 <MapPin :size="14" aria-hidden="true" />Калининград
@@ -134,7 +120,7 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
                 to="/#contact"
                 class="menu-contact-link"
                 @click="menu = false"
-                >Личный подбор квартиры<ArrowUpRight
+                ><span>Личный подбор квартиры</span><ArrowUpRight
                   :size="21"
                   aria-hidden="true"
               /></NuxtLink>
@@ -171,6 +157,9 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
                 ></NuxtLink
               >
 
+              <NuxtLink to="/tours"
+                ><span><small>СМОТРИМ ВЖИВУЮ</small>Туры по новостройкам</span></NuxtLink
+              >
               <NuxtLink to="/ipoteka"
                 ><span><small>ПЛАНИРУЕМ ПОКУПКУ</small>Ипотека</span></NuxtLink
               >
@@ -362,7 +351,7 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
   color: #54739b;
 }
 .glass-home-layout .footer-destinations {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
 }
 .glass-home-layout .footer-destinations a {
@@ -377,6 +366,7 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
   box-shadow: none;
   font-size: 1.2rem;
   line-height: 1.3;
+  overflow-wrap: normal;
 }
 .glass-home-layout .footer-destinations a:last-child {
   padding-right: 0;
@@ -409,24 +399,49 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
   text-decoration: underline;
   text-underline-offset: 4px;
 }
-@media (max-width: 1100px) {
-  .glass-home-layout .footer-top {
-    gap: 42px;
-    padding-bottom: 42px;
-  }
-}
-@media (max-width: 640px) {
+@media (max-width: 1400px) {
   .glass-home-layout .footer-top {
     grid-template-columns: 1fr;
+    gap: 32px;
+    padding-bottom: 42px;
+  }
+  .glass-home-layout .footer-brand-group {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  .glass-home-layout .footer-brand-group > p {
+    margin-top: 0;
+  }
+  .glass-home-layout .footer-destinations a {
+    padding-inline: 18px;
   }
   .glass-home-layout .footer-destinations a:first-child {
     border-left: 0;
     padding-left: 0;
   }
 }
+@media (max-width: 800px) {
+  .glass-home-layout .footer-destinations {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 28px;
+  }
+  .glass-home-layout .footer-destinations a:nth-child(odd) {
+    border-left: 0;
+    padding-left: 0;
+  }
+}
 @media (max-width: 540px) {
+  .glass-home-layout .footer-brand-group {
+    display: block;
+  }
+  .glass-home-layout .footer-brand-group > p {
+    margin-top: 22px;
+  }
   .glass-home-layout .footer-destinations {
     grid-template-columns: 1fr;
+    row-gap: 0;
   }
   .glass-home-layout .site-footer {
     padding-top: 46px;
@@ -534,23 +549,32 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
   gap: 10px;
 }
 .menu-content {
+  --menu-inset: 28px;
   display: flex;
   flex: 1;
   flex-direction: column;
   gap: 28px;
   text-transform: uppercase;
 }
+.menu-navigation {
+  margin-inline: calc(-1 * var(--menu-inset));
+}
 .menu-navigation a {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 19px 0;
+  padding: 19px var(--menu-inset);
   border-top: 1px solid #b9c7d9;
   font-family: var(--font-brand);
   font-size: clamp(0.95rem, 4.3vw, 1.25rem);
   letter-spacing: 0.015em;
   line-height: 1.3;
+}
+.menu-navigation a > span,
+.menu-contact-link > span {
+  /* Anticva's capital letters sit above the center of their line box. */
+  transform: translateY(0.12em);
 }
 .menu-navigation a:last-child {
   border-bottom: 1px solid #b9c7d9;
@@ -574,17 +598,6 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
   font-weight: 600;
   letter-spacing: 0.09em;
 }
-.menu-types {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.menu-types a {
-  padding: 10px 12px;
-  border: 1px solid #a8b9d0;
-  font-size: 9px;
-  letter-spacing: 0.03em;
-}
 .menu-contact {
   margin-top: auto;
   padding-top: 24px;
@@ -595,7 +608,8 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
   justify-content: space-between;
   align-items: center;
   gap: 20px;
-  padding: 18px;
+  margin-inline: calc(-1 * var(--menu-inset));
+  padding: 18px var(--menu-inset);
   background: #19365c;
   color: #e6edf6;
   font-family: var(--font-brand);
@@ -614,13 +628,21 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
 }
 .menu-navigation a:hover,
 .menu-navigation a:focus-visible,
-.menu-types a:hover,
-.menu-types a:focus-visible {
+.menu-navigation a.router-link-active {
   color: #3b516d;
   background: #d4e0ef;
 }
 .menu-contact-link:hover,
 .menu-contact-link:focus-visible {
   background: #364963;
+}
+.menu-navigation a:focus-visible,
+.menu-contact-link:focus-visible {
+  outline-offset: -3px;
+}
+@media (max-width: 380px) {
+  .menu-content {
+    --menu-inset: 20px;
+  }
 }
 </style>

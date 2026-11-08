@@ -124,14 +124,14 @@ useCatalogTools(async (values) => {
     <header class="catalog-intro shell">
       <nav class="breadcrumb" aria-label="Хлебные крошки">
         <NuxtLink to="/">Главная</NuxtLink><span aria-hidden="true">/</span>
-        <span aria-current="page">{{ elite ? "Элитные квартиры" : "Новостройки" }}</span>
+        <span aria-current="page">{{ elite ? "Квартиры с ремонтом" : "Новостройки" }}</span>
       </nav>
       <div class="catalog-intro-grid">
         <div>
           <p v-reveal class="eyebrow">КАЛИНИНГРАД · ПРОСТРАНСТВО ДЛЯ ЖИЗНИ</p>
           <h1 v-reveal="85" class="type-pair">
-            <span class="type-upright">{{ elite ? "Элитные" : "Новостройки" }}</span>
-            <em class="type-script">{{ elite ? "квартиры" : "Калининграда" }}</em>
+            <span class="type-upright">{{ elite ? "Квартиры" : "Новостройки" }}</span>
+            <em class="type-script">{{ elite ? "с ремонтом" : "Калининграда" }}</em>
           </h1>
         </div>
         <div class="catalog-intro-note">
@@ -143,7 +143,7 @@ useCatalogTools(async (values) => {
       </div>
       <div v-reveal="340" class="catalog-caption">
         <span>Калининград</span>
-        <span>{{ elite ? "Элитные квартиры" : "Жилые комплексы / Квартиры" }}</span>
+        <span>{{ elite ? "Квартиры с ремонтом" : "Жилые комплексы / Квартиры" }}</span>
       </div>
     </header>
 

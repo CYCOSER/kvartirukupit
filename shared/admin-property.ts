@@ -22,7 +22,7 @@ export type AdminPropertyListItem = Pick<
 export const adminPropertyTypes = {
   complex: "Жилой комплекс",
   apartment: "Квартира",
-  elite_apartment: "Элитная квартира",
+  elite_apartment: "Квартира с ремонтом",
 } as const;
 
 export function adminPropertyType(

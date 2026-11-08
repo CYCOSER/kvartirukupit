@@ -213,7 +213,7 @@ onBeforeUnmount(() => {
             </h2>
           </div>
           <p class="section-aside">
-            Внимание к вашим приоритетам<br />от первого разговора до покупки.
+            Внимание к вашим приоритетам<br />от первого разговора до новоселья.
           </p>
         </div>
         <div class="steps">
@@ -250,6 +250,36 @@ onBeforeUnmount(() => {
                   'Возможность получения льготных условий'
                 ],
                 result: 'Сделка по самым подходящим для вас условиям.',
+              },
+              {
+                title: 'Оформляем',
+                text: 'Сопроводим оформление покупки и поможем разобраться в документах на каждом этапе сделки.',
+                details: [
+                  'Проверка документов перед подписанием',
+                  'Согласование порядка расчётов',
+                  'Сопровождение регистрации сделки',
+                ],
+                result: 'Покупка оформлена, документы у вас на руках.',
+              },
+              {
+                title: 'Принимаем',
+                text: 'Поможем подготовиться к приёмке квартиры и получению ключей.',
+                details: [
+                  'Согласование даты передачи квартиры',
+                  'Осмотр состояния и отделки',
+                  'Фиксация замечаний в акте приёма-передачи',
+                ],
+                result: 'Квартира принята, ключи переданы.',
+              },
+              {
+                title: 'Дарим подарки',
+                text: 'Поздравим с покупкой и подготовим подарок к новоселью.',
+                details: [
+                  'Поздравление с новым домом',
+                  'Подарок на память о покупке',
+                  'Остаёмся на связи после сделки',
+                ],
+                result: 'Приятное начало жизни в новой квартире.',
               },
             ]"
             :key="i"
@@ -597,7 +627,7 @@ onBeforeUnmount(() => {
   font-size: clamp(30px, 3.2vw, 46px);
 }
 .home-motion .steps {
-  gap: 0;
+  gap: 40px 0;
   margin-top: 0;
   border-top: 1px solid #bbc8da;
   padding-block: 28px;
@@ -612,13 +642,13 @@ onBeforeUnmount(() => {
   background: transparent;
   box-shadow: none;
 }
-.home-motion .steps > div:first-child {
+.home-motion .steps > div:nth-child(3n + 1) {
   padding-left: 0;
 }
-.home-motion .steps > div:last-child {
+.home-motion .steps > div:nth-child(3n) {
   padding-right: 0;
 }
-.home-motion .steps > div + div {
+.home-motion .steps > div:not(:nth-child(3n + 1)) {
   border-left: 1px solid #bbc8da;
 }
 .home-motion .steps > div > span {
@@ -798,10 +828,12 @@ onBeforeUnmount(() => {
   }
   .home-motion .steps {
     grid-template-columns: 1fr;
+    gap: 0;
     padding-block: 0;
   }
-  .home-motion .steps > div {
+  .home-motion .steps > div:nth-child(n) {
     padding: 28px 0;
+    border-left: 0;
   }
   .home-motion .steps > div + div {
     border-left: 0;

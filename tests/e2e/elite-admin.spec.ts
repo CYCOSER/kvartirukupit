@@ -18,7 +18,7 @@ test("admin editor saves a manually added elite apartment", async ({ page }) => 
   await page.goto("/admin-console-9Xk6uiIs/properties/new");
   const type = page.getByRole("combobox", { name: "Тип объекта", exact: true });
   await type.click();
-  await page.getByRole("option", { name: "Элитная квартира", exact: true }).click();
+  await page.getByRole("option", { name: "Квартира с ремонтом", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Жилой комплекс квартиры", exact: true })).toBeVisible();
   await type.click();
   await page.getByRole("option", { name: "Жилой комплекс", exact: true }).click();
@@ -27,7 +27,7 @@ test("admin editor saves a manually added elite apartment", async ({ page }) => 
   await page.getByRole("option", { name: "Квартира", exact: true }).click();
   await expect(type).toHaveText("Квартира");
   await type.click();
-  await page.getByRole("option", { name: "Элитная квартира", exact: true }).click();
+  await page.getByRole("option", { name: "Квартира с ремонтом", exact: true }).click();
   await page.getByLabel("Название", { exact: true }).fill("Проверка элитной квартиры");
   await page.getByLabel("Адрес страницы", { exact: true }).fill("e2e-elite-editor-" + Date.now());
   const saving = page.waitForResponse((response) =>
@@ -41,9 +41,9 @@ test("admin editor saves a manually added elite apartment", async ({ page }) => 
   try {
     expect(item).toMatchObject({ elite: true, type: "apartment", published: false, sourceId: null });
     await expect(page).toHaveURL(new RegExp("/properties/" + item.id + "$"));
-    await expect(type).toHaveText("Элитная квартира");
+    await expect(type).toHaveText("Квартира с ремонтом");
     await page.reload();
-    await expect(type).toHaveText("Элитная квартира");
+    await expect(type).toHaveText("Квартира с ремонтом");
     const persisted = await (await page.request.get(url)).json();
     expect(persisted).toMatchObject({ elite: true, type: "apartment", published: false });
   } finally {
@@ -155,10 +155,10 @@ test("imported apartment can change types in the editor without losing its CRM m
     const type = page.getByRole("combobox", { name: "Тип объекта", exact: true });
     await expect(type).toHaveText("Квартира");
     for (const next of [
-      { label: "Элитная квартира", type: "apartment", elite: true },
+      { label: "Квартира с ремонтом", type: "apartment", elite: true },
       { label: "Жилой комплекс", type: "complex", elite: false },
       { label: "Квартира", type: "apartment", elite: false },
-      { label: "Элитная квартира", type: "apartment", elite: true },
+      { label: "Квартира с ремонтом", type: "apartment", elite: true },
     ]) {
       await type.click();
       await page.getByRole("option", { name: next.label, exact: true }).click();

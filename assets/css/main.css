@@ -868,7 +868,7 @@ select:focus {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.lead-form button {
+.lead-form button[type='submit'] {
   align-self: stretch;
   width: 100%;
   display: grid;
@@ -881,14 +881,14 @@ select:focus {
   border: 1px solid #29496d;
   border-radius: 8px;
 }
-.lead-form button:hover {
+.lead-form button[type='submit']:hover {
   background: #203d5e;
   border-color: #203d5e;
 }
-.lead-form button > span {
+.lead-form button[type='submit'] > span {
   grid-column: 2;
 }
-.lead-form button > svg {
+.lead-form button[type='submit'] > svg {
   grid-column: 3;
 }
 .lead-form input:not([type='checkbox']),
@@ -1155,18 +1155,6 @@ select:focus {
   line-height: 1.9;
   color: #607b98;
   font-size: 0.95rem;
-}
-.utilities {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin: 18px 0;
-}
-.utilities span {
-  background: #edf3fa;
-  border-radius: 6px;
-  padding: 15px;
-  font-size: 0.85rem;
 }
 .privacy {
   max-width: 800px;
@@ -1497,9 +1485,6 @@ select:focus {
   }
   .detail-specs {
     grid-template-columns: repeat(2, 1fr);
-  }
-  .utilities {
-    grid-template-columns: 1fr;
   }
   .admin-form {
     grid-template-columns: 1fr;

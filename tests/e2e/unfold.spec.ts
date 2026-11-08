@@ -81,8 +81,8 @@ test("anchors preserve open sections, a new homepage visit resets them, and moti
   await expect(page.locator(".home-intro")).toBeHidden();
   for (const selector of sections) await expect(page.locator(selector)).toHaveCSS("height", "0px");
 
-  await page.locator(".desktop-nav").getByRole("link", { name: "Как купить", exact: true }).click();
-  await expect(page).toHaveURL(/\/#process$/);
+  await page.locator(".header-contact").click();
+  await expect(page).toHaveURL(/\/#contact$/);
   for (const selector of sections) await expectOpen(page, selector);
   await page.locator(".hero-scroll").click();
   await expect(page).toHaveURL(/\/#collection$/);

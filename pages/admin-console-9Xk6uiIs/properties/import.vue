@@ -288,7 +288,7 @@ async function importSelected() {
         </h1>
       </div>
       <span class="import-draft-badge"
-        ><CheckCircle2 :size="16" /> {{ isNmarket ? 'Сохраняем черновиками' : 'Публикуем в «Элитных»' }}</span
+        ><CheckCircle2 :size="16" /> {{ isNmarket ? 'Сохраняем черновиками' : 'Публикуем в «Квартирах с ремонтом»' }}</span
       >
     </header>
     <ImportSourceToggle

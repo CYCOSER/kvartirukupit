@@ -183,7 +183,7 @@ useHead({
     >
       <nav v-reveal class="breadcrumb" aria-label="Хлебные крошки">
         <NuxtLink to="/">Главная</NuxtLink><span aria-hidden="true">/</span
-        ><NuxtLink :to="p.elite ? '/elite' : '/catalog'">{{ p.elite ? "Элитные квартиры" : "Новостройки" }}</NuxtLink
+        ><NuxtLink :to="p.elite ? '/elite' : '/catalog'">{{ p.elite ? "Квартиры с ремонтом" : "Новостройки" }}</NuxtLink
         ><span aria-hidden="true">/</span
         ><span aria-current="page">Объект</span>
       </nav>
@@ -410,17 +410,6 @@ useHead({
       </dl>
     </section>
     <section id="about-property" class="shell detail-story">
-      <div v-reveal class="detail-text">
-        <p class="eyebrow">02 / О ДОМЕ</p>
-        <h2 class="type-pair">
-          <span class="type-upright">О жилом комплексе</span>
-          <em class="type-script">Для вашей жизни</em>
-        </h2>
-        <p class="detail-description">{{ p.description }}</p>
-        <NuxtLink v-if="p.type === 'apartment' && p.complex" :to="'/catalog/' + p.complex.slug" class="detail-parent-link">
-          Подробнее о ЖК «{{ p.complex.title.replace(/^ЖК\s+/i, '') }}» <ArrowUpRight :size="17" aria-hidden="true" />
-        </NuxtLink>
-      </div>
       <div class="detail-attributes">
         <div v-reveal="70">
           <h3>Готовность и отделка</h3>
@@ -443,13 +432,19 @@ useHead({
             </div>
           </dl>
         </div>
-        <div v-reveal="140">
-          <h3>Коммуникации и удобства</h3>
-          <div v-if="p.utilities.length" class="utilities">
-            <span v-for="item in p.utilities" :key="item">{{ item }}</span>
-          </div>
-          <p v-else>Уточним оснащение дома и благоустройство двора при обращении.</p>
-        </div>
+      </div>
+      <div v-reveal class="detail-text">
+        <p class="eyebrow">02 / О ДОМЕ</p>
+        <h2 class="type-pair">
+          <span class="type-upright">{{ p.type === 'apartment' ? 'О квартире' : 'О жилом комплексе' }}</span>
+          <em class="type-script">Для вас</em>
+        </h2>
+      </div>
+      <div v-reveal class="detail-story-body">
+        <p class="detail-description">{{ p.description }}</p>
+        <NuxtLink v-if="p.type === 'apartment' && p.complex" :to="'/catalog/' + p.complex.slug" class="detail-parent-link">
+          Подробнее о ЖК «{{ p.complex.title.replace(/^ЖК\s+/i, '') }}» <ArrowUpRight :size="17" aria-hidden="true" />
+        </NuxtLink>
       </div>
     </section>
     <section v-if="p.type === 'complex' && p.apartments?.length" class="shell detail-apartments" aria-labelledby="complex-apartments-title">
@@ -1008,13 +1003,13 @@ useHead({
   white-space: nowrap;
 }
 .detail-story {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
-  gap: clamp(50px, 8vw, 130px);
+  --story-gap: clamp(50px, 8vw, 130px);
+  display: flow-root;
   padding-top: 64px;
   padding-bottom: clamp(64px, 7vw, 100px);
 }
 .property-page .detail-text {
+  width: calc((100% - var(--story-gap)) / 2);
   min-width: 0;
   padding: 0;
   border: 0;
@@ -1027,24 +1022,28 @@ useHead({
   line-height: 1.15;
   letter-spacing: 0;
 }
-.property-page .detail-text .detail-description {
-  max-width: 65ch;
-  margin-top: 26px;
+.detail-story-body {
+  margin-top: 32px;
+  min-width: 0;
+}
+.property-page .detail-description {
+  margin: 0;
   color: #455e7f;
   font-size: 15px;
   line-height: 1.95;
   white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 .detail-attributes {
+  float: right;
+  width: calc((100% - var(--story-gap)) / 2);
+  margin: 0 0 28px var(--story-gap);
   min-width: 0;
   padding-top: 6px;
 }
 .detail-attributes > div {
   padding: 0 0 30px;
   border-top: 1px solid #bbc8da;
-}
-.detail-attributes > div + div {
-  padding-top: 28px;
 }
 .detail-attributes h3 {
   margin-top: 22px;
@@ -1064,26 +1063,11 @@ useHead({
   color: #527097;
   font-size: 12px;
 }
-.detail-attributes dd,
-.detail-attributes > div > p {
+.detail-attributes dd {
   margin-top: 6px;
   color: #3a506c;
   font-size: 14px;
   line-height: 1.7;
-}
-.property-page .utilities {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 20px;
-  margin: 22px 0 0;
-}
-.property-page .utilities span {
-  padding: 12px 0;
-  border-top: 1px solid #bbc8da;
-  border-radius: 0;
-  background: transparent;
-  color: #3a506c;
-  line-height: 1.6;
 }
 .detail-finance {
   padding: clamp(40px, 6vw, 78px) 0;
@@ -1226,7 +1210,23 @@ useHead({
   .detail-hero {
     min-height: 0;
   }
-  .detail-story,
+  .detail-story {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+  .detail-attributes {
+    float: none;
+    width: 100%;
+    margin: 0;
+    order: 1;
+  }
+  .property-page .detail-text {
+    width: 100%;
+  }
+  .detail-story-body {
+    margin-top: 0;
+  }
   .detail-enquiry-grid {
     grid-template-columns: 1fr;
     gap: 40px;
@@ -1343,9 +1343,6 @@ useHead({
   }
   .property-page .detail-text h2 {
     font-size: clamp(27px, 7.7vw, 38px);
-  }
-  .property-page .utilities {
-    grid-template-columns: 1fr;
   }
   .detail-finance {
     padding: 28px 0;

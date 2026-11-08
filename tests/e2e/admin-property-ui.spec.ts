@@ -72,7 +72,7 @@ test('property status cards keep keyboard semantics and the Russian photo picker
     await page.getByRole('checkbox', { name, exact: true }).check();
   }
   await page.getByRole('combobox', { name: 'Тип объекта', exact: true }).click();
-  await page.getByRole('option', { name: 'Элитная квартира', exact: true }).click();
+  await page.getByRole('option', { name: 'Квартира с ремонтом', exact: true }).click();
   await expect(options.locator('.property-option.is-selected')).toHaveCount(3);
   const media = page.getByTestId('property-photos');
   const chooserPromise = page.waitForEvent('filechooser');

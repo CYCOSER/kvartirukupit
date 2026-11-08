@@ -7,7 +7,7 @@ test("hero, collection heading and footer form a compact layout", async ({
     await page.setViewportSize({ width, height: 1000 });
     await page.goto("/");
     await expect(page.locator(".hero h1 em")).toHaveText("В своей квартире");
-    await expect(page.locator(".footer-navigation a")).toHaveCount(2);
+    await expect(page.locator(".footer-navigation a")).toHaveCount(4);
     await expect(page.locator(".footer-destinations a").last()).toContainText(
       "ИНТЕРЕСНОЕ",
     );

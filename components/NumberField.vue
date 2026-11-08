@@ -11,6 +11,13 @@ const props = defineProps<{
   controlLabel: string;
 }>();
 const emit = defineEmits<{ "update:modelValue": [value: T] }>();
+function onInput(event: Event) {
+  const input = event.target as HTMLInputElement;
+  if (input.value !== "" && Number(input.value) > Number(props.max ?? Infinity)) {
+    input.value = String(props.max);
+  }
+  set(input.value);
+}
 function set(value: string) {
   emit(
     "update:modelValue",
@@ -44,7 +51,7 @@ function step(direction: number) {
       :min="min"
       :max="max"
       :value="modelValue ?? ''"
-      @input="set(($event.target as HTMLInputElement).value)"
+      @input="onInput"
       @keydown.up.prevent="step(1)"
       @keydown.down.prevent="step(-1)"
     />

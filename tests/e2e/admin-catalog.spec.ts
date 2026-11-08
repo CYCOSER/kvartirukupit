@@ -133,7 +133,7 @@ test("admin catalog filters combine, reset and stay usable on mobile", async ({
     .getByRole("combobox", { name: "Тип объекта", exact: true })
     .click();
   await page
-    .getByRole("option", { name: "Элитная квартира", exact: true })
+    .getByRole("option", { name: "Квартира с ремонтом", exact: true })
     .click();
   await expect(rowNames).toHaveText([items[1]!.title]);
   await page
@@ -194,7 +194,7 @@ test("admin catalog filters combine, reset and stay usable on mobile", async ({
     .getByRole("combobox", { name: "Каталог объектов", exact: true })
     .click();
   await page
-    .getByRole("option", { name: "Элитные квартиры", exact: true })
+    .getByRole("option", { name: "Квартиры с ремонтом", exact: true })
     .click();
   await page
     .getByRole("combobox", { name: "Статус объекта", exact: true })

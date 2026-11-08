@@ -10,6 +10,8 @@ test('annuity calculation and edge cases', () => {
   assert.equal(calculateMortgage(0, 20, 20, 16.9), null);
   assert.equal(calculateMortgage(1200000, 101, 20, 16.9), null);
   assert.equal(calculateMortgage(1200000, 20, 0, 16.9), null);
+  assert.ok(calculateMortgage(1200000, 20, 30, 16.9));
+  assert.equal(calculateMortgage(1200000, 20, 31, 16.9), null);
   assert.equal(calculateMortgage(1200000, 20, 2.5, 16.9), null);
   assert.equal(calculateMortgage(1200000, 20, 20, NaN), null);
 });

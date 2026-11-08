@@ -152,34 +152,10 @@ const questions = [
       </div>
     </section>
 
-    <UnfoldSection class="mortgage-unfold">
-      <section class="section calculator-section" aria-labelledby="budget-title">
-        <div class="calculator-backdrop" aria-hidden="true"></div>
-        <div class="shell">
-          <div v-reveal class="section-heading">
-            <div>
-              <p class="eyebrow">02 / БЮДЖЕТ ПОКУПКИ</p>
-              <h2 id="budget-title" class="type-pair">
-                <span class="type-upright">Комфортный платёж</span
-                ><em class="type-script">в вашем ритме</em>
-              </h2>
-            </div>
-            <p class="section-aside">
-              Укажите стоимость квартиры и ставку банка.<br />Значения в
-              калькуляторе — пример для расчёта.
-            </p>
-          </div>
-          <MortgageCalculator :price="null" />
-          <NuxtLink to="/catalog" class="text-link catalog-link"
-            >Выбрать новостройку в Калининграде ↗</NuxtLink>
-        </div>
-      </section>
-    </UnfoldSection>
-
     <section class="shell section purchase-section" aria-labelledby="purchase-title">
       <div v-reveal class="section-heading">
         <div>
-          <p class="eyebrow">03 / ИПОТЕКА С НАМИ</p>
+          <p class="eyebrow">02 / ИПОТЕКА С НАМИ</p>
           <h2 id="purchase-title" class="type-pair">
             <span class="type-upright">Ипотека проще</span
             ><em class="type-script">вместе с нами</em>
@@ -240,8 +216,21 @@ const questions = [
           </p>
         </div>
       </div>
+      <p class="purchase-disclaimer">
+        Ипотечные кредиты предоставляются банками-партнёрами. Мы помогаем с подбором
+        квартиры и ипотечной программы, но не выступаем кредиторами.
+        Решение о выдаче кредита и его условия определяет банк.
+      </p>
       <NuxtLink to="/ipoteka#contact" class="text-link purchase-link">Подобрать условия ипотеки ↗</NuxtLink>
     </section>
+
+    <UnfoldSection class="mortgage-unfold">
+      <section class="shell section calculator-section" aria-label="Расчёт ипотеки">
+        <MortgageCalculator :price="null" />
+        <NuxtLink to="/catalog" class="text-link catalog-link"
+          >Выбрать новостройку в Калининграде ↗</NuxtLink>
+      </section>
+    </UnfoldSection>
 
     <section
       class="shell section questions-section"
@@ -368,39 +357,53 @@ const questions = [
   width: fit-content;
   margin-top: 28px;
 }
-.mortgage-unfold {
+.mortgage-page .mortgage-unfold {
   clip-path: inset(0);
+  background: transparent;
 }
-.calculator-section {
-  position: relative;
-  isolation: isolate;
-  clip-path: inset(0);
-  background: #102f50;
-  color: #f2f6fb;
-}
-.calculator-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
+.mortgage-unfold :deep(.unfold-content) {
   background:
     linear-gradient(90deg, #0d1c30c4, #12294680),
     url("/images/mortgage-planning.webp") center / cover;
 }
-.mortgage-page .calculator-section .section-heading .eyebrow,
-.calculator-section .section-aside {
-  color: #dfe8f3;
+.calculator-section .catalog-link {
+  color: #f2f6fb;
+  border-color: #ffffff70;
 }
-.calculator-section .type-pair {
-  --script-color: #ccd6e3;
+.mortgage-page .calculator-section {
+  max-width: 1040px;
+  padding-block: 32px;
 }
 .calculator-section :deep(.mortgage) {
-  color: #18355a;
   background: #f5f8fcf0;
-  margin: 32px 0;
+  margin: 0;
+  padding: clamp(20px, 2.5vw, 28px);
 }
-.calculator-section .catalog-link {
-  border-color: #ffffff70;
+.calculator-section :deep(.mortgage-grid) {
+  margin-top: 20px;
+}
+.calculator-section :deep(.mortgage-fields) {
+  gap: 16px;
+}
+.calculator-section :deep(.mortgage-result) {
+  padding: 20px;
+}
+.calculator-section :deep(.mortgage dl > div) {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 2px 16px;
+  margin-top: 10px;
+}
+.calculator-section :deep(.mortgage dd) {
+  margin-left: auto;
+  text-align: right;
+}
+@media (min-width: 801px) {
+  .calculator-section :deep(.mortgage-grid) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
 }
 .purchase-banks {
   flex: 0 1 560px;
@@ -457,15 +460,24 @@ const questions = [
   font-size: 12px;
   line-height: 1.4;
 }
+.purchase-disclaimer {
+  margin: 28px 0 0;
+  color: #486285;
+  font-size: 14px;
+  line-height: 1.9;
+}
 .purchase-link {
   width: fit-content;
   margin-top: 32px;
 }
 .questions-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-  gap: clamp(32px, 6vw, 88px);
-  align-items: start;
+  --questions-gap: clamp(32px, 6vw, 88px);
+  display: flow-root;
+}
+.questions-intro {
+  float: left;
+  width: calc((100% - var(--questions-gap)) * 0.4);
+  margin: 0 var(--questions-gap) 28px 0;
 }
 .questions-intro .section-heading {
   margin-bottom: 24px;
@@ -481,6 +493,7 @@ const questions = [
   margin-top: 28px;
 }
 .questions-section details {
+  display: flow-root;
   margin-bottom: 12px;
   border: 1px solid #bbc8da;
   border-radius: 12px;
@@ -577,10 +590,13 @@ const questions = [
 .mortgage-page .contact-story h2 em {
   color: #ccd6e3;
   text-decoration: none;
+  overflow-wrap: anywhere;
 }
 @media (max-width: 800px) {
-  .questions-layout {
-    grid-template-columns: 1fr;
+  .questions-intro {
+    float: none;
+    width: auto;
+    margin: 0 0 32px;
   }
   .mortgage-page .steps {
     grid-template-columns: 1fr;
