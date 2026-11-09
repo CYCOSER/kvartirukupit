@@ -361,7 +361,7 @@ onBeforeUnmount(() => {
         <p v-if="!items.length" class="catalog-map-empty">Попробуйте изменить фильтры.</p>
         <PropertyPanels class="catalog-map-panels">
           <article v-for="item in visibleItems" :key="item.id" class="catalog-map-item" :class="{ 'is-selected': item.id === selectedId }" data-testid="catalog-map-item" :data-property-id="item.id" :data-selected="item.id === selectedId" :data-expanded="item.id === expandedId" @transitionend="$event.propertyName === 'min-height' && scrollExpandedIntoView()">
-            <PropertyCard :property="item" :show-arrow="false" :disclosure="{ expanded: item.id === expandedId, id: 'catalog-map-panel-' + item.id }" class="catalog-panel" @toggle="selectItem(item.id)">
+            <PropertyCard :property="item" :show-arrow="false" :disclosure="{ expanded: item.id === expandedId, id: 'catalog-map-panel-' + item.id }" class="catalog-panel" :class="{ 'catalog-panel-plan': item.images[0]?.kind === 'plan' }" @toggle="selectItem(item.id)">
               <template #details><p v-if="!hasCoordinates(item)" class="catalog-map-unlocated">Местоположение уточняется</p></template>
             </PropertyCard>
           </article>
@@ -419,6 +419,53 @@ onBeforeUnmount(() => {
   -webkit-mask-image: linear-gradient(to right, #000 56%, transparent calc(100% - 24px));
   mask-image: linear-gradient(to right, #000 56%, transparent calc(100% - 24px));
 }
+.catalog-map-results .catalog-map-panels :deep(.property-card.catalog-panel-plan) {
+  grid-template-columns: minmax(0, 1fr) 112px;
+  grid-template-rows: auto;
+  border-bottom: 1px solid #ffffff1f;
+}
+.catalog-map-results .catalog-map-panels :deep(.catalog-panel-plan .card-image-link) {
+  grid-area: 1 / 2;
+  align-self: center;
+  width: 88px;
+  height: 88px;
+  min-height: 0;
+  margin: 12px;
+  background: #fff;
+}
+.catalog-map-results .catalog-map-panels :deep(.catalog-panel-plan .card-image-link img) {
+  object-fit: contain;
+  padding: 8px;
+  transform: none;
+}
+.catalog-map-results .catalog-map-panels :deep(.catalog-panel-plan .card-photo-focus),
+.catalog-map-results .catalog-map-panels :deep(.catalog-panel-plan .card-image-link)::after,
+.catalog-map-results .catalog-map-panels :deep(.catalog-panel-plan .card-body)::before { display: none; }
+.catalog-map-results .catalog-map-panels :deep(.catalog-panel-plan .card-body) {
+  grid-area: 1 / 1;
+  min-width: 0;
+  align-self: center;
+  padding: 16px;
+}
+.catalog-map-results .catalog-map-panels :deep(.catalog-panel-plan:not(.is-expanded) .card-body h3),
+.catalog-map-results .catalog-map-panels :deep(.catalog-panel-plan:not(.is-expanded) .card-price strong) { font-size: 18px; }
+.catalog-map-results .catalog-map-panels :deep(.catalog-panel-plan:not(.is-expanded) .card-price > span) { display: none; }
+.catalog-map-item.is-selected :deep(.property-card.catalog-panel-plan) { background: #173a60; }
+.catalog-map-results .catalog-map-panels :deep(.property-card.catalog-panel-plan.is-expanded) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(260px, 1fr) auto;
+}
+.catalog-map-results .catalog-map-panels :deep(.catalog-panel-plan.is-expanded .card-image-link) {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  min-height: 260px;
+  margin: 0;
+}
+.catalog-map-results .catalog-map-panels :deep(.catalog-panel-plan.is-expanded .card-image-link img) { padding: 60px 16px 16px; }
+.catalog-map-results .catalog-map-panels :deep(.catalog-panel-plan .card-type) { top: 12px; left: 12px; }
+.catalog-map-results .catalog-map-panels :deep(.catalog-panel-plan .card-status) { top: 12px; left: auto; right: 12px; }
+.catalog-map-results .catalog-map-panels :deep(.catalog-panel-plan.is-expanded .card-body) { grid-area: 2 / 1; padding: 20px; }
 .catalog-map-unlocated { margin: 12px 0 0; color: #d0dded; font-size: 11px; }
 .catalog-map-empty { padding: 20px; color: #d0dded; font-size: 13px; line-height: 1.6; }
 .catalog-map-canvas :deep(.leaflet-control-attribution) { padding: 1px 4px; font-size: 9px; color: #425d70; }
