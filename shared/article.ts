@@ -55,8 +55,10 @@ export const articleSchema = z.object({
     .max(150),
   excerpt: z.string().trim().min(10).max(400),
   content: z.string().trim().min(30).max(18000),
+  imageAlt: z.string().trim().max(250).default(''),
   seoTitle: z.string().trim().max(150).default(''),
   seoDescription: z.string().trim().max(300).default(''),
+  seoKeywords: z.string().trim().max(1000).default(''),
   published: z.boolean().default(false),
   publishedAt: z.string().datetime({ offset: true }).nullable().optional(),
 });

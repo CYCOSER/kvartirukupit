@@ -4,15 +4,17 @@ test("articles: authenticated editor, draft, SEO, publish, unpublish and delete"
   page,
   request,
 }) => {
-  const env = Object.fromEntries(
+  const env = { ...Object.fromEntries(
     (await readFile(".env", "utf8"))
       .split(/\r?\n/)
       .filter((l) => l.includes("="))
       .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
-  );
+  ), ...process.env };
   expect((await request.get("/api/admin/articles")).status()).toBe(401);
   const slug = "qa-article-" + Date.now();
   const title = "Проверочная статья " + Date.now();
+  const imageAlt = "Балтийские дюны рядом с Калининградом";
+  const seoKeywords = "новостройки Калининграда, покупка квартиры, Балтийское море";
   let id = "";
   await page.goto("/admin-console-9Xk6uiIs/login");
   await page.getByLabel("Email", { exact: true }).fill(env.ADMIN_EMAIL!);
@@ -35,8 +37,10 @@ test("articles: authenticated editor, draft, SEO, publish, unpublish and delete"
     await page
       .getByLabel("Обложка статьи")
       .setInputFiles("public/images/journal-dunes.webp");
+    await page.getByLabel("SEO-название фото", { exact: true }).fill(imageAlt);
     await page.getByText("SEO-настройки", { exact: true }).click();
     await page.getByLabel("SEO-заголовок").fill("Проверочный SEO заголовок");
+    await page.getByLabel("Ключевые слова страницы", { exact: true }).fill(seoKeywords);
     const seoDescription = page.getByLabel("SEO-описание", { exact: true });
     const initialHeight = (await seoDescription.boundingBox())!.height;
     await seoDescription.fill(Array(12).fill("Описание статьи").join("\n"));
@@ -48,12 +52,14 @@ test("articles: authenticated editor, draft, SEO, publish, unpublish and delete"
       "Выбор квартиры",
     );
     await expect(page.locator(".article-preview > img")).toBeVisible();
+    await expect(page.locator(".article-preview > img")).toHaveAttribute("alt", imageAlt);
     await page.getByRole("button", { name: "Сохранить статью" }).click();
     await expect(page.getByRole("status")).toHaveText("Статья сохранена.");
     const items = await (await page.request.get("/api/admin/articles")).json();
     const created = items.find((a: any) => a.slug === slug);
     id = created.id;
     expect(created.image).toMatch(/^\/uploads\/.+\.webp$/);
+    expect(created).toMatchObject({ imageAlt, seoKeywords });
     expect((await request.get("/api/articles/" + slug)).status()).toBe(404);
     expect(await (await request.get("/sitemap.xml")).text()).not.toContain(
       "/blog/" + slug,
@@ -63,14 +69,28 @@ test("articles: authenticated editor, draft, SEO, publish, unpublish and delete"
       .filter({ hasText: title })
       .getByRole("button", { name: "Редактировать" })
       .click();
+    await expect(page.getByLabel("SEO-название фото", { exact: true })).toHaveValue(imageAlt);
+    await page.getByText("SEO-настройки", { exact: true }).click();
+    await expect(page.getByLabel("Ключевые слова страницы", { exact: true })).toHaveValue(seoKeywords);
     await page.getByLabel("Опубликовать статью").check();
     await page.getByRole("button", { name: "Сохранить статью" }).click();
     await expect(page.getByRole("status")).toHaveText("Статья сохранена.");
     await page.goto("/blog/" + slug);
     await expect(page).toHaveTitle(/Проверочный SEO заголовок/);
     await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", "Проверочное описание статьи.");
+    await expect(page.locator('meta[name="keywords"]')).toHaveAttribute("content", seoKeywords);
+    await expect(page.locator('meta[property="og:image:alt"]')).toHaveAttribute("content", imageAlt);
+    const rendered = await (await request.get("/blog/" + slug)).text();
+    expect(rendered).toContain('name="keywords"');
+    expect(rendered).toContain(seoKeywords);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(title);
     await expect(page.locator(".article-page .scene-photo")).toBeVisible();
+    await expect(page.locator(".article-page .scene-photo")).toHaveAttribute("alt", imageAlt);
+    const photo = page.locator(".article-photo");
+    await expect(photo).toBeVisible();
+    await expect(photo).toHaveAttribute("alt", imageAlt);
+    await expect(photo).toHaveAttribute("title", imageAlt);
+    await expect.poll(() => photo.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
     await expect(page.locator(".article-body li")).toHaveCount(2);
     expect(
       await page.locator('script[type="application/ld+json"]').textContent(),
@@ -82,6 +102,9 @@ test("articles: authenticated editor, draft, SEO, publish, unpublish and delete"
       await page.setViewportSize({ width, height: 1000 });
       for (const path of ["/blog", "/blog/" + slug]) {
         await page.goto(path);
+        if (path === "/blog") {
+          await expect(page.locator(`a[href="/blog/${slug}"] img`)).toHaveAttribute("alt", imageAlt);
+        }
         expect(
           await page.evaluate(
             () => document.documentElement.scrollWidth <= innerWidth,
@@ -96,6 +119,17 @@ test("articles: authenticated editor, draft, SEO, publish, unpublish and delete"
       .getByRole("button", { name: "Редактировать" })
       .click();
     await page.getByRole("button", { name: "Удалить обложку" }).click();
+    await page.getByLabel("SEO-название фото", { exact: true }).fill("");
+    await page.getByText("SEO-настройки", { exact: true }).click();
+    await page.getByLabel("Ключевые слова страницы", { exact: true }).fill("");
+    await page.getByRole("button", { name: "Сохранить статью" }).click();
+    await expect(page.getByRole("status")).toHaveText("Статья сохранена.");
+    await page.goto("/blog/" + slug);
+    await expect(page.locator(".article-photo")).toHaveCount(0);
+    await expect(page.locator('meta[name="keywords"]')).toHaveCount(0);
+    await expect(page.locator(".scene-photo")).toHaveAttribute("src", "/images/backgrounds/article-fallback.webp");
+    await page.goto("/admin-console-9Xk6uiIs/articles");
+    await page.getByRole("row").filter({ hasText: title }).getByRole("button", { name: "Редактировать" }).click();
     await page.getByLabel("Опубликовать статью").uncheck();
     await page.getByRole("button", { name: "Сохранить статью" }).click();
     await expect(page.getByRole("status")).toHaveText("Статья сохранена.");
@@ -111,7 +145,7 @@ test("articles: authenticated editor, draft, SEO, publish, unpublish and delete"
   } finally {
     if (id)
       await page.request.delete("/api/admin/articles/" + id, {
-        headers: { Origin: "http://localhost:3100" },
+        headers: { Origin: new URL(page.url()).origin },
       });
   }
 });

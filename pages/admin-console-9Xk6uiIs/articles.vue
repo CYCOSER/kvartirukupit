@@ -36,8 +36,10 @@ const empty = (): ArticleForm => ({
   slug: "",
   excerpt: "",
   content: "",
+  imageAlt: "",
   seoTitle: "",
   seoDescription: "",
+  seoKeywords: "",
   published: false,
   publishedAt: "",
 });
@@ -52,6 +54,7 @@ watch(
 const excerptField = useAutoResizeTextarea(() => form.excerpt);
 const contentField = useAutoResizeTextarea(() => form.content);
 const seoDescriptionField = useAutoResizeTextarea(() => form.seoDescription);
+const seoKeywordsField = useAutoResizeTextarea(() => form.seoKeywords);
 function clearPreview() {
   if (imagePreview.value) URL.revokeObjectURL(imagePreview.value);
   imagePreview.value = "";
@@ -245,14 +248,21 @@ async function remove(article: Article) {
               (currentImage ? "Обложка загружена" : "Файл не выбран")
             }}</span></label
           >
-          <p class="article-image-hint">JPEG, PNG или WebP · до 10 МБ.</p>
+          <p class="article-image-hint">JPEG, PNG или WebP · до 10 МБ. Фото появится в обложке и на странице статьи.</p>
+          <label
+            >SEO-название фото<input
+              v-model="form.imageAlt"
+              maxlength="250"
+              placeholder="Кратко опишите, что изображено на фото"
+          /></label>
           <div
             v-if="imagePreview || currentImage"
             class="article-image-preview"
           >
             <img
               :src="imagePreview || currentImage"
-              :alt="form.title || 'Обложка статьи'"
+              :alt="form.imageAlt || form.title || 'Обложка статьи'"
+              :title="form.imageAlt || undefined"
             /><button type="button" class="btn-secondary" @click="clearImage">
               Удалить обложку
             </button>
@@ -274,6 +284,16 @@ async function remove(article: Article) {
               rows="3"
               placeholder="По умолчанию — краткий анонс"
             />
+          </label>
+          <label
+            >Ключевые слова страницы<textarea
+              ref="seoKeywordsField"
+              v-model="form.seoKeywords"
+              class="auto-resize"
+              maxlength="1000"
+              rows="2"
+              placeholder="Например: новостройки Калининграда, покупка квартиры"
+            /><small>Перечислите слова и фразы через запятую.</small>
           </label>
         </details>
         <label class="article-publish"
@@ -317,7 +337,8 @@ async function remove(article: Article) {
         <img
           v-if="imagePreview || currentImage"
           :src="imagePreview || currentImage"
-          :alt="form.title || 'Обложка статьи'"
+          :alt="form.imageAlt || form.title || 'Обложка статьи'"
+          :title="form.imageAlt || undefined"
         />
         <h2>{{ form.title || "Заголовок статьи" }}</h2>
         <p>{{ form.excerpt }}</p>

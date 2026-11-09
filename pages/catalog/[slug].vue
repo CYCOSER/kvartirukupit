@@ -216,7 +216,7 @@ useHead({
         <div>
           <p class="eyebrow">01 / ФОТОГРАФИИ</p>
           <h2 id="detail-gallery-title" class="type-pair">
-            <span class="type-upright">Увидеть комплекс</span>
+            <span class="type-upright">{{ p.type === 'apartment' ? 'Увидеть квартиру' : 'Увидеть комплекс' }}</span>
             <em class="type-script">В деталях</em>
           </h2>
         </div>

@@ -51,7 +51,8 @@ const { data, error } = await useFetch<Article[]>("/api/articles");
           ><img
             v-if="article.image"
             :src="article.image"
-            :alt="'Иллюстрация к статье «' + article.title + '»'"
+            :alt="article.imageAlt || 'Иллюстрация к статье «' + article.title + '»'"
+            :title="article.imageAlt || undefined"
             class="blog-card-image"
             width="720"
             height="480"

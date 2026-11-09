@@ -3,6 +3,8 @@ import type { ArticleInput } from "../shared/article";
 export const apartmentArticles: ArticleInput[] = [
   {
     slug: "kak-vybrat-novostroyku-v-kaliningrade",
+    imageAlt: "",
+    seoKeywords: "",
     title: "Как выбрать новостройку в Калининграде: от списка ЖК до просмотра",
     excerpt:
       "Сравниваем район, документы, планировку и полный бюджет покупки. Список вопросов, который поможет подготовиться к разговору с застройщиком.",
@@ -53,6 +55,8 @@ export const apartmentArticles: ArticleInput[] = [
   },
   {
     slug: "proverka-zhk-i-zastroyschika-domrf",
+    imageAlt: "",
+    seoKeywords: "",
     title: "Как проверить ЖК и застройщика в ДОМ.РФ",
     excerpt:
       "Находим правильный корпус, изучаем проектную декларацию и сравниваем сроки. Как читать сведения источника и замечать недостающие данные.",
@@ -106,6 +110,8 @@ export const apartmentArticles: ArticleInput[] = [
   },
   {
     slug: "ddu-i-eskrou-chto-proverit",
+    imageAlt: "",
+    seoKeywords: "",
     title: "ДДУ и счёт эскроу: что проверить до покупки квартиры",
     excerpt:
       "Предмет договора, сроки передачи, отделка, цена и порядок оплаты. Основные вопросы, которые стоит обсудить с застройщиком до подписания договора.",
@@ -166,6 +172,8 @@ export const apartmentArticles: ArticleInput[] = [
   },
   {
     slug: "kak-vybrat-rayon-kaliningrada",
+    imageAlt: "",
+    seoKeywords: "",
     title: "Как выбрать район Калининграда для жизни в новостройке",
     excerpt:
       "Проверяем ежедневные маршруты, инфраструктуру и окружение конкретного дома. Почему поездка к ЖК полезнее общего рейтинга районов.",
@@ -216,6 +224,8 @@ export const apartmentArticles: ArticleInput[] = [
   },
   {
     slug: "planirovka-i-priemka-kvartiry",
+    imageAlt: "",
+    seoKeywords: "",
     title: "Планировка и приёмка квартиры: вопросы до покупки и перед получением ключей",
     excerpt:
       "Что оценить на плане квартиры и какие документы сохранить для приёмки. Практический список от расстановки мебели до фиксации замечаний.",

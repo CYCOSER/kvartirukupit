@@ -14,6 +14,12 @@ usePageSeo(
   article.value.seoDescription || article.value.excerpt,
   article.value.image,
 );
+const imageAlt = article.value.imageAlt || 'Иллюстрация к статье «' + article.value.title + '»';
+useSeoMeta({
+  keywords: article.value.seoKeywords || undefined,
+  ogImageAlt: article.value.image ? imageAlt : undefined,
+  twitterImageAlt: article.value.image ? imageAlt : undefined,
+});
 const config = useRuntimeConfig();
 useHead({
   script: [
@@ -42,7 +48,7 @@ useHead({
       :image="article.image || '/images/backgrounds/article-fallback.webp'"
       :alt="
         article.image
-          ? 'Иллюстрация к статье «' + article.title + '»'
+          ? imageAlt
           : 'Блокнот и чашка на столе у окна — атмосферная иллюстрация'
       "
     >
@@ -68,6 +74,14 @@ useHead({
         <p>Вопросы о покупке.<br />Ответы по делу.</p>
       </aside>
       <div class="article-copy">
+        <img
+          v-if="article.image"
+          class="article-photo"
+          :src="article.image"
+          :alt="imageAlt"
+          :title="article.imageAlt || undefined"
+          loading="lazy"
+        />
         <ArticleBody :content="article.content" />
         <div class="article-end">
           <NuxtLink to="/blog" class="text-link">← Все статьи</NuxtLink>
@@ -99,6 +113,12 @@ useHead({
 .article-copy {
   min-width: 0;
   max-width: 760px;
+}
+.article-photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-bottom: 32px;
 }
 .article-copy :deep(.article-body > :first-child) {
   margin-top: 0;

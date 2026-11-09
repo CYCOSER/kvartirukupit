@@ -11,6 +11,7 @@ export default defineEventHandler(() =>
       title: true,
       excerpt: true,
       image: true,
+      imageAlt: true,
       publishedAt: true,
     },
   }),

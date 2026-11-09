@@ -58,3 +58,29 @@ test("article schema accepts scheduled publication timestamps", () => {
     false,
   );
 });
+
+test("article image SEO and keywords support old articles, trimming and bounded text", () => {
+  const article = {
+    title: "Тестовая статья",
+    slug: "testovaya-statya",
+    excerpt: "Краткий анонс статьи.",
+    content: "Достаточно длинный текст тестовой статьи для проверки схемы.",
+  };
+  const legacy = articleSchema.parse(article);
+  assert.equal(legacy.imageAlt, "");
+  assert.equal(legacy.seoKeywords, "");
+
+  const result = articleSchema.parse({
+    ...article,
+    imageAlt: "  Жилой квартал у моря  ",
+    seoKeywords: "  новостройки, Калининград, квартира у моря  ",
+  });
+  assert.equal(result.imageAlt, "Жилой квартал у моря");
+  assert.equal(result.seoKeywords, "новостройки, Калининград, квартира у моря");
+
+  for (const [field, limit] of [["imageAlt", 250], ["seoKeywords", 1000]] as const) {
+    assert.equal(articleSchema.safeParse({ ...article, [field]: "А".repeat(limit) }).success, true);
+    assert.equal(articleSchema.safeParse({ ...article, [field]: "А".repeat(limit + 1) }).success, false);
+    assert.equal(articleSchema.safeParse({ ...article, [field]: ["текст"] }).success, false);
+  }
+});

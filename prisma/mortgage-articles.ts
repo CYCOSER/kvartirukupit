@@ -3,6 +3,8 @@ import type { ArticleInput } from "../shared/article";
 export const mortgageArticles: ArticleInput[] = [
   {
     slug: "semeynaya-ipoteka-kaliningrad",
+    imageAlt: "",
+    seoKeywords: "",
     title: "Семейная ипотека на новостройку в Калининграде: с чего начать",
     excerpt:
       "Как проверить право на программу, определить бюджет и подготовиться к покупке квартиры. Что уточнить в банке до бронирования новостройки.",
@@ -56,6 +58,8 @@ export const mortgageArticles: ArticleInput[] = [
   },
   {
     slug: "it-ipoteka-kaliningrad",
+    imageAlt: "",
+    seoKeywords: "",
     title: "ИТ-ипотека в Калининграде: как подготовиться к покупке квартиры",
     excerpt:
       "Что проверить у работодателя, какие вопросы задать банку и как учитывать условия сохранения льготной ставки при выборе новостройки.",
@@ -113,6 +117,8 @@ export const mortgageArticles: ArticleInput[] = [
   },
   {
     slug: "kak-sravnit-ipotechnye-programmy",
+    imageAlt: "",
+    seoKeywords: "",
     title: "Как сравнить ипотечные программы: ставка, платёж и полная стоимость",
     excerpt:
       "Почему самой низкой ставки недостаточно для выбора кредита. Сравниваем цену квартиры, первоначальный взнос, страхование и расходы по двум предложениям.",
