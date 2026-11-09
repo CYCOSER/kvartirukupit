@@ -77,12 +77,12 @@ async function submit() {
     </div>
     <p class="lead-form-intro">
       {{ tour
-        ? "Выберите формат тура. Свяжемся с вами, чтобы обсудить пожелания, маршрут и удобное время."
+        ? "Выберите тур. Свяжемся с вами, чтобы обсудить пожелания, маршрут и удобное время."
         : "Подберём квартиру в Калининграде с учётом вашего бюджета, пожеланий к планировке и району." }}
     </p>
     <label v-if="tour" :for="uid + 'tour'">
-      Формат тура
-      <AppSelect :id="uid + 'tour'" v-model="tourType" aria-label="Формат тура">
+      Выберите тур
+      <AppSelect :id="uid + 'tour'" v-model="tourType" aria-label="Выберите тур">
         <AppSelectOption v-for="type in tourTypes" :key="type" :value="type">{{ type }}</AppSelectOption>
       </AppSelect>
     </label>
