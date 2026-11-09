@@ -56,7 +56,7 @@ async function removeJob(id: string) {
 </template>
 
 <style scoped>
-.admin-jobs { position: fixed; z-index: 45; bottom: 16px; right: 16px; width: min(420px, calc(100vw - 32px)); border: 1px solid #cbd7e7; border-radius: 14px; background: #fff; box-shadow: 0 8px 30px #14283f26; color: #273d5e; font-size: 13px; line-height: 1.5; }
+.admin-jobs { margin: 16px 16px 16px auto; width: min(420px, calc(100% - 32px)); border: 1px solid #cbd7e7; border-radius: 14px; background: #fff; box-shadow: 0 8px 30px #14283f26; color: #273d5e; font-size: 13px; line-height: 1.5; }
 .jobs-toggle { display: flex; align-items: center; gap: 10px; padding: 14px 16px; width: 100%; text-align: left; font-weight: 700; cursor: pointer; }
 .jobs-toggle:focus-visible, .jobs-remove:focus-visible, summary:focus-visible { outline: 2px solid #2867c6; outline-offset: 2px; }
 .jobs-list { max-height: min(65vh, 640px); overflow-y: auto; padding: 0 14px 14px; overscroll-behavior: contain; }

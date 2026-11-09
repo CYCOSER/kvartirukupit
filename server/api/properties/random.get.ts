@@ -1,11 +1,13 @@
+import { defineEventHandler, setHeader } from 'h3';
 import { withPublicTitle } from '../../../shared/property';
+import { db } from '../../utils/db';
 import { publicComplexSelect } from '../../utils/property-relations';
 
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Cache-Control', 'no-store');
   const selected = await db.$queryRaw<{ id: string }[]>`
     SELECT id FROM "Property"
-    WHERE published = true AND status = 'available' AND elite = false
+    WHERE published = true AND featured = true AND status = 'available' AND elite = false
     ORDER BY random() LIMIT 10
   `;
   const items = await db.property.findMany({
@@ -13,6 +15,7 @@ export default defineEventHandler(async (event) => {
     where: {
       id: { in: selected.map(({ id }) => id) },
       published: true,
+      featured: true,
       elite: false,
       status: 'available',
     },

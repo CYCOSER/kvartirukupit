@@ -168,7 +168,7 @@ watch(filtered, (items) => {
   );
 });
 
-async function bulkAction(action: "publish" | "unpublish" | "delete") {
+async function bulkAction(action: "publish" | "unpublish" | "feature" | "unfeature" | "delete") {
   if (bulkBusy.value || !selectedIds.value.size) return;
   const ids = filtered.value.filter(property => selectedIds.value.has(property.id)).map(property => property.id);
   if (!ids.length) return;
@@ -197,6 +197,8 @@ async function bulkAction(action: "publish" | "unpublish" | "delete") {
     const label = {
       publish: "Опубликовано",
       unpublish: "Снято с публикации",
+      feature: "Добавлено на главную",
+      unfeature: "Снято с главной",
       delete: "Удалено",
     }[action];
     notice.value =
@@ -494,6 +496,22 @@ async function publish(p: AdminPropertyListItem) {
           @click="bulkAction('unpublish')"
         >
           Снять с публикации
+        </button>
+        <button
+          type="button"
+          class="btn-secondary"
+          :disabled="bulkBusy || !selectedIds.size"
+          @click="bulkAction('feature')"
+        >
+          На главную
+        </button>
+        <button
+          type="button"
+          class="btn-secondary"
+          :disabled="bulkBusy || !selectedIds.size"
+          @click="bulkAction('unfeature')"
+        >
+          Снять с главной
         </button>
         <button
           type="button"

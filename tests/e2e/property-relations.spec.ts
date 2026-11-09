@@ -27,7 +27,7 @@ test('apartments link to a complex, draft relations stay private and deleting a 
   };
   try {
     const complex = await create({ type: 'complex', title: `Тестовый ЖК ${suffix}`, slug: `e2e-complex-${suffix}` });
-    const apartment = await create({ title: `${base.title} ${suffix}`, published: true, complexId: complex.id });
+    const apartment = await create({ title: `${base.title} ${suffix}`, published: true, featured: true, complexId: complex.id });
     const draft = await create({ title: 'Скрытая квартира', slug: `e2e-draft-${suffix}`, complexId: complex.id });
     const apartmentUrl = '/api/admin/properties/' + apartment.id;
     const complexUrl = '/api/admin/properties/' + complex.id;
@@ -47,7 +47,7 @@ test('apartments link to a complex, draft relations stay private and deleting a 
         const result = await response.json();
         checkApartment(result.items.find((item: { id: string }) => item.id === apartment.id));
       }
-      // Random has no filter; wait for this fixture without changing other catalog entries.
+      // The homepage samples featured objects; wait without changing other catalog entries.
       let randomApartment: any;
       await expect.poll(async () => {
         const response = await request.get('/api/properties/random');

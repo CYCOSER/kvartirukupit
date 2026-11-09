@@ -44,6 +44,22 @@ test("bulk publication changes only the publication flag of selected IDs", async
   assert.equal(remove.mock.callCount(), 0);
 });
 
+test("bulk homepage actions change only the featured flag of selected IDs", async (t) => {
+  const { update, remove } = mockWrites(t, 2);
+  for (const action of ["feature", "unfeature"]) {
+    const response = await request({ action, ids: ["one", "two"] });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { count: 2 });
+    assert.deepEqual(update.mock.calls.at(-1)!.arguments, [
+      {
+        where: { id: { in: ["one", "two"] } },
+        data: { featured: action === "feature" },
+      },
+    ]);
+  }
+  assert.equal(remove.mock.callCount(), 0);
+});
+
 test("bulk deletion is restricted to selected IDs", async (t) => {
   const { update, remove } = mockWrites(t, 1);
   const response = await request({

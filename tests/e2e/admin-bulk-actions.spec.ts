@@ -47,6 +47,10 @@ async function catalog(page: Page, initial: Item[], failFirst = false) {
       const selected = items.filter((item) => body.ids.includes(item.id));
       if (body.action === "delete")
         items = items.filter((item) => !body.ids.includes(item.id));
+      else if (body.action === "feature" || body.action === "unfeature")
+        selected.forEach((item) => {
+          item.featured = body.action === "feature";
+        });
       else
         selected.forEach((item) => {
           item.published = body.action === "publish";
@@ -165,6 +169,45 @@ test("select all follows filters; publication, manual selection and confirmed de
     path: test.info().outputPath("bulk-mobile.png"),
     fullPage: true,
   });
+});
+
+test("bulk homepage actions affect selected objects and preserve publication", async ({ page }) => {
+  const requests = await catalog(page, [
+    { ...base, featured: false },
+    { ...base, id: "two", title: "Опубликованный ЖК", type: "complex", published: true, featured: false },
+    { ...base, id: "three", title: "Другой объект на главной" },
+  ]);
+  const actions = page.getByRole("group", { name: "Массовые действия" });
+  const names = page.locator(".admin-property-name");
+  const feature = actions.getByRole("button", { name: "На главную", exact: true });
+  const unfeature = actions.getByRole("button", { name: "Снять с главной", exact: true });
+  await expect(feature).toBeDisabled();
+  await expect(unfeature).toBeDisabled();
+  await page.getByRole("checkbox", { name: `Выбрать объект «${base.title}»`, exact: true }).check();
+  await page.getByRole("checkbox", { name: "Выбрать объект «Опубликованный ЖК»", exact: true }).check();
+  await feature.click();
+  await expect(page.getByRole("status").filter({ hasText: "Добавлено на главную: 2." })).toBeVisible();
+  expect(requests[0]).toEqual({ action: "feature", ids: ["one", "two"] });
+  await expect(actions).toContainText("Выбрано: 0");
+
+  async function filter(label: string, option: string) {
+    await page.getByRole("combobox", { name: label, exact: true }).click();
+    await page.getByRole("option", { name: option, exact: true }).click();
+  }
+  await filter("На главной", "Да");
+  await expect(names).toHaveCount(3);
+  await filter("Публикация объекта", "Опубликованные");
+  await expect(names).toHaveText(["Опубликованный ЖК"]);
+  await filter("Публикация объекта", "Черновики");
+  await expect(names).toHaveText([base.title, "Другой объект на главной"]);
+  await page.getByRole("checkbox", { name: `Выбрать объект «${base.title}»`, exact: true }).check();
+  await unfeature.click();
+  await expect(page.getByRole("status").filter({ hasText: "Снято с главной: 1." })).toBeVisible();
+  expect(requests[1]).toEqual({ action: "unfeature", ids: ["one"] });
+  await expect(names).toHaveText(["Другой объект на главной"]);
+  await expect(actions).toContainText("Выбрано: 0");
+  await filter("На главной", "Нет");
+  await expect(names).toHaveText([base.title]);
 });
 
 test("homepage and apartment market filters combine and limit bulk selection", async ({

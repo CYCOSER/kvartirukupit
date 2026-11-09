@@ -1,6 +1,38 @@
 import { expect, type Route } from '@playwright/test';
 import { test } from './fixtures/admin-session';
 import { jobFixture, mockImportJobs } from './fixtures/import-jobs';
+import { propertyFixture } from './fixtures/property';
+
+for (const width of [1440, 390]) test(`background jobs do not cover catalog pagination at ${width}px`, async ({ page, context }) => {
+  await page.setViewportSize({ width, height: 900 });
+  const fixture = await mockImportJobs(context);
+  fixture.jobs.push(jobFixture({ requestId: 'pagination-job', kind: 'import', source: 'rf39', items: [{ id: 1 }] }));
+  await context.route('**/api/admin/properties?*', route => route.fulfill({ json: Array.from({ length: 21 }, (_, index) =>
+    propertyFixture({ id: `pagination-${index}`, title: `Квартира ${index}`, slug: `pagination-${index}` }),
+  ) }));
+  await page.goto('/admin-console-9Xk6uiIs/leads');
+  await page.waitForFunction(() => !!(document.querySelector('#__nuxt') as any)?.__vue_app__);
+  await page.getByRole('link', { name: 'ЖК и квартиры', exact: true }).click();
+  const pagination = page.getByRole('navigation', { name: 'Страницы объектов' });
+  await expect(pagination).toContainText('из 2');
+  const panel = page.getByRole('complementary', { name: 'Фоновые задачи' });
+  const toggle = panel.getByRole('button', { name: /Фоновые задачи/ });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  for (const open of [false, true]) {
+    if (open) await toggle.click();
+    await pagination.scrollIntoViewIfNeeded();
+    const paginationBox = await pagination.boundingBox();
+    const panelBox = await panel.boundingBox();
+    expect(panelBox!.x).toBeGreaterThanOrEqual(16);
+    expect(panelBox!.y).toBeGreaterThanOrEqual(paginationBox!.y + paginationBox!.height);
+    await pagination.getByRole('button', { name: 'Далее', exact: true }).click();
+    await expect(pagination.getByRole('spinbutton', { name: 'Номер страницы' })).toHaveValue('2');
+    await pagination.getByRole('button', { name: 'Назад', exact: true }).click();
+    await expect(pagination.getByRole('spinbutton', { name: 'Номер страницы' })).toHaveValue('1');
+  }
+  await panel.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath('jobs-pagination.png') });
+});
 
 for (const source of ['rf39', 'nmarket'] as const) test(`${source} job survives reload and closing its page, with stop available after reopening`, async ({ page, context }) => {
   const fixture = await mockImportJobs(context, { create: (_request, job) => {
