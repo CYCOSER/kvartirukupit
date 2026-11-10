@@ -169,6 +169,7 @@ export type Property = PropertyInput & {
   priceSourceUrl: string | null;
   priceArea: number | null;
   images: { id: string; file: string; alt: string; order: number; kind?: "photo" | "plan" }[];
+  tagRelations?: { tag: { name: string } }[];
   complex?: Pick<Property, "id" | "title" | "slug" | "published"> | null;
   apartments?: RelatedApartment[];
 };

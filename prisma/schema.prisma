@@ -248,8 +248,21 @@ model Tag {
   id        String         @id @default(cuid())
   name      String         @unique
   relations TagRelation[]
+  tasks     TagTask[]
 
   @@map("tags")
+}
+
+model TagTask {
+  id        String   @id @default(cuid())
+  type      String
+  params    Json
+  tagId     String   @map("tag_id")
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tagId])
+  @@map("tags_task")
 }
 
 model TagRelation {

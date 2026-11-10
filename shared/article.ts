@@ -68,6 +68,7 @@ export type Article = ArticleInput & {
   image: string;
   publishedAt: string | null;
   updatedAt: string;
+  tagRelations?: { tag: { name: string } }[];
 };
 // A deliberately limited, HTML-free format: headings, lists and paragraphs.
 export function articleBlocks(content: string) {

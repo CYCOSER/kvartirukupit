@@ -10,6 +10,7 @@ import {
   type Property,
 } from "~/shared/property";
 import { loopScroll } from "~/shared/carousel";
+import { combineTagKeywords } from "~/shared/tag";
 const route = useRoute();
 const { data: p, error } = await useFetch<Property>(
   "/api/properties/" + route.params.slug,
@@ -142,6 +143,13 @@ usePageSeo(
     .join(". "),
   heroImage.value?.file,
 );
+useSeoMeta({
+  keywords:
+    combineTagKeywords(
+      "",
+      p.value.tagRelations?.map(({ tag }) => tag.name) || [],
+    ) || undefined,
+});
 useHead({
   script: [
     {

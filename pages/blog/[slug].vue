@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Article } from "~/shared/article";
+import { combineTagKeywords } from "~/shared/tag";
 const route = useRoute();
 const { data: article, error } = await useFetch<Article>(
   "/api/articles/" + route.params.slug,
@@ -16,7 +17,11 @@ usePageSeo(
 );
 const imageAlt = article.value.imageAlt || 'Иллюстрация к статье «' + article.value.title + '»';
 useSeoMeta({
-  keywords: article.value.seoKeywords || undefined,
+  keywords:
+    combineTagKeywords(
+      article.value.seoKeywords,
+      article.value.tagRelations?.map(({ tag }) => tag.name) || [],
+    ) || undefined,
   ogImageAlt: article.value.image ? imageAlt : undefined,
   twitterImageAlt: article.value.image ? imageAlt : undefined,
 });

@@ -6,6 +6,7 @@ export default defineEventHandler(async (event) => {
     omit: { rf39Baseline: true },
     include: {
       images: { orderBy: { order: 'asc' } },
+      tagRelations: { select: { tag: { select: { name: true } } } },
       complex: publicComplexSelect,
       apartments: {
         where: { published: true },

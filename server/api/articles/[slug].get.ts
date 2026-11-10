@@ -5,6 +5,9 @@ export default defineEventHandler(async (event) => {
       published: true,
       OR: [{ publishedAt: null }, { publishedAt: { lte: new Date() } }],
     },
+    include: {
+      tagRelations: { select: { tag: { select: { name: true } } } },
+    },
   });
   if (!article)
     throw createError({ statusCode: 404, statusMessage: 'Статья не найдена' });
