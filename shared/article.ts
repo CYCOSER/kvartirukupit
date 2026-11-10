@@ -84,6 +84,8 @@ export type Article = ArticleInput & {
   image: string;
   publishedAt: string | null;
   updatedAt: string;
+  viewCount?: number;
+  usefulCount?: number;
   tagRelations?: { tag: { name: string } }[];
   recommendedArticles?: ArticleRecommendation[];
   recommendedProjects?: ProjectRecommendation[];

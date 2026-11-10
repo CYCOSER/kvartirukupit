@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Eye, ThumbsUp } from "lucide-vue-next";
 import type { Article } from "~/shared/article";
 usePageSeo(
   "Новостройки Калининграда — журнал покупателя квартиры",
@@ -68,8 +69,20 @@ const { data, error } = await useFetch<Article[]>("/api/articles");
           </div>
           <h2>{{ article.title }}</h2>
           <p>{{ article.excerpt }}</p>
-          <span class="blog-card-link">Читать статью ↗</span></NuxtLink
-        >
+          <div class="blog-card-footer">
+            <span class="blog-card-link">Читать статью ↗</span>
+            <div class="blog-card-statistics" aria-label="Статистика статьи">
+              <span :aria-label="`Просмотров: ${article.viewCount ?? 0}`">
+                <Eye :size="16" aria-hidden="true" />
+                {{ article.viewCount ?? 0 }}
+              </span>
+              <span :aria-label="`Оценок «полезно»: ${article.usefulCount ?? 0}`">
+                <ThumbsUp :size="16" aria-hidden="true" />
+                {{ article.usefulCount ?? 0 }}
+              </span>
+            </div>
+          </div>
+        </NuxtLink>
       </div>
       <div v-else v-reveal="100" class="journal-empty">
         <img
@@ -168,11 +181,33 @@ const { data, error } = await useFetch<Article[]>("/api/articles");
   line-height: 1.8;
   color: #52677d;
 }
-.blog-card-link {
+.blog-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   padding-top: 28px;
   margin-top: auto;
+}
+.blog-card-link {
   font-size: 12px;
   color: #245fbd;
+}
+.blog-card-statistics {
+  display: flex;
+  align-items: center;
+  gap: 2em;
+  color: #68778d;
+  font-size: 12px;
+}
+.blog-card-statistics > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.blog-card-statistics svg {
+  color: #8292a8;
 }
 .blog-card:hover {
   translate: none;
