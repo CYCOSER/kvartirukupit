@@ -22,6 +22,14 @@ test("keywords include tags without dropping or duplicating editorial keywords",
 test("tag task validates fields by type and requires at least one contains value", () => {
   assert.equal(
     tagTaskSchema.safeParse({
+      type: "complex",
+      tag_id: "tag-1",
+      params: [{ param: "sourceId", value_contain: "feed-123" }],
+    }).success,
+    true,
+  );
+  assert.equal(
+    tagTaskSchema.safeParse({
       type: "apartment",
       tag_id: "tag-1",
       params: [
@@ -36,6 +44,14 @@ test("tag task validates fields by type and requires at least one contains value
       type: "apartment",
       tag_id: "tag-1",
       params: [{ param: "title", value_contain: "ЖК" }],
+    }).success,
+    false,
+  );
+  assert.equal(
+    tagTaskSchema.safeParse({
+      type: "article",
+      tag_id: "tag-1",
+      params: [{ param: "sourceId", value_contain: "feed-123" }],
     }).success,
     false,
   );

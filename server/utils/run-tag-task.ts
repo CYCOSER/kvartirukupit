@@ -70,6 +70,7 @@ export async function runTagTask(task: StoredTagTask) {
       location: true,
       description: true,
       developer: true,
+      sourceId: true,
       price: true,
       finish: true,
     },

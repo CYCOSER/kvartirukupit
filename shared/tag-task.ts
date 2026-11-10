@@ -15,6 +15,7 @@ export const tagTaskFields = {
     { value: "location", label: "Местоположение" },
     { value: "description", label: "Описание" },
     { value: "developer", label: "Застройщик" },
+    { value: "sourceId", label: "Источник" },
   ],
   apartment: [
     { value: "location", label: "Местоположение" },
