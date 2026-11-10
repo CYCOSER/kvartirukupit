@@ -2,6 +2,20 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { articlePublicationState } from "../server/utils/article-publication-state";
 import { articleSchema, articleSlugFromTitle } from "../shared/article";
+import { randomArticleRecommendations } from "../shared/article-recommendations";
+
+test("article recommendations are shuffled and limited to three", () => {
+  const candidates = ["one", "two", "three", "four", "five"];
+  const selected = randomArticleRecommendations(candidates, 3, () => 0);
+
+  assert.equal(selected.length, 3);
+  assert.deepEqual(selected, ["two", "three", "four"]);
+  assert.deepEqual(
+    randomArticleRecommendations(candidates, 2, () => 0),
+    ["two", "three"],
+  );
+  assert.deepEqual(candidates, ["one", "two", "three", "four", "five"]);
+});
 
 test("article title slug is transliterated and normalized", () => {
   assert.equal(

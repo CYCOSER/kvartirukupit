@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Article } from "~/shared/article";
 import { combineTagKeywords } from "~/shared/tag";
+import RecommendedProjectCard from "~/components/RecommendedProjectCard.vue";
 const route = useRoute();
 const { data: article, error } = await useFetch<Article>(
   "/api/articles/" + route.params.slug,
@@ -77,6 +78,45 @@ useHead({
       <aside class="article-note">
         <p class="eyebrow">КАЛИНИНГРАД · НОВОСТРОЙКИ</p>
         <p>Вопросы о покупке.<br />Ответы по делу.</p>
+        <section
+          v-if="article.recommendedArticles?.length"
+          class="recommended-articles"
+          aria-labelledby="recommended-articles-title"
+        >
+          <h2 id="recommended-articles-title">Рекомендуемые статьи</h2>
+          <NuxtLink
+            v-for="recommended in article.recommendedArticles"
+            :key="recommended.id"
+            :to="'/blog/' + recommended.slug"
+            class="recommended-article"
+          >
+            <img
+              :src="
+                recommended.image || '/images/backgrounds/article-fallback.webp'
+              "
+              :alt="
+                recommended.image
+                  ? recommended.imageAlt ||
+                    'Иллюстрация к статье «' + recommended.title + '»'
+                  : ''
+              "
+              loading="lazy"
+            />
+            <span>{{ recommended.title }}</span>
+          </NuxtLink>
+        </section>
+        <section
+          v-if="article.recommendedProjects?.length"
+          class="recommended-projects"
+          aria-labelledby="recommended-projects-title"
+        >
+          <h2 id="recommended-projects-title">Рекомендуемые проекты</h2>
+          <RecommendedProjectCard
+            v-for="project in article.recommendedProjects"
+            :key="project.id"
+            :project="project"
+          />
+        </section>
       </aside>
       <div class="article-copy">
         <img
@@ -114,6 +154,49 @@ useHead({
   font-size: 14px;
   line-height: 1.8;
   color: #52677d;
+}
+.recommended-articles {
+  display: grid;
+  gap: 12px;
+  margin-top: 34px;
+}
+.recommended-articles h2 {
+  color: #52677d;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.recommended-article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 4fr);
+  align-items: center;
+  gap: 10px;
+  color: #354d70;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.recommended-article:hover {
+  color: #245fbd;
+}
+.recommended-article img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #edf2f8;
+}
+.recommended-projects {
+  display: grid;
+  gap: 12px;
+  margin-top: 30px;
+}
+.recommended-projects h2 {
+  color: #52677d;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
 }
 .article-copy {
   min-width: 0;

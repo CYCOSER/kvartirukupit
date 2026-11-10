@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import type {
+  ArticleRecommendation,
+  ProjectRecommendation,
+} from './article-recommendations';
 
 const russianSlugLetters: Record<string, string> = {
   а: 'a',
@@ -69,6 +73,8 @@ export type Article = ArticleInput & {
   publishedAt: string | null;
   updatedAt: string;
   tagRelations?: { tag: { name: string } }[];
+  recommendedArticles?: ArticleRecommendation[];
+  recommendedProjects?: ProjectRecommendation[];
 };
 // A deliberately limited, HTML-free format: headings, lists and paragraphs.
 export function articleBlocks(content: string) {
