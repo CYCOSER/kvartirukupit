@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { combineTagKeywords, tagSchema } from "../shared/tag";
+import {
+  combineTagKeywords,
+  manualTagRelationsSchema,
+  tagSchema,
+} from "../shared/tag";
 import { matchesTagTaskParameters, tagTaskSchema } from "../shared/tag-task";
 
 test("tag names are trimmed and limited to 100 characters", () => {
@@ -17,6 +21,41 @@ test("keywords include tags without dropping or duplicating editorial keywords",
     "Новостройки, Калининград, У моря",
   );
   assert.equal(combineTagKeywords("", ["  ", "ЖК у моря"]), "ЖК у моря");
+});
+
+test("manual tag assignment requires a tag and at least one valid target list", () => {
+  assert.equal(
+    manualTagRelationsSchema.safeParse({
+      tag_id: "tag-1",
+      property_ids: ["property-1"],
+      article_ids: [],
+    }).success,
+    true,
+  );
+  assert.equal(
+    manualTagRelationsSchema.safeParse({
+      tag_id: "tag-1",
+      property_ids: [],
+      article_ids: ["article-1"],
+    }).success,
+    true,
+  );
+  assert.equal(
+    manualTagRelationsSchema.safeParse({
+      tag_id: "tag-1",
+      property_ids: [],
+      article_ids: [],
+    }).success,
+    false,
+  );
+  assert.equal(
+    manualTagRelationsSchema.safeParse({
+      tag_id: "",
+      property_ids: ["property-1"],
+      article_ids: [],
+    }).success,
+    false,
+  );
 });
 
 test("tag task validates fields by type and requires at least one contains value", () => {

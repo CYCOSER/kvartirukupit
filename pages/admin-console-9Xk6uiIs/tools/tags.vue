@@ -6,8 +6,8 @@ import {
   DialogRoot,
   DialogTitle,
 } from "reka-ui";
-import { Tags, X } from "lucide-vue-next";
-import { tagSchema } from "~/shared/tag";
+import { ChevronLeft, ChevronRight, Tags, X } from "lucide-vue-next";
+import { manualTagRelationsSchema, tagSchema } from "~/shared/tag";
 import {
   tagTaskFields,
   tagTaskSchema,
@@ -26,6 +26,27 @@ type TagTask = {
   params: TagTaskParameter[];
   tag: Tag;
 };
+type ManualTarget = {
+  id: string;
+  title: string;
+  label: string;
+  image: string;
+  kind: "property" | "article";
+};
+type PropertyTarget = {
+  id: string;
+  title: string;
+  type: string;
+  address: string;
+  location: string;
+  images: { file: string }[];
+};
+type ArticleTarget = {
+  id: string;
+  title: string;
+  slug: string;
+  image: string;
+};
 
 const {
   data: tags,
@@ -37,6 +58,30 @@ const {
   refresh: refreshTasks,
   error: tasksError,
 } = await useFetch<TagTask[]>("/api/admin/tags-tasks");
+const tagsPage = ref(1);
+const tasksPage = ref(1);
+const tagsPerPage = 20;
+const tasksPerPage = 10;
+const paginatedTags = computed(
+  () =>
+    tags.value?.slice(
+      (tagsPage.value - 1) * tagsPerPage,
+      tagsPage.value * tagsPerPage,
+    ) || [],
+);
+const paginatedTasks = computed(
+  () =>
+    tasks.value?.slice(
+      (tasksPage.value - 1) * tasksPerPage,
+      tasksPage.value * tasksPerPage,
+    ) || [],
+);
+const tagsPageCount = computed(() =>
+  Math.max(1, Math.ceil((tags.value?.length || 0) / tagsPerPage)),
+);
+const tasksPageCount = computed(() =>
+  Math.max(1, Math.ceil((tasks.value?.length || 0) / tasksPerPage)),
+);
 const editingId = ref("");
 const name = ref("");
 const creating = ref(false);
@@ -52,9 +97,32 @@ const taskPendingId = ref("");
 const taskNotice = ref("");
 const taskPending = ref(false);
 const taskFields = computed(() => tagTaskFields[taskType.value]);
+const tagPickerPurpose = ref<"task" | "manual">("task");
 const selectedTag = computed(() =>
   tags.value?.find((tag) => tag.id === selectedTagId.value),
 );
+const manualTagId = ref("");
+const manualTag = computed(() =>
+  tags.value?.find((tag) => tag.id === manualTagId.value),
+);
+const manualPending = ref(false);
+const manualNotice = ref("");
+const targetPickerOpen = ref(false);
+const targetPickerType = ref<"property" | "article">("property");
+const targetPickerPage = ref(1);
+const targetPickerLoading = ref(false);
+const targetPickerError = ref("");
+const targetPickerItems = ref<(PropertyTarget | ArticleTarget)[]>([]);
+const targetPickerTotal = ref(0);
+const selectedTargets = ref<Record<string, ManualTarget>>({});
+const draftTargets = ref<Record<string, ManualTarget>>({});
+const targetPickerPageCount = computed(() =>
+  Math.max(1, Math.ceil(targetPickerTotal.value / 10)),
+);
+const selectedTargetCount = computed(
+  () => Object.keys(selectedTargets.value).length,
+);
+let targetPickerRequest = 0;
 
 watch(taskType, (type) => {
   taskParams.value = [
@@ -62,9 +130,164 @@ watch(taskType, (type) => {
   ];
 });
 
+watch([tagsPageCount, tasksPageCount], ([tagCount, taskCount]) => {
+  tagsPage.value = Math.min(tagsPage.value, tagCount);
+  tasksPage.value = Math.min(tasksPage.value, taskCount);
+});
+
+watch(
+  [targetPickerOpen, targetPickerType, targetPickerPage],
+  async ([open, type, page]) => {
+    if (!open) {
+      targetPickerRequest += 1;
+      targetPickerLoading.value = false;
+      return;
+    }
+    const request = ++targetPickerRequest;
+    targetPickerLoading.value = true;
+    targetPickerError.value = "";
+    try {
+      if (type === "property") {
+        const result = await $fetch<{
+          items: PropertyTarget[];
+          total: number;
+        }>("/api/admin/tag-targets/properties", { query: { page } });
+        if (request !== targetPickerRequest) return;
+        targetPickerItems.value = result.items;
+        targetPickerTotal.value = result.total;
+      } else {
+        const result = await $fetch<{
+          items: ArticleTarget[];
+          total: number;
+        }>("/api/admin/tag-targets/articles", { query: { page } });
+        if (request !== targetPickerRequest) return;
+        targetPickerItems.value = result.items;
+        targetPickerTotal.value = result.total;
+      }
+    } catch {
+      if (request === targetPickerRequest)
+        targetPickerError.value = "Не удалось загрузить список.";
+    } finally {
+      if (request === targetPickerRequest) targetPickerLoading.value = false;
+    }
+  },
+);
+
+function openTagPicker(purpose: "task" | "manual") {
+  tagPickerPurpose.value = purpose;
+  tagPickerOpen.value = true;
+}
+
 function chooseTag(tag: Tag) {
-  selectedTagId.value = tag.id;
+  if (tagPickerPurpose.value === "manual") manualTagId.value = tag.id;
+  else selectedTagId.value = tag.id;
   tagPickerOpen.value = false;
+}
+
+function targetToSelection(
+  target: PropertyTarget | ArticleTarget,
+): ManualTarget {
+  if ("images" in target) {
+    return {
+      id: target.id,
+      title: target.title,
+      label: `${target.type === "apartment" ? "Квартира" : "ЖК"} · ${target.address || target.location || target.title}`,
+      image: target.images[0]?.file || "",
+      kind: "property",
+    };
+  }
+  return {
+    id: target.id,
+    title: target.title,
+    label: `Статья · ${target.title}`,
+    image: target.image,
+    kind: "article",
+  };
+}
+
+function targetSelectionKey(target: PropertyTarget | ArticleTarget) {
+  return `${"images" in target ? "property" : "article"}:${target.id}`;
+}
+
+function targetImage(target: PropertyTarget | ArticleTarget) {
+  return "images" in target ? target.images[0]?.file || "" : target.image;
+}
+
+function targetTypeLabel(target: PropertyTarget | ArticleTarget) {
+  if (!("type" in target)) return "Статья";
+  return target.type === "apartment" ? "Квартира" : "ЖК";
+}
+
+function targetAddress(target: PropertyTarget | ArticleTarget) {
+  if (!("address" in target)) return target.title;
+  return target.address || target.location || target.title;
+}
+
+function openTargetPicker() {
+  draftTargets.value = { ...selectedTargets.value };
+  targetPickerType.value = "property";
+  targetPickerPage.value = 1;
+  targetPickerError.value = "";
+  targetPickerOpen.value = true;
+}
+
+function toggleTarget(target: PropertyTarget | ArticleTarget, event: Event) {
+  const checkbox = event.target as HTMLInputElement;
+  const next = { ...draftTargets.value };
+  const key = targetSelectionKey(target);
+  if (checkbox.checked) next[key] = targetToSelection(target);
+  else delete next[key];
+  draftTargets.value = next;
+}
+
+function confirmTargetSelection() {
+  selectedTargets.value = { ...draftTargets.value };
+  targetPickerOpen.value = false;
+}
+
+function targetSelectionSummary() {
+  const selections = Object.values(selectedTargets.value);
+  if (!selections.length) return "";
+  const labels = selections.slice(0, 3).map((target) => target.label);
+  const remaining = selections.length - labels.length;
+  return labels.join("; ") + (remaining ? `; + ещё ${remaining}` : "");
+}
+
+async function saveManualAssignments() {
+  const propertyIds = Object.values(selectedTargets.value)
+    .filter((target) => target.kind === "property")
+    .map((target) => target.id);
+  const articleIds = Object.values(selectedTargets.value)
+    .filter((target) => target.kind === "article")
+    .map((target) => target.id);
+  const parsed = manualTagRelationsSchema.safeParse({
+    tag_id: manualTagId.value,
+    property_ids: propertyIds,
+    article_ids: articleIds,
+  });
+  if (!parsed.success) {
+    manualNotice.value = "Выберите тэг и хотя бы один объект или статью.";
+    return;
+  }
+
+  manualPending.value = true;
+  manualNotice.value = "";
+  try {
+    const result = await $fetch<{
+      propertyRelationsCreated: number;
+      articleRelationsCreated: number;
+    }>("/api/admin/tags/relations", {
+      method: "POST",
+      body: parsed.data,
+    });
+    manualNotice.value = `Назначено связей: ${result.propertyRelationsCreated + result.articleRelationsCreated}.`;
+    manualTagId.value = "";
+    selectedTargets.value = {};
+  } catch {
+    manualNotice.value = "Не удалось назначить тэг.";
+  } finally {
+    manualPending.value = false;
+  }
 }
 
 function addTaskParameter() {
@@ -146,6 +369,7 @@ async function remove(tag: Tag) {
     await $fetch(`/api/admin/tags/${tag.id}`, { method: "DELETE" });
     await Promise.all([refreshTags(), refreshTasks()]);
     if (selectedTagId.value === tag.id) selectedTagId.value = "";
+    if (manualTagId.value === tag.id) manualTagId.value = "";
     if (editingId.value === tag.id) cancelEdit();
     notice.value = "Тег удалён.";
   } catch {
@@ -174,6 +398,7 @@ async function saveTask() {
       body: parsed.data,
     });
     await refreshTasks();
+    tasksPage.value = 1;
     selectedTagId.value = "";
     taskType.value = "complex";
     taskParams.value = [{ param: "title", value_contain: "" }];
@@ -236,7 +461,7 @@ async function removeTask(task: TagTask) {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="tag in tags" :key="tag.id">
+              <tr v-for="tag in paginatedTags" :key="tag.id">
                 <td class="admin-tag-id">{{ tag.id }}</td>
                 <td>
                   <input
@@ -293,6 +518,31 @@ async function removeTask(task: TagTask) {
             </tbody>
           </table>
         </div>
+        <nav
+          v-if="tagsPageCount > 1"
+          class="admin-tag-pagination"
+          aria-label="Страницы справочника тэгов"
+        >
+          <button
+            type="button"
+            class="btn-secondary"
+            :disabled="tagsPage <= 1"
+            aria-label="Предыдущая страница тэгов"
+            @click="tagsPage--"
+          >
+            <ChevronLeft :size="16" aria-hidden="true" />
+          </button>
+          <span>Страница {{ tagsPage }} из {{ tagsPageCount }}</span>
+          <button
+            type="button"
+            class="btn-secondary"
+            :disabled="tagsPage >= tagsPageCount"
+            aria-label="Следующая страница тэгов"
+            @click="tagsPage++"
+          >
+            <ChevronRight :size="16" aria-hidden="true" />
+          </button>
+        </nav>
 
         <form v-if="creating" class="admin-tag-create" @submit.prevent="save">
           <label>
@@ -332,13 +582,80 @@ async function removeTask(task: TagTask) {
         class="admin-tags-panel admin-tag-tasks-panel"
         aria-labelledby="tag-tasks-title"
       >
+        <form
+          class="admin-tag-manual-form"
+          @submit.prevent="saveManualAssignments"
+        >
+          <h2>Ручное назначение тэгов</h2>
+          <p v-if="manualNotice" class="toast" role="status">
+            {{ manualNotice }}
+          </p>
+          <label class="admin-tag-task-label">
+            Тэг
+            <span class="admin-tag-picker-field">
+              <input
+                :value="manualTag?.name || ''"
+                type="text"
+                readonly
+                required
+                placeholder="Выберите тэг"
+                aria-label="Тэг для ручного назначения"
+              />
+              <button
+                type="button"
+                class="admin-tag-picker-button"
+                aria-label="Открыть список тэгов для ручного назначения"
+                :disabled="manualPending"
+                @click="openTagPicker('manual')"
+              >
+                <Tags :size="18" aria-hidden="true" />
+              </button>
+            </span>
+          </label>
+          <label class="admin-tag-task-label">
+            Объекты и статьи
+            <span class="admin-tag-picker-field">
+              <input
+                :value="targetSelectionSummary()"
+                type="text"
+                readonly
+                placeholder="Ничего не выбрано"
+                aria-label="Выбранные объекты и статьи"
+              />
+              <button
+                type="button"
+                class="admin-tag-picker-button"
+                aria-label="Выбрать объекты и статьи"
+                :disabled="manualPending"
+                @click="openTargetPicker"
+              >
+                <Tags :size="18" aria-hidden="true" />
+              </button>
+            </span>
+            <small v-if="selectedTargetCount">
+              Выбрано: {{ selectedTargetCount }}
+            </small>
+          </label>
+          <button
+            class="btn-primary admin-tag-task-submit"
+            type="submit"
+            :disabled="manualPending || !manualTag || !selectedTargetCount"
+          >
+            {{ manualPending ? "Применяем…" : "Применить" }}
+          </button>
+        </form>
+
         <h2 id="tag-tasks-title">Задания назначения тэгов</h2>
         <p v-if="taskNotice" class="toast" role="status">{{ taskNotice }}</p>
         <p v-if="tasksError" class="error-text">
           Не удалось загрузить задания.
         </p>
         <div v-else class="admin-tag-task-list">
-          <article v-for="task in tasks" :key="task.id" class="admin-tag-task">
+          <article
+            v-for="task in paginatedTasks"
+            :key="task.id"
+            class="admin-tag-task"
+          >
             <div class="admin-tag-task-heading">
               <strong>{{ task.tag.name }}</strong>
               <span>{{ tagTaskTypeLabels[task.type] }}</span>
@@ -371,6 +688,31 @@ async function removeTask(task: TagTask) {
             Заданий пока нет.
           </p>
         </div>
+        <nav
+          v-if="tasksPageCount > 1"
+          class="admin-tag-pagination"
+          aria-label="Страницы заданий назначения тэгов"
+        >
+          <button
+            type="button"
+            class="btn-secondary"
+            :disabled="tasksPage <= 1"
+            aria-label="Предыдущая страница заданий"
+            @click="tasksPage--"
+          >
+            <ChevronLeft :size="16" aria-hidden="true" />
+          </button>
+          <span>Страница {{ tasksPage }} из {{ tasksPageCount }}</span>
+          <button
+            type="button"
+            class="btn-secondary"
+            :disabled="tasksPage >= tasksPageCount"
+            aria-label="Следующая страница заданий"
+            @click="tasksPage++"
+          >
+            <ChevronRight :size="16" aria-hidden="true" />
+          </button>
+        </nav>
 
         <form class="admin-tag-task-form" @submit.prevent="saveTask">
           <h3>Создать задание</h3>
@@ -393,7 +735,7 @@ async function removeTask(task: TagTask) {
                 class="admin-tag-picker-button"
                 aria-label="Открыть список тэгов"
                 :disabled="taskPending"
-                @click="tagPickerOpen = true"
+                @click="openTagPicker('task')"
               >
                 <Tags :size="18" aria-hidden="true" />
               </button>
@@ -475,7 +817,13 @@ async function removeTask(task: TagTask) {
             <DialogOverlay class="admin-tag-picker-overlay" />
             <DialogContent class="admin-tag-picker-dialog">
               <div class="admin-tag-picker-heading">
-                <DialogTitle>Выберите тэг</DialogTitle>
+                <DialogTitle>
+                  {{
+                    tagPickerPurpose === "manual"
+                      ? "Выберите тэг для ручного назначения"
+                      : "Выберите тэг"
+                  }}
+                </DialogTitle>
                 <button
                   type="button"
                   aria-label="Закрыть список тэгов"
@@ -495,6 +843,142 @@ async function removeTask(task: TagTask) {
                   @click="chooseTag(tag)"
                 >
                   {{ tag.name }}
+                </button>
+              </div>
+            </DialogContent>
+          </DialogPortal>
+        </DialogRoot>
+
+        <DialogRoot v-model:open="targetPickerOpen">
+          <DialogPortal>
+            <DialogOverlay class="admin-tag-picker-overlay" />
+            <DialogContent class="admin-target-picker-dialog">
+              <div class="admin-tag-picker-heading">
+                <DialogTitle>Выберите объекты и статьи</DialogTitle>
+                <button
+                  type="button"
+                  aria-label="Закрыть список объектов и статей"
+                  @click="targetPickerOpen = false"
+                >
+                  <X :size="20" aria-hidden="true" />
+                </button>
+              </div>
+              <div
+                class="admin-target-picker-tabs"
+                role="group"
+                aria-label="Тип выбираемых материалов"
+              >
+                <button
+                  type="button"
+                  :aria-pressed="targetPickerType === 'property'"
+                  :class="{ 'is-active': targetPickerType === 'property' }"
+                  @click="
+                    targetPickerType = 'property';
+                    targetPickerPage = 1;
+                  "
+                >
+                  Объекты
+                </button>
+                <button
+                  type="button"
+                  :aria-pressed="targetPickerType === 'article'"
+                  :class="{ 'is-active': targetPickerType === 'article' }"
+                  @click="
+                    targetPickerType = 'article';
+                    targetPickerPage = 1;
+                  "
+                >
+                  Статьи
+                </button>
+              </div>
+              <p
+                v-if="targetPickerError"
+                class="error-text target-picker-message"
+              >
+                {{ targetPickerError }}
+              </p>
+              <p
+                v-else-if="targetPickerLoading"
+                class="admin-tag-task-empty target-picker-message"
+                role="status"
+              >
+                Загружаем…
+              </p>
+              <p
+                v-else-if="!targetPickerItems.length"
+                class="admin-tag-task-empty target-picker-message"
+              >
+                Список пуст.
+              </p>
+              <div v-else class="admin-target-picker-list">
+                <label
+                  v-for="target in targetPickerItems"
+                  :key="target.id"
+                  class="admin-target-picker-row"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="!!draftTargets[targetSelectionKey(target)]"
+                    :aria-label="`Выбрать ${targetPickerType === 'property' ? 'объект' : 'статью'} «${target.title}»`"
+                    @change="toggleTarget(target, $event)"
+                  />
+                  <span class="admin-target-picker-image">
+                    <img
+                      v-if="targetImage(target)"
+                      :src="targetImage(target)"
+                      alt=""
+                      loading="lazy"
+                    />
+                    <span v-else aria-hidden="true">—</span>
+                  </span>
+                  <span class="admin-target-picker-info">
+                    <strong>{{ targetTypeLabel(target) }}</strong>
+                    <span>{{ targetAddress(target) }}</span>
+                  </span>
+                </label>
+              </div>
+              <div class="admin-target-picker-footer">
+                <nav
+                  v-if="targetPickerPageCount > 1"
+                  class="admin-tag-pagination"
+                  aria-label="Страницы списка объектов и статей"
+                >
+                  <button
+                    type="button"
+                    class="btn-secondary"
+                    :disabled="targetPickerPage <= 1 || targetPickerLoading"
+                    aria-label="Предыдущая страница"
+                    @click="targetPickerPage--"
+                  >
+                    <ChevronLeft :size="16" aria-hidden="true" />
+                  </button>
+                  <span>
+                    Страница {{ targetPickerPage }} из
+                    {{ targetPickerPageCount }}
+                  </span>
+                  <button
+                    type="button"
+                    class="btn-secondary"
+                    :disabled="
+                      targetPickerPage >= targetPickerPageCount ||
+                      targetPickerLoading
+                    "
+                    aria-label="Следующая страница"
+                    @click="targetPickerPage++"
+                  >
+                    <ChevronRight :size="16" aria-hidden="true" />
+                  </button>
+                </nav>
+                <p class="admin-tag-task-hint">
+                  Выбрано: {{ Object.keys(draftTargets).length }}
+                </p>
+                <button
+                  type="button"
+                  class="btn-primary admin-target-picker-confirm"
+                  :disabled="targetPickerLoading || !!targetPickerError"
+                  @click="confirmTargetSelection"
+                >
+                  ОК
                 </button>
               </div>
             </DialogContent>
