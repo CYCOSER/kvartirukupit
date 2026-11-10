@@ -110,6 +110,13 @@ const manualNotice = ref("");
 const targetPickerOpen = ref(false);
 const targetPickerType = ref<"property" | "article">("property");
 const targetPickerPage = ref(1);
+const propertyTargetSearch = ref("");
+const articleTargetSearch = ref("");
+const targetPickerSearch = computed(() =>
+  targetPickerType.value === "property"
+    ? propertyTargetSearch.value
+    : articleTargetSearch.value,
+);
 const targetPickerLoading = ref(false);
 const targetPickerError = ref("");
 const targetPickerItems = ref<(PropertyTarget | ArticleTarget)[]>([]);
@@ -136,8 +143,8 @@ watch([tagsPageCount, tasksPageCount], ([tagCount, taskCount]) => {
 });
 
 watch(
-  [targetPickerOpen, targetPickerType, targetPickerPage],
-  async ([open, type, page]) => {
+  [targetPickerOpen, targetPickerType, targetPickerPage, targetPickerSearch],
+  async ([open, type, page, search]) => {
     if (!open) {
       targetPickerRequest += 1;
       targetPickerLoading.value = false;
@@ -147,11 +154,15 @@ watch(
     targetPickerLoading.value = true;
     targetPickerError.value = "";
     try {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      if (request !== targetPickerRequest) return;
       if (type === "property") {
         const result = await $fetch<{
           items: PropertyTarget[];
           total: number;
-        }>("/api/admin/tag-targets/properties", { query: { page } });
+        }>("/api/admin/tag-targets/properties", {
+          query: { page, q: search.trim() },
+        });
         if (request !== targetPickerRequest) return;
         targetPickerItems.value = result.items;
         targetPickerTotal.value = result.total;
@@ -159,7 +170,9 @@ watch(
         const result = await $fetch<{
           items: ArticleTarget[];
           total: number;
-        }>("/api/admin/tag-targets/articles", { query: { page } });
+        }>("/api/admin/tag-targets/articles", {
+          query: { page, q: search.trim() },
+        });
         if (request !== targetPickerRequest) return;
         targetPickerItems.value = result.items;
         targetPickerTotal.value = result.total;
@@ -229,6 +242,12 @@ function openTargetPicker() {
   targetPickerPage.value = 1;
   targetPickerError.value = "";
   targetPickerOpen.value = true;
+}
+
+function setTargetPickerSearch(value: string) {
+  if (targetPickerType.value === "property") propertyTargetSearch.value = value;
+  else articleTargetSearch.value = value;
+  targetPickerPage.value = 1;
 }
 
 function toggleTarget(target: PropertyTarget | ArticleTarget, event: Event) {
@@ -891,6 +910,30 @@ async function removeTask(task: TagTask) {
                   Статьи
                 </button>
               </div>
+              <label class="admin-target-picker-search">
+                <span class="sr-only">
+                  {{
+                    targetPickerType === "property"
+                      ? "Поиск объектов по адресу"
+                      : "Поиск статей по названию"
+                  }}
+                </span>
+                <input
+                  :value="targetPickerSearch"
+                  type="search"
+                  maxlength="100"
+                  :placeholder="
+                    targetPickerType === 'property'
+                      ? 'Поиск по адресу'
+                      : 'Поиск по названию статьи'
+                  "
+                  @input="
+                    setTargetPickerSearch(
+                      ($event.target as HTMLInputElement).value,
+                    )
+                  "
+                />
+              </label>
               <p
                 v-if="targetPickerError"
                 class="error-text target-picker-message"
@@ -908,7 +951,11 @@ async function removeTask(task: TagTask) {
                 v-else-if="!targetPickerItems.length"
                 class="admin-tag-task-empty target-picker-message"
               >
-                Список пуст.
+                {{
+                  targetPickerSearch.trim()
+                    ? "По запросу ничего не найдено."
+                    : "Список пуст."
+                }}
               </p>
               <div v-else class="admin-target-picker-list">
                 <label

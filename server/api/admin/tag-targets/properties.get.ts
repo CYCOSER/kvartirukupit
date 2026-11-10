@@ -4,7 +4,8 @@ import { db } from "../../../utils/db";
 const pageSize = 10;
 
 export default defineEventHandler(async (event) => {
-  const rawPage = getQuery(event).page;
+  const query = getQuery(event);
+  const rawPage = query.page;
   const page =
     rawPage === undefined
       ? 1
@@ -14,7 +15,24 @@ export default defineEventHandler(async (event) => {
   if (!Number.isSafeInteger(page))
     throw createError({ statusCode: 400, statusMessage: "Invalid page" });
 
-  const where = { type: { in: ["complex", "apartment"] } };
+  const rawSearch = query.q;
+  if (rawSearch !== undefined && typeof rawSearch !== "string")
+    throw createError({ statusCode: 400, statusMessage: "Invalid search" });
+  const search = rawSearch
+    ?.trim()
+    .slice(0, 100)
+    .replace(/[\\%_]/g, "\\$&");
+  const where = {
+    type: { in: ["complex", "apartment"] },
+    ...(search
+      ? {
+          OR: [
+            { address: { contains: search, mode: "insensitive" as const } },
+            { location: { contains: search, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+  };
   const total = await db.property.count({ where });
   const lastPage = Math.max(1, Math.ceil(total / pageSize));
   const items =
