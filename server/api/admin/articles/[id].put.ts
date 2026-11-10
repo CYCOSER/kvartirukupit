@@ -1,8 +1,8 @@
-import { articleSchema } from '~/shared/article';
 import { articlePublicationState } from '~/server/utils/article-publication-state';
 import { scheduleArticlePublication } from '~/server/utils/article-publication';
+import { parseArticleBody } from '~/server/utils/article-content';
 export default defineEventHandler(async (event) => {
-  const parsed = articleSchema.safeParse(await readBody(event));
+  const parsed = await parseArticleBody(event);
   if (!parsed.success)
     throw createError({ statusCode: 400, statusMessage: 'Invalid article' });
   const id = getRouterParam(event, 'id');

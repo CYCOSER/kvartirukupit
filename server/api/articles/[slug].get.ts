@@ -3,6 +3,7 @@ import {
   type ProjectRecommendation,
 } from "~/shared/article-recommendations";
 import type { Property } from "~/shared/property";
+import { sanitizeArticleContent } from "~/server/utils/article-content";
 
 function isPropertyStatus(value: string): value is Property["status"] {
   return value === "available" || value === "reserved" || value === "sold";
@@ -93,6 +94,7 @@ export default defineEventHandler(async (event) => {
 
   return {
     ...article,
+    content: sanitizeArticleContent(article.content),
     recommendedArticles: randomArticleRecommendations(articleCandidates, 3),
     recommendedProjects: randomArticleRecommendations(recommendedProjects, 2),
   };

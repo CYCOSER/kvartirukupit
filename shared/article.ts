@@ -58,7 +58,19 @@ export const articleSchema = z.object({
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
     .max(150),
   excerpt: z.string().trim().min(10).max(400),
-  content: z.string().trim().min(30).max(18000),
+  content: z
+    .string()
+    .trim()
+    .max(50000)
+    .refine(
+      (content) =>
+        content
+          .replace(/<[^>]*>/g, '')
+          .replace(/&nbsp;|&#160;|&#xA0;/gi, ' ')
+          .replace(/&(?:#\d+|#x[\da-f]+|[a-z][\da-z]+);/gi, 'x')
+          .trim().length >= 30,
+      'Article text must contain at least 30 characters',
+    ),
   imageAlt: z.string().trim().max(250).default(''),
   seoTitle: z.string().trim().max(150).default(''),
   seoDescription: z.string().trim().max(300).default(''),

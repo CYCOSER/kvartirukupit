@@ -7,6 +7,7 @@ import {
   type Article,
   type ArticleInput,
 } from "~/shared/article";
+import ArticleRichTextEditor from "~/components/ArticleRichTextEditor.client.vue";
 type ArticleForm = Omit<ArticleInput, "publishedAt"> & { publishedAt: string };
 definePageMeta({ middleware: "admin", layout: "admin" });
 const { data, refresh, error } = await useFetch<Article[]>(
@@ -24,6 +25,7 @@ const filtered = computed(() => data.value?.filter(article =>
 const editing = ref(false),
   pending = ref(false),
   preview = ref(false);
+const htmlMode = ref(false);
 const editId = ref(""),
   notice = ref("");
 const imageFile = ref<File>();
@@ -52,7 +54,6 @@ watch(
   },
 );
 const excerptField = useAutoResizeTextarea(() => form.excerpt);
-const contentField = useAutoResizeTextarea(() => form.content);
 const seoDescriptionField = useAutoResizeTextarea(() => form.seoDescription);
 const seoKeywordsField = useAutoResizeTextarea(() => form.seoKeywords);
 function clearPreview() {
@@ -62,6 +63,7 @@ function clearPreview() {
 function edit(article?: Article) {
   clearPreview();
   editing.value = false;
+  htmlMode.value = false;
   const parsed = article ? articleSchema.parse(article) : empty();
   editId.value = article?.id || "";
   slugManuallyEdited.value = !!article;
@@ -215,24 +217,33 @@ async function remove(article: Article) {
             minlength="10"
             maxlength="400"
             rows="3"
-          /></label
-        ><label
-          >Текст статьи<textarea
-            ref="contentField"
-            v-model="form.content"
-            class="auto-resize"
-            required
-            minlength="30"
-            maxlength="18000"
-            rows="6"
-            aria-describedby="article-format"
           />
         </label>
-        <p id="article-format">
-          Абзацы разделяйте пустой строкой. Подзаголовки: ## Заголовок или ###
-          Заголовок. Список: каждая строка начинается с «- ». HTML не
-          используется.
-        </p>
+        <div
+          class="article-content-editor"
+          role="group"
+          aria-labelledby="article-content-label"
+          aria-describedby="article-format"
+        >
+          <span id="article-content-label" class="article-content-label">
+            Текст статьи
+          </span>
+          <ClientOnly>
+            <ArticleRichTextEditor
+              v-model="form.content"
+              v-model:html-mode="htmlMode"
+              :disabled="pending"
+              aria-label="Текст статьи"
+            />
+            <template #fallback>
+              <div class="article-content-loading">Редактор загружается…</div>
+            </template>
+          </ClientOnly>
+          <p id="article-format">
+            Используйте панель редактора для подзаголовков, выделений, списков,
+            цитат и ссылок.
+          </p>
+        </div>
         <div class="article-image-field">
           <p class="article-image-label">Обложка статьи</p>
           <label class="article-image-picker"
@@ -342,7 +353,14 @@ async function remove(article: Article) {
         />
         <h2>{{ form.title || "Заголовок статьи" }}</h2>
         <p>{{ form.excerpt }}</p>
-        <ArticleBody :content="form.content" /></section
+        <template v-if="htmlMode">
+          <p class="article-preview-source-note">
+            Вы редактируете HTML. Переключитесь в визуальный режим, чтобы
+            увидеть форматированный предпросмотр.
+          </p>
+          <pre class="article-preview-source">{{ form.content }}</pre>
+        </template>
+        <ArticleBody v-else :content="form.content" /></section
     ></template>
     <template v-else
       ><Button class="mb-6" @click="edit()">Новая статья</Button>
@@ -401,6 +419,34 @@ async function remove(article: Article) {
 #article-format {
   color: #526473;
   line-height: 1.7;
+}
+.article-content-editor {
+  display: grid;
+  gap: 8px;
+}
+.article-content-label {
+  color: #526473;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.article-content-loading {
+  min-height: 340px;
+  align-content: center;
+  border: 1px solid #cfdeea;
+  border-radius: 8px;
+  color: #526473;
+  text-align: center;
+}
+.article-preview-source-note {
+  color: #526473;
+}
+.article-preview-source {
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid #cfdeea;
+  border-radius: 8px;
+  background: #f9fbfe;
+  white-space: pre-wrap;
 }
 .article-editor details {
   padding: 20px;
