@@ -385,6 +385,9 @@ useHead({
     grid-template-columns: 1fr;
     gap: 32px;
   }
+  .article-note {
+    order: 1;
+  }
   .article-note > p:not(.eyebrow) {
     display: none;
   }
