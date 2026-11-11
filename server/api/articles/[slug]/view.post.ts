@@ -26,6 +26,15 @@ export default defineEventHandler(async (event) => {
     update: { view: new Date() },
     select: { useful: true },
   });
+  const [statistics] = await db.articleStat.groupBy({
+    by: ["articleId"],
+    where: { articleId: article.id },
+    _count: { _all: true, useful: true },
+  });
 
-  return { useful: stat.useful !== null };
+  return {
+    useful: stat.useful !== null,
+    viewCount: statistics?._count._all ?? 0,
+    usefulCount: statistics?._count.useful ?? 0,
+  };
 });

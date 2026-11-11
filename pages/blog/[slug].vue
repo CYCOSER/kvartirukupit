@@ -2,7 +2,7 @@
 import type { Article } from "~/shared/article";
 import { combineTagKeywords } from "~/shared/tag";
 import RecommendedProjectCard from "~/components/RecommendedProjectCard.vue";
-import { ThumbsUp } from "lucide-vue-next";
+import { Eye, ThumbsUp } from "lucide-vue-next";
 const route = useRoute();
 const { data: article, error } = await useFetch<Article>(
   "/api/articles/" + route.params.slug,
@@ -24,12 +24,18 @@ async function recordArticleView(id: string, slug: string) {
   usefulMarked.value = false;
   usefulError.value = "";
   try {
-    const result = await $fetch<{ useful: boolean }>(
-      `/api/articles/${encodeURIComponent(slug)}/view`,
-      { method: "POST", body: {} },
-    );
+    const result = await $fetch<{
+      useful: boolean;
+      viewCount: number;
+      usefulCount: number;
+    }>(`/api/articles/${encodeURIComponent(slug)}/view`, {
+      method: "POST",
+      body: {},
+    });
     if (request !== viewRequest || article.value?.id !== id) return;
     usefulMarked.value = result.useful;
+    article.value.viewCount = result.viewCount;
+    article.value.usefulCount = result.usefulCount;
     viewState.value = "ready";
   } catch {
     if (request === viewRequest && article.value?.id === id)
@@ -49,16 +55,21 @@ watch(
 async function markArticleUseful() {
   if (!article.value || viewState.value !== "ready" || usefulPending.value)
     return;
+  const currentArticle = article.value;
   usefulPending.value = true;
   usefulError.value = "";
   try {
-    await $fetch(
-      `/api/articles/${encodeURIComponent(article.value.slug)}/useful`,
-      {
-        method: "POST",
-        body: {},
-      },
-    );
+    const result = await $fetch<{
+      viewCount: number;
+      usefulCount: number;
+    }>(`/api/articles/${encodeURIComponent(currentArticle.slug)}/useful`, {
+      method: "POST",
+      body: {},
+    });
+    if (article.value?.id === currentArticle.id) {
+      currentArticle.viewCount = result.viewCount;
+      currentArticle.usefulCount = result.usefulCount;
+    }
     usefulMarked.value = true;
   } catch {
     usefulError.value = "Не удалось сохранить реакцию. Попробуйте ещё раз.";
@@ -209,6 +220,19 @@ useHead({
               }}
             </span>
           </button>
+          <div
+            class="article-feedback-statistics"
+            aria-label="Статистика статьи"
+          >
+            <span :aria-label="`Просмотров: ${article.viewCount ?? 0}`">
+              <Eye :size="16" aria-hidden="true" />
+              {{ article.viewCount ?? 0 }}
+            </span>
+            <span :aria-label="`Оценок «полезно»: ${article.usefulCount ?? 0}`">
+              <ThumbsUp :size="16" aria-hidden="true" />
+              {{ article.usefulCount ?? 0 }}
+            </span>
+          </div>
           <p v-if="usefulMarked" class="article-feedback-status" role="status">
             Спасибо за отзыв!
           </p>
@@ -366,6 +390,23 @@ useHead({
 .article-feedback-button:disabled:not(.is-marked) {
   cursor: wait;
   opacity: 0.65;
+}
+.article-feedback-statistics {
+  display: flex;
+  align-items: center;
+  gap: 2em;
+  margin-left: auto;
+  color: #68778d;
+  font-size: 12px;
+}
+.article-feedback-statistics > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.article-feedback-statistics svg {
+  color: #8292a8;
 }
 .article-feedback-status,
 .article-feedback-error {

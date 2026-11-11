@@ -25,6 +25,11 @@ export default defineEventHandler(async (event) => {
   if (!article)
     throw createError({ statusCode: 404, statusMessage: "Статья не найдена" });
 
+  const [statistics] = await db.articleStat.groupBy({
+    by: ["articleId"],
+    where: { articleId: article.id },
+    _count: { _all: true, useful: true },
+  });
   const tagIds = [...new Set(article.tagRelations.map(({ tagId }) => tagId))];
   const [articleCandidates, projectCandidates] = tagIds.length
     ? await Promise.all([
@@ -95,6 +100,8 @@ export default defineEventHandler(async (event) => {
   return {
     ...article,
     content: sanitizeArticleContent(article.content),
+    viewCount: statistics?._count._all ?? 0,
+    usefulCount: statistics?._count.useful ?? 0,
     recommendedArticles: randomArticleRecommendations(articleCandidates, 3),
     recommendedProjects: randomArticleRecommendations(recommendedProjects, 2),
   };

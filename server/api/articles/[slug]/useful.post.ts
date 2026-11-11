@@ -36,5 +36,15 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  return { useful: true };
+  const [statistics] = await db.articleStat.groupBy({
+    by: ["articleId"],
+    where: { articleId: article.id },
+    _count: { _all: true, useful: true },
+  });
+
+  return {
+    useful: true,
+    viewCount: statistics?._count._all ?? 0,
+    usefulCount: statistics?._count.useful ?? 0,
+  };
 });
