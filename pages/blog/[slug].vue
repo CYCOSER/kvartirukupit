@@ -238,10 +238,12 @@ useHead({
 .blog-article {
   display: grid;
   grid-template-columns: minmax(160px, 0.6fr) minmax(0, 2fr);
+  grid-template-areas: "note copy";
   gap: clamp(32px, 7vw, 100px);
   padding-block: clamp(48px, 7vw, 96px);
 }
 .article-note {
+  grid-area: note;
   padding-top: 22px;
   border-top: 1px solid #102f5040;
 }
@@ -295,6 +297,7 @@ useHead({
   line-height: 1.5;
 }
 .article-copy {
+  grid-area: copy;
   min-width: 0;
   max-width: 760px;
 }
@@ -383,6 +386,9 @@ useHead({
 @media (max-width: 700px) {
   .blog-article {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "copy"
+      "note";
     gap: 32px;
   }
   .article-note {

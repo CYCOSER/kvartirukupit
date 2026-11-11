@@ -166,6 +166,15 @@ test("articles: authenticated editor, draft, SEO, publish, unpublish and delete"
       await page.setViewportSize({ width, height: 1000 });
       for (const path of ["/blog", "/blog/" + slug]) {
         await page.goto(path);
+        if (path === "/blog/" + slug && width === 360) {
+          const articleTop = await page
+            .locator(".article-copy")
+            .evaluate((element) => element.getBoundingClientRect().top);
+          const sidebarTop = await page
+            .locator(".article-note")
+            .evaluate((element) => element.getBoundingClientRect().top);
+          expect(sidebarTop).toBeGreaterThan(articleTop);
+        }
         if (path === "/blog") {
           await expect(
             page.locator(`a[href="/blog/${slug}"] img`),
