@@ -26,7 +26,7 @@ export default defineNuxtConfig({
     head: {
       htmlAttrs: { lang: 'ru' },
       link: [
-        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg?v=6' },
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg?v=9' },
         { rel: 'preload', href: '/fonts/anticva-regular.otf', as: 'font', type: 'font/otf', crossorigin: 'anonymous' },
         { rel: 'preload', href: '/fonts/miama-nueva.otf', as: 'font', type: 'font/otf', crossorigin: 'anonymous' },
       ],

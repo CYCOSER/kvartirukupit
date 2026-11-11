@@ -313,9 +313,7 @@ select:focus {
   width: 42px;
   height: 42px;
   flex-shrink: 0;
-  color: #245fbd;
-  background: currentColor;
-  mask: url('/logo.svg?v=4') center / contain no-repeat;
+  color: #162e3a;
 }
 .brand-dash {
   color: #245fbd;

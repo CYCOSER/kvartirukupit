@@ -13,6 +13,21 @@ test("homepage intro reveals the site and respects reduced motion", async ({
     );
     await expect(intro).toHaveAttribute("aria-hidden", "true");
     await expect(intro).toHaveAttribute("inert", "");
+    const symbol = intro.locator(".home-intro-symbol");
+    await expect(symbol.locator("rect")).toHaveCount(0);
+    await expect(symbol.locator("path")).toHaveCount(2);
+    await expect(symbol.locator("path").first()).toHaveCSS("fill", "rgb(122, 167, 237)");
+    await expect(symbol.locator("path").last()).toHaveCSS("fill", "rgb(184, 212, 244)");
+    const arrows = symbol.locator(".home-intro-arrow");
+    await expect(arrows).toHaveCount(2);
+    for (const arrow of await arrows.all()) {
+      await expect(arrow).toHaveCSS("animation-duration", "0.65s");
+      await expect(arrow).toHaveCSS("animation-delay", "0.3s");
+      await expect(arrow).toHaveCSS("animation-timing-function", "cubic-bezier(0.22, 1, 0.36, 1)");
+    }
+    const arrowOffsets = () => arrows.evaluateAll((elements) =>
+      elements.map((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).m41),
+    );
     await page.evaluate(() => document.fonts.ready);
     await intro.evaluate((element) => {
       for (const animation of element.getAnimations({ subtree: true })) {
@@ -20,6 +35,7 @@ test("homepage intro reveals the site and respects reduced motion", async ({
         animation.currentTime = 100;
       }
     });
+    expect(await arrowOffsets()).toEqual([4, -4]);
     expect(
       await page.locator(".home-intro-title").evaluate((element) => {
         const house = element.firstElementChild!.getBoundingClientRect();
@@ -33,12 +49,22 @@ test("homepage intro reveals the site and respects reduced motion", async ({
         );
       }),
     ).toBe(true);
+    const symbolStart = (await symbol.boundingBox())!;
+    let previousArrowOffset = 4;
     // It slides from behind Квартиру at full opacity; only its left edge is masked.
     for (const time of [350, 450, 650, 850]) {
       await intro.evaluate((element, time) => {
         for (const animation of element.getAnimations({ subtree: true }))
           animation.currentTime = time;
       }, time);
+      const symbolFrame = (await symbol.boundingBox())!;
+      expect(symbolFrame.x).toBeCloseTo(symbolStart.x, 3);
+      expect(symbolFrame.y).toBeCloseTo(symbolStart.y, 3);
+      const [leftOffset, rightOffset] = await arrowOffsets();
+      expect(leftOffset).toBeGreaterThan(0);
+      expect(leftOffset).toBeLessThan(previousArrowOffset);
+      expect(rightOffset).toBeCloseTo(-leftOffset, 5);
+      previousArrowOffset = leftOffset;
       await expect(page.locator(".home-intro-tail")).toHaveCSS("opacity", "1");
       expect(
         await page.locator(".home-intro-tail").evaluate((element) => {
@@ -73,6 +99,7 @@ test("homepage intro reveals the site and respects reduced motion", async ({
       "transform",
       "matrix(1, 0, 0, 1, 0, 0)",
     );
+    expect(await arrowOffsets()).toEqual([0, 0]);
     await expect(page.locator(".home-intro-dash")).toHaveCSS(
       "color",
       "rgb(184, 212, 244)",

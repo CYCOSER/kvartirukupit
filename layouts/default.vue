@@ -48,8 +48,7 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
           to="/"
           class="brand"
           :aria-label="config.public.siteName + ' — главная'"
-          ><span class="brand-mark" aria-hidden="true"></span
-          ><span class="brand-lockup"
+          ><BrandMark class="brand-mark" /><span class="brand-lockup"
             ><BrandName /><span class="brand-caption"
               >Новостройки · Калининград</span
             ></span
@@ -81,8 +80,7 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
           ></template>
           <template #title
             ><span class="brand menu-brand"
-              ><span class="brand-mark" aria-hidden="true"></span
-              ><BrandName /></span
+              ><BrandMark class="brand-mark" /><BrandName /></span
           ></template>
           <div class="menu-content">
             <nav
@@ -145,7 +143,7 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
         <div class="footer-top">
           <div class="footer-brand-group">
             <NuxtLink to="/" class="brand"
-              ><span class="brand-mark" aria-hidden="true"></span><BrandName
+              ><BrandMark class="brand-mark" /><BrandName
             /></NuxtLink>
             <p>Ваше пространство.<br />Ваш Калининград.</p>
           </div>
@@ -225,6 +223,10 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
 .glass-home-layout .brand-mark,
 .glass-home-layout :deep(.brand-dash) {
   color: #bdcadc;
+}
+.glass-home-layout .site-header .brand-mark,
+.glass-photo-layout .site-header .brand-mark {
+  --brand-accent: #7aa7ed;
 }
 .glass-home-layout .desktop-nav {
   font-size: 11px;

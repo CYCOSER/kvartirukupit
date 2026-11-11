@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Button from "~/components/ui/button/Button.vue";
-import { Building2, ArrowRight } from "lucide-vue-next";
+import { ArrowRight } from "lucide-vue-next";
 import "~/assets/css/admin.css";
 definePageMeta({ layout: false });
 const config = useRuntimeConfig();
@@ -31,9 +31,7 @@ async function login() {
   <div class="admin-login">
     <div class="login-panel">
       <NuxtLink to="/" class="admin-brand"
-        ><span class="admin-brand-icon"
-          ><Building2 :size="23" aria-hidden="true" /></span
-        ><BrandName
+        ><BrandMark class="admin-brand-icon" /><BrandName
       /></NuxtLink>
       <h1>Вход для менеджера</h1>
       <form @submit.prevent="login">

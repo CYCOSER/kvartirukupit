@@ -1,7 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <rect width="48" height="48" rx="12" fill="#102f50"/>
-  <g transform="translate(4.8 4.8) scale(.8)" fill="none" stroke="#b8d4f4" stroke-width="3" stroke-linejoin="miter">
-    <path stroke-width="2.7" d="M9 41V21h10V7h12v22h8v12M19 21v20M31 29v12"/>
-    <path d="M5 41h38M24 14h2M24 21h2M24 28h2"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="6 6 36 36">
+  <style>
+    svg { color: #162e3a; }
+    .arrow { fill: #245fbd; }
+    @media (prefers-color-scheme: dark) {
+      svg { color: #bdcadc; }
+      .arrow { fill: #7aa7ed; }
+    }
+  </style>
+  <path class="arrow" d="M17.5 10H25L14.5 24 25 38H17.5L7 24Z"/>
+  <path d="M33 10H40.5L30 24 40.5 38H33L22.5 24Z" fill="currentColor"/>
 </svg>

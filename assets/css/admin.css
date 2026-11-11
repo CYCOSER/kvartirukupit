@@ -32,13 +32,10 @@
   white-space: normal;
 }
 .admin-brand-icon {
-  display: grid;
-  place-items: center;
+  display: inline-block;
   width: 38px;
-  height: 42px;
-  border-radius: 12px;
-  background: #edf3ff;
-  color: #3269cf;
+  height: 38px;
+  color: #162e3a;
   flex-shrink: 0;
 }
 .admin-navigation {

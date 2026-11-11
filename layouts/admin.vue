@@ -54,9 +54,7 @@ async function logout() {
     <a class="admin-skip" href="#admin-content">Перейти к содержимому</a>
     <aside class="admin-sidebar">
       <NuxtLink to="/" class="admin-brand"
-        ><span class="admin-brand-icon"
-          ><Building2 :size="23" aria-hidden="true" /></span
-        ><BrandName
+        ><BrandMark class="admin-brand-icon" /><BrandName
       /></NuxtLink>
       <nav aria-label="Управление" class="admin-navigation">
         <NuxtLink
