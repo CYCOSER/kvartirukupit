@@ -1,5 +1,14 @@
 import { test, expect } from '@playwright/test';
 
+test('SSR includes the Yandex Metrika counter and noscript fallback', async ({ request }) => {
+  const response = await request.get('/');
+  expect(response.status()).toBe(200);
+  const html = await response.text();
+  expect(html).toContain('https://mc.yandex.ru/metrika/tag.js?id=114233228');
+  expect(html).toContain("ym(114233228, 'init'");
+  expect(html).toContain('https://mc.yandex.ru/watch/114233228');
+});
+
 test('SSR normalizes canonicals and returns 404 for a missing catalog page', async ({ request }) => {
   const response = await request.get('/catalog/?utm_source=seo-check');
   expect(response.status()).toBe(200);
