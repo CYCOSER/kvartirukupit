@@ -7,6 +7,11 @@ test('SSR includes the Yandex Metrika counter and noscript fallback', async ({ r
   expect(html).toContain('https://mc.yandex.ru/metrika/tag.js?id=114233228');
   expect(html).toContain("ym(114233228, 'init'");
   expect(html).toContain('https://mc.yandex.ru/watch/114233228');
+  const csp = response.headers()['content-security-policy'] || '';
+  for (const directive of ['connect-src', 'img-src', 'script-src']) {
+    const policy = csp.split(';').find((item) => item.trim().startsWith(directive));
+    expect(policy).toContain('https://mc.yandex.com');
+  }
 });
 
 test('SSR normalizes canonicals and returns 404 for a missing catalog page', async ({ request }) => {

@@ -42,10 +42,13 @@ docker compose up -d --build
 
 ```bash
 git pull --ff-only
-docker compose up -d --build
+docker compose build web
+docker compose up -d --no-build web
 docker compose ps
 docker compose logs --tail=100 web
 ```
+
+При обновлении сайта собирайте только сервис `web`: образ `upscale` включает PyTorch и модель обработки фотографий, поэтому его пересборка занимает много ресурсов. Пересобирайте `upscale` отдельно, только если менялись файлы в `services/upscale/`.
 
 БД, фотографии и выгрузка RF39 хранятся в Docker volumes, выгрузка НМаркет — в `.data/nmarket/`. Для резервной копии сохраняйте их вместе с `.env`. Команда `docker compose down -v` удаляет volumes.
 
