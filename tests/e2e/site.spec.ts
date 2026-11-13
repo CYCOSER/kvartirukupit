@@ -9,6 +9,17 @@ const admin = "/admin-console-9Xk6uiIs";
 const headers = { Origin: origin };
 const credentials = { email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD };
 
+test("Yandex Webmaster verification file is served from the site root", async ({
+  request,
+}) => {
+  const response = await request.get("/yandex_bcf4cf379b140c89.html");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain("text/html");
+  expect(await response.text()).toContain(
+    "Verification: bcf4cf379b140c89",
+  );
+});
+
 test('admin console uses the new address and keeps authentication', async ({ page, request }) => {
   await page.goto(admin);
   await expect(page).toHaveURL(admin + '/login');
