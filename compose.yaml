@@ -34,6 +34,7 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:?Set ADMIN_EMAIL in .env}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      NUXT_AGENT_API_TOKEN: ${NUXT_AGENT_API_TOKEN:-}
       UPSCALE_ENABLED: "true"
       NUXT_MAP_SEARCH_URL: ${NUXT_MAP_SEARCH_URL:-https://nominatim.openstreetmap.org/search}
       NUXT_RF39_FEED_URL: ${NUXT_RF39_FEED_URL:-https://feed.rf39.ru/30.xml}

@@ -1,3 +1,5 @@
+import { requireAgent } from '../utils/agent-auth';
+
 export default defineEventHandler(async (event) => {
   setHeader(event, 'X-Content-Type-Options', 'nosniff');
   setHeader(event, 'Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -19,7 +21,12 @@ export default defineEventHandler(async (event) => {
       'Strict-Transport-Security',
       'max-age=31536000; includeSubDomains',
     );
-  const path = getRequestURL(event).pathname;
+  // Match h3's decoded routing path so encoded prefixes cannot bypass auth.
+  const path = event.path.split('?', 1)[0];
+  if (path === '/api/agent' || path.startsWith('/api/agent/')) {
+    await requireAgent(event);
+    return;
+  }
   if (
     ['POST', 'PUT', 'PATCH'].includes(event.method) &&
     path.startsWith('/api/') &&

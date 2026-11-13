@@ -1,4 +1,6 @@
-import { scheduleArticlePublication } from '~/server/utils/article-publication';
+import { createError, defineEventHandler, getRouterParam } from 'h3';
+import { db } from '../../../utils/db';
+import { scheduleArticlePublication } from '../../../utils/article-publication';
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id');
   if (!id)

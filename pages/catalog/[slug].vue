@@ -215,7 +215,7 @@ useHead({
           >{{ p.type === "complex" ? "Жилой комплекс" : statuses[p.status] }} /
           {{ priceCaption }}</small
         >
-        <strong v-reveal="255" class="detail-hero-price" data-textfit data-fill="1">{{ money(p.price) }}</strong>
+        <strong v-reveal="255" class="detail-hero-price">{{ money(p.price) }}</strong>
         <p v-reveal="340">{{ readiness }}</p>
       </template>
     </SceneHero>
@@ -593,7 +593,8 @@ useHead({
   min-height: max(650px, 80svh);
 }
 .detail-hero :deep(.scene-shade) {
-  background: linear-gradient(90deg, #0c1b2eda, #0c1b2e83 65%, #0c1b2e45);
+  background: linear-gradient(0deg, #0c1b2eb3, transparent 65%),
+    linear-gradient(90deg, #0c1b2eda, #0c1b2e83 65%, #0c1b2e45);
 }
 .detail-hero.is-plan :deep(.scene-photo) {
   position: absolute;
@@ -648,12 +649,21 @@ useHead({
 .detail-hero-cta[href^="#"]:hover svg {
   transform: translateY(3px);
 }
+.detail-hero :deep(.scene-aside) {
+  container-type: inline-size;
+  width: 100%;
+  max-width: none;
+  padding: 0 0 6px;
+  border: 0;
+  text-shadow: 0 2px 18px #07172880;
+}
 .detail-hero :deep(.scene-aside .detail-hero-price) {
   font-family: var(--font-display);
-  font-size: clamp(25px, 2.4vw, 37px);
+  font-size: clamp(16px, 11cqi, 48px);
+  font-weight: 400;
   line-height: 1.25;
   letter-spacing: 0;
-  color: #ccd6e3;
+  color: #fff;
   overflow-wrap: anywhere;
 }
 .detail-gallery {
@@ -1257,10 +1267,6 @@ useHead({
   }
   .detail-hero :deep(.scene-aside) {
     justify-self: stretch;
-    max-width: none;
-    border-top: 0;
-    border-left: 1px solid #ffffff38;
-    padding: 0 0 6px 20px;
   }
   .detail-hero :deep(.scene-panel .detail-title) {
     font-size: clamp(30px, 5.8vw, 48px);

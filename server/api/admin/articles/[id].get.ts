@@ -1,4 +1,6 @@
-import { sanitizeArticleContent } from '~/server/utils/article-content';
+import { createError, defineEventHandler, getRouterParam } from 'h3';
+import { db } from '../../../utils/db';
+import { sanitizeArticleContent } from '../../../utils/article-content';
 
 export default defineEventHandler(async (event) => {
   const article = await db.article.findUnique({

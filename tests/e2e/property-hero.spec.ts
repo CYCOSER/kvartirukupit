@@ -1,41 +1,52 @@
 import { test, expect } from '@playwright/test';
 import type { Property } from '../../shared/property';
+import { propertyFixture } from './fixtures/property';
 
 test('property page keeps words intact and gallery actions usable without mobile overflow', async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  const response = await page.request.get('/api/properties', { params: { type: 'apartment' } });
-  expect(response.ok()).toBe(true);
-  const { items } = await response.json();
-  const property = items[0] as Property;
-  expect(property).toBeTruthy();
+  const property = propertyFixture();
+  await page.route('**/api/properties?*', route => route.fulfill({
+    json: { items: [property], total: 1, pages: 1, locations: ['Калининград'] },
+  }));
   let complexTitle = 'Тихий дом';
   await page.route(`**/api/properties/${property.slug}`, route => route.fulfill({ json: {
-    ...property, title: '2-к кв. 56.2 м²', price: 7900000, readiness: 'II кв. 2024',
+    ...property, title: '2-к кв. 56.2 м²', price: 14685079, readiness: 'II кв. 2024',
     district: 'Центральный район', constructionStatus: 'Строительство завершено',
     complex: { id: 'hero-fixture', title: complexTitle, slug: 'hero-fixture', published: true },
   } }));
   for (const width of [737, 600, 320, 390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/catalog?type=apartment');
+    await page.getByTestId('catalog-title-search-input').fill(property.title);
+    await page.getByTestId('catalog-title-search-submit').click();
     await page.locator(`a[href="/catalog/${property.slug}"]`).first().click();
     await expect(page.locator('.detail-title')).toHaveText('2-к кв. 56.2 м²');
     await expect(page.locator('.detail-hero-script')).toHaveText('ЖК ' + complexTitle);
+    await expect(page.locator('.detail-hero-price')).toHaveCSS('font-weight', '400');
+    await expect(page.locator('.detail-hero-price')).toHaveCSS('color', 'rgb(255, 255, 255)');
     await page.evaluate(() => document.fonts.ready);
     const geometry = await page.locator('.detail-hero').evaluate(hero => {
       const panel = hero.querySelector('.scene-panel')!.getBoundingClientRect();
       const aside = hero.querySelector('.scene-aside')!.getBoundingClientRect();
       const title = hero.querySelector('.detail-title')!.getBoundingClientRect();
       const script = hero.querySelector('.detail-hero-script')!.getBoundingClientRect();
+      const price = hero.querySelector('.detail-hero-price')!;
+      const priceRange = document.createRange();
+      priceRange.selectNodeContents(price);
       return {
         panelRight: panel.right, panelBottom: panel.bottom, asideLeft: aside.left, asideTop: aside.top,
         titleBottom: title.bottom, scriptTop: script.top, scriptRight: script.right,
         viewport: document.documentElement.clientWidth,
         scrollWidth: document.documentElement.scrollWidth,
+        priceFits: [...priceRange.getClientRects()].every(rect => rect.left >= aside.left && rect.right <= aside.right),
+        priceLines: priceRange.getClientRects().length,
       };
     });
     expect(geometry.scriptTop).toBeLessThan(geometry.titleBottom);
     expect(geometry.scriptRight).toBeLessThanOrEqual(geometry.viewport);
     expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.viewport);
+    expect(geometry.priceFits).toBe(true);
+    expect(geometry.priceLines).toBe(1);
     if (width > 540) expect(geometry.asideLeft).toBeGreaterThan(geometry.panelRight);
     else expect(geometry.asideTop).toBeGreaterThan(geometry.panelBottom);
     const words = await page.locator('.detail-spec-text dd').evaluateAll(elements => elements.flatMap(element => {

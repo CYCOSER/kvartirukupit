@@ -1,5 +1,5 @@
 import sanitizeHtml from "sanitize-html";
-import type { H3Event } from "h3";
+import { readBody, type H3Event } from "h3";
 import { articleSchema } from "../../shared/article";
 import { articleContentToHtml } from "../../shared/article-content";
 

@@ -10,6 +10,7 @@ const { data, error } = await useFetch<Article[]>("/api/articles");
 <template>
   <div class="blog-page">
     <SceneHero
+      class="scene-intro"
       image="/images/backgrounds/journal-hero.webp"
       alt="Уютный уголок для чтения у окна — атмосферная иллюстрация"
     >

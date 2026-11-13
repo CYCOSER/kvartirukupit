@@ -1,0 +1,997 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Квартирукупить — API для ИИ-агента",
+    "version": "1.0.0",
+    "description": "Редактирование статей блога, обложек и описаний существующих объектов. Все операции требуют Bearer-токен. HTTPS обязателен при удалённом подключении. JSON-тело до 256 КиБ, Content-Length обязателен. Не изменяет цены, заявки или CRM."
+  },
+  "servers": [
+    {
+      "url": "/api/agent/v1"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/articles": {
+      "get": {
+        "operationId": "listArticles",
+        "summary": "Найти статьи и черновики",
+        "description": "q ищет по заголовку и slug. Полный content возвращается при чтении статьи по id. Неизвестные параметры отклоняются.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offset"
+          },
+          {
+            "$ref": "#/components/parameters/q"
+          },
+          {
+            "$ref": "#/components/parameters/slug"
+          },
+          {
+            "$ref": "#/components/parameters/published"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешный ответ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticlePage"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createArticle",
+        "summary": "Создать статью",
+        "description": "По умолчанию создаётся черновик. После сетевого сбоя проверяйте результат по уникальному slug перед повтором POST.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArticleCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Успешный ответ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Article"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/articles/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Идентификатор из ответа API, не slug",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getArticle",
+        "summary": "Прочитать статью целиком",
+        "responses": {
+          "200": {
+            "description": "Успешный ответ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Article"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchArticle",
+        "summary": "Изменить поля статьи",
+        "description": "Непереданные поля, включая расписание, сохраняются. Неизвестные поля и пустой объект отклоняются. published:false очищает расписание; published:true с будущим publishedAt планирует публикацию. publishedAt:null отменяет расписание черновика, у опубликованной статьи сохраняет прежнюю дату. Конфликт между внутренним чтением и записью возвращает 409; API не требует версию прочитанной клиентом записи.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArticlePatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Успешный ответ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Article"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteArticle",
+        "summary": "Удалить статью без корзины",
+        "responses": {
+          "200": {
+            "description": "Успешный ответ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/articles/{id}/image": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Идентификатор из ответа API, не slug",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "post": {
+        "operationId": "uploadArticleImage",
+        "summary": "Загрузить или заменить обложку",
+        "description": "JPEG, PNG или WebP до 10 МиБ; multipart-запрос целиком до 12 МиБ. Сохраняется WebP. Content-Length обязателен.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "JPEG, PNG или WebP, не более 10 МиБ"
+                  }
+                }
+              },
+              "encoding": {
+                "file": {
+                  "contentType": "image/jpeg, image/png, image/webp"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Успешный ответ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleImage"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteArticleImage",
+        "summary": "Удалить обложку",
+        "responses": {
+          "200": {
+            "description": "Успешный ответ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/properties": {
+      "get": {
+        "operationId": "listProperties",
+        "summary": "Найти объекты",
+        "description": "q ищет по заголовку, населённому пункту и адресу. Неизвестные параметры отклоняются.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/limit"
+          },
+          {
+            "$ref": "#/components/parameters/offset"
+          },
+          {
+            "$ref": "#/components/parameters/q"
+          },
+          {
+            "$ref": "#/components/parameters/published"
+          },
+          {
+            "name": "slug",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 120,
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "complex",
+                "apartment"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешный ответ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/properties/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Идентификатор из ответа API, не slug",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getProperty",
+        "summary": "Прочитать описание и характеристики объекта",
+        "responses": {
+          "200": {
+            "description": "Успешный ответ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Property"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/properties/{id}/description": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Идентификатор из ответа API, не slug",
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "patch": {
+        "operationId": "setPropertyDescription",
+        "summary": "Добавить или изменить описание объекта",
+        "description": "Только обычный текст. Пустая строка очищает описание. Остальные поля объекта сохраняются; правка RF39 отмечается как ручная.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyDescription"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Успешный ответ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Property"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "clearPropertyDescription",
+        "summary": "Очистить описание, сохранив объект",
+        "responses": {
+          "200": {
+            "description": "Успешный ответ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Property"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Серверный NUXT_AGENT_API_TOKEN: минимум 32 печатных ASCII-символа без пробелов. Передавайте секрет только в Authorization."
+      }
+    },
+    "parameters": {
+      "limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      },
+      "offset": {
+        "name": "offset",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647,
+          "default": 0
+        }
+      },
+      "q": {
+        "name": "q",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "slug": {
+        "name": "slug",
+        "in": "query",
+        "description": "Точное совпадение",
+        "schema": {
+          "type": "string",
+          "maxLength": 150,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        }
+      },
+      "published": {
+        "name": "published",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "true",
+            "false"
+          ]
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "400: неверные поля; 401: неверный токен; 404: запись не найдена; 409: конфликт; 411: нет Content-Length; 413: превышен размер; 415: неверный Content-Type; 503: API выключен или не настроен.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ArticleCreate": {
+        "type": "object",
+        "required": [
+          "title",
+          "slug",
+          "excerpt",
+          "content"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 3
+          },
+          "slug": {
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "excerpt": {
+            "type": "string",
+            "maxLength": 400,
+            "minLength": 10
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 50000,
+            "description": "HTML очищается сервером; после очистки необходимо не менее 30 символов видимого текста. Также поддерживается ограниченный текстовый формат с абзацами, заголовками и списками."
+          },
+          "imageAlt": {
+            "type": "string",
+            "maxLength": 250,
+            "default": ""
+          },
+          "seoTitle": {
+            "type": "string",
+            "maxLength": 150,
+            "default": ""
+          },
+          "seoDescription": {
+            "type": "string",
+            "maxLength": 300,
+            "default": ""
+          },
+          "seoKeywords": {
+            "type": "string",
+            "maxLength": 1000,
+            "default": ""
+          },
+          "published": {
+            "type": "boolean",
+            "description": "false снимает публикацию и очищает расписание; true публикует сейчас либо в publishedAt.",
+            "default": false
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "ISO 8601 с часовым поясом. Будущая дата планирует публикацию вместе с published:true."
+          }
+        }
+      },
+      "ArticlePatch": {
+        "type": "object",
+        "minProperties": 1,
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 3
+          },
+          "slug": {
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "excerpt": {
+            "type": "string",
+            "maxLength": 400,
+            "minLength": 10
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 50000,
+            "description": "HTML очищается сервером; после очистки необходимо не менее 30 символов видимого текста. Также поддерживается ограниченный текстовый формат с абзацами, заголовками и списками."
+          },
+          "imageAlt": {
+            "type": "string",
+            "maxLength": 250
+          },
+          "seoTitle": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "seoDescription": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "seoKeywords": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "published": {
+            "type": "boolean",
+            "description": "false снимает публикацию и очищает расписание; true публикует сейчас либо в publishedAt."
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "ISO 8601 с часовым поясом. Будущая дата планирует публикацию вместе с published:true."
+          }
+        }
+      },
+      "Article": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 3
+          },
+          "slug": {
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "excerpt": {
+            "type": "string",
+            "maxLength": 400,
+            "minLength": 10
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 50000,
+            "description": "HTML очищается сервером; после очистки необходимо не менее 30 символов видимого текста. Также поддерживается ограниченный текстовый формат с абзацами, заголовками и списками."
+          },
+          "imageAlt": {
+            "type": "string",
+            "maxLength": 250
+          },
+          "seoTitle": {
+            "type": "string",
+            "maxLength": 150
+          },
+          "seoDescription": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "seoKeywords": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "published": {
+            "type": "boolean",
+            "description": "false снимает публикацию и очищает расписание; true публикует сейчас либо в publishedAt."
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "ISO 8601 с часовым поясом. Будущая дата планирует публикацию вместе с published:true."
+          },
+          "id": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "title",
+          "slug",
+          "excerpt",
+          "content",
+          "imageAlt",
+          "seoTitle",
+          "seoDescription",
+          "seoKeywords",
+          "published",
+          "publishedAt",
+          "id",
+          "image",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ArticleSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "slug",
+          "excerpt",
+          "image",
+          "published",
+          "publishedAt",
+          "updatedAt"
+        ]
+      },
+      "ArticlePage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArticleSummary"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ]
+      },
+      "ArticleImage": {
+        "type": "object",
+        "properties": {
+          "image": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "image"
+        ]
+      },
+      "PropertySummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "complex",
+              "apartment"
+            ]
+          },
+          "location": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "slug",
+          "type",
+          "location",
+          "address",
+          "published",
+          "updatedAt"
+        ]
+      },
+      "Property": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "complex",
+              "apartment"
+            ]
+          },
+          "location": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": "string"
+          },
+          "complexId": {
+            "type": "string",
+            "nullable": true
+          },
+          "housingMarket": {
+            "type": "string",
+            "nullable": true
+          },
+          "price": {
+            "type": "number",
+            "nullable": true
+          },
+          "area": {
+            "type": "number",
+            "nullable": true
+          },
+          "bedrooms": {
+            "type": "number",
+            "nullable": true
+          },
+          "floors": {
+            "type": "number",
+            "nullable": true
+          },
+          "availableFloors": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "status": {
+            "type": "string"
+          },
+          "readiness": {
+            "type": "string"
+          },
+          "finish": {
+            "type": "string"
+          },
+          "seaDistance": {
+            "type": "number",
+            "nullable": true
+          },
+          "utilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "developer": {
+            "type": "string",
+            "nullable": true
+          },
+          "district": {
+            "type": "string",
+            "nullable": true
+          },
+          "completionDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "constructionStatus": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "slug",
+          "type",
+          "location",
+          "address",
+          "published",
+          "updatedAt",
+          "description",
+          "complexId",
+          "housingMarket",
+          "price",
+          "area",
+          "bedrooms",
+          "floors",
+          "availableFloors",
+          "status",
+          "readiness",
+          "finish",
+          "seaDistance",
+          "utilities",
+          "developer",
+          "district",
+          "completionDate",
+          "constructionStatus"
+        ]
+      },
+      "PropertyPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PropertySummary"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ]
+      },
+      "PropertyDescription": {
+        "type": "object",
+        "required": [
+          "description"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string",
+            "maxLength": 30000,
+            "description": "Обычный текст без HTML-форматирования. Пробелы по краям удаляются. Пустая строка очищает описание."
+          }
+        }
+      },
+      "Ok": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "integer"
+          },
+          "statusMessage": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  }
+}

@@ -98,6 +98,12 @@ withDefaults(
   color: #d4e0ef;
   margin-top: 16px;
 }
+.scene-intro .scene-panel :deep(p:not(.eyebrow)),
+.scene-intro .scene-aside :deep(p) {
+  font-size: 18px;
+  line-height: 1.65;
+  letter-spacing: -0.02em;
+}
 .scene-aside :deep(strong) {
   display: block;
   font-weight: 400;
@@ -111,6 +117,10 @@ withDefaults(
   margin-bottom: 14px;
 }
 @media (max-width: 800px) {
+  .scene-intro .scene-panel :deep(p:not(.eyebrow)),
+  .scene-intro .scene-aside :deep(p) {
+    font-size: 15px;
+  }
   .scene-panel {
     max-width: 620px;
   }
@@ -119,6 +129,10 @@ withDefaults(
   }
 }
 @media (max-width: 540px) {
+  .scene-intro .scene-panel :deep(p:not(.eyebrow)),
+  .scene-intro .scene-aside :deep(p) {
+    font-size: 14px;
+  }
   .scene-editorial .scene-panel :deep(h1.type-pair) {
     --script-indent: 0.25em;
     font-size: clamp(25px, 6.8vw, 36px);

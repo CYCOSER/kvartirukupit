@@ -101,6 +101,7 @@ const questions = [
 <template>
   <div class="mortgage-page">
     <SceneHero
+      class="scene-intro"
       image="/images/backgrounds/home-contact.webp"
       alt="Светлая гостиная — иллюстрация будущего дома"
     >

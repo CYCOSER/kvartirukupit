@@ -135,7 +135,7 @@ useCatalogTools(async (values) => {
           </h1>
         </div>
         <div class="catalog-intro-note">
-          <p v-reveal="170">Выберите район и планировку, которая устроит именно вас.</p>
+          <p v-reveal="170">{{ elite ? "Выберите район и планировку, которая устроит именно вас." : "Выберите жилой комплекс, который устроит именно вас." }}</p>
           <a v-reveal="255" href="#homes" class="catalog-explore">
             {{ elite ? "Выбрать квартиру" : "Выбрать свою квартиру" }} <ArrowDown :size="18" aria-hidden="true" />
           </a>

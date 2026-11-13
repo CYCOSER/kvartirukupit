@@ -84,4 +84,4 @@ npm run build
 
 Браузерные тесты: `npx playwright install --with-deps chromium && npm run test:e2e`. Нужен запущенный сайт с тестовой БД и администратором из `.env`; тесты создают и удаляют временные данные.
 
-[Конфигурация Docker](compose.yaml) · [Команды npm](package.json) · [Обработка фотографий](services/upscale/README.md)
+[Конфигурация Docker](compose.yaml) · [Команды npm](package.json) · [Обработка фотографий](services/upscale/README.md) · [API для ИИ-агента](docs/agent-api.md)

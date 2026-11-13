@@ -11,6 +11,7 @@ usePageSeo(
 <template>
   <div class="tours-page">
     <SceneHero
+      class="scene-intro"
       image="/images/backgrounds/tours-bus.webp"
       alt="Экскурсионный автобус у современного жилого квартала — атмосферная иллюстрация"
     >

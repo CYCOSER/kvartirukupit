@@ -1,6 +1,8 @@
-import { articlePublicationState } from '~/server/utils/article-publication-state';
-import { scheduleArticlePublication } from '~/server/utils/article-publication';
-import { parseArticleBody } from '~/server/utils/article-content';
+import { createError, defineEventHandler } from 'h3';
+import { db } from '../../../utils/db';
+import { articlePublicationState } from '../../../utils/article-publication-state';
+import { scheduleArticlePublication } from '../../../utils/article-publication';
+import { parseArticleBody } from '../../../utils/article-content';
 export default defineEventHandler(async (event) => {
   const parsed = await parseArticleBody(event);
   if (!parsed.success)
