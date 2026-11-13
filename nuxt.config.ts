@@ -25,7 +25,10 @@ export default defineNuxtConfig({
   app: {
     head: {
       htmlAttrs: { lang: 'ru' },
-      meta: [{ name: 'yandex-verification', content: 'bcf4cf379b140c89' }],
+      meta: [
+        { name: 'yandex-verification', content: 'bcf4cf379b140c89' },
+        { name: 'referrer', content: 'origin' },
+      ],
       link: [
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg?v=9' },
         { rel: 'preload', href: '/fonts/anticva-regular.otf', as: 'font', type: 'font/otf', crossorigin: 'anonymous' },

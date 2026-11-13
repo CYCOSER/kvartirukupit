@@ -4,6 +4,7 @@ test('SSR includes the Yandex Metrika counter and noscript fallback', async ({ r
   const response = await request.get('/');
   expect(response.status()).toBe(200);
   const html = await response.text();
+  expect(html).toMatch(/<meta[^>]*name="referrer"[^>]*content="origin"/);
   expect(html).toContain('https://mc.yandex.ru/metrika/tag.js?id=114233228');
   expect(html).toContain("ym(114233228, 'init'");
   expect(html).toContain('https://mc.yandex.ru/watch/114233228');
