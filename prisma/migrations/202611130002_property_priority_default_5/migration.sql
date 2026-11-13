@@ -1,0 +1,1 @@
+ALTER TABLE "Property" ALTER COLUMN "priority" SET DEFAULT 5;

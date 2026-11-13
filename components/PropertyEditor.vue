@@ -18,6 +18,7 @@ import {
 const props = defineProps<{ initial?: Property }>();
 const defaults: PropertyInput = {
   title: "",
+  priority: 5,
   slug: "",
   type: "complex",
   housingMarket: null,
@@ -69,6 +70,11 @@ const selectedHousingMarket = computed({
   set: (value: string) => {
     form.housingMarket = (value as PropertyInput["housingMarket"]) || null;
   },
+});
+const priorities = Array.from({ length: 10 }, (_, index) => 10 - index);
+const selectedPriority = computed({
+  get: () => String(form.priority),
+  set: (value: string) => { form.priority = Number(value); },
 });
 watch(() => form.type, (type) => {
   if (type !== "apartment") {
@@ -378,6 +384,20 @@ function move(index: number, offset: number) {
           v-model="form.address"
           maxlength="2000"
           placeholder="Улица и номер дома" /></label>
+      <label
+        >Приоритет (10 - высший, 1 - низший)<AppSelect
+          v-model="selectedPriority"
+          aria-label="Приоритет (10 - высший, 1 - низший)"
+        >
+          <AppSelectOption
+            v-for="priority in priorities"
+            :key="priority"
+            :value="String(priority)"
+          >
+            {{ priority }}{{ priority === 10 ? " — высший" : priority === 1 ? " — низший" : "" }}
+          </AppSelectOption>
+        </AppSelect></label
+      >
       <ClientOnly><AddressMap v-model:latitude="form.latitude" v-model:longitude="form.longitude" class="full" :address="form.address" :location="form.location" /></ClientOnly>
       <label
         >Цена, ₽ (пусто — по запросу)<NumberField

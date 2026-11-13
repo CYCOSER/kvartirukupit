@@ -19,7 +19,7 @@ const defaults = {
   maxArea: "",
   bedrooms: "",
   status: "available",
-  sort: "newest",
+  sort: "priority",
 };
 const filters = ref<Record<string, string>>({
   ...defaults,

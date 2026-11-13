@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 test('property status cards keep keyboard semantics and the Russian photo picker supports multiple files', async ({ page }, testInfo) => {
   const item = {
     id: 'property-ui-fixture', title: 'Квартира для проверки интерфейса', slug: 'property-ui-fixture', type: 'apartment',
+    priority: 4,
     housingMarket: 'newbuild',
     location: 'Калининград', address: 'Тестовый адрес', price: 6000000, status: 'available',
     area: 45, landArea: null, bedrooms: 1, floors: 5, availableFloors: [2, 5], latitude: null, longitude: null,
@@ -52,6 +53,10 @@ test('property status cards keep keyboard semantics and the Russian photo picker
   const market = page.getByRole('combobox', { name: 'Рынок квартиры', exact: true });
   await expect(market).toHaveText('Новостройка');
   await expect(page.getByRole('textbox', { name: 'Доступные этажи', exact: true })).toHaveValue('2, 5');
+  const priority = page.getByRole('combobox', { name: 'Приоритет (10 - высший, 1 - низший)', exact: true });
+  await expect(priority).toHaveText('4');
+  await priority.click();
+  await page.getByRole('option', { name: '10 — высший', exact: true }).click();
   await page.getByRole('combobox', { name: 'Тип объекта', exact: true }).click();
   await page.getByRole('option', { name: 'Жилой комплекс', exact: true }).click();
   await expect(market).toHaveCount(0);
@@ -102,7 +107,7 @@ test('property status cards keep keyboard semantics and the Russian photo picker
   await expect(media).not.toContainText('Choose Files');
   await page.getByRole('button', { name: 'Сохранить объект', exact: true }).click();
   await expect(page.getByText('Объект сохранён.', { exact: true })).toBeVisible();
-  expect(saved).toMatchObject({ published: true, featured: true, demo: true, elite: true, type: 'apartment', housingMarket: 'secondary', availableFloors: [2, 5], floors: 5 });
+  expect(saved).toMatchObject({ published: true, featured: true, demo: true, elite: true, type: 'apartment', housingMarket: 'secondary', availableFloors: [2, 5], floors: 5, priority: 10 });
   await expect(page.getByRole('textbox', { name: 'Доступные этажи', exact: true })).toHaveValue('2, 5');
   expect(savedImages).toHaveLength(4);
   expect(new Set(savedImages!.map(image => image.id)).size).toBe(4);

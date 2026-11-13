@@ -22,6 +22,19 @@ test('editor saves only dirty fields and retains concurrent price, publication a
   assert.deepEqual(mergePropertyUpdate(current, parsePropertyUpdate({ ...initial, changedFields: [] })), current);
 });
 
+test('priority defaults to 5, validates its range and saves as a dirty field', () => {
+  assert.equal(initial.priority, 5);
+  for (const priority of [0, 11, 1.5])
+    assert.equal(propertySchema.safeParse({ ...initial, priority }).success, false);
+
+  const edited = { ...initial, priority: 10 };
+  assert.deepEqual(changedPropertyFields(initial, edited), ['priority']);
+  const current = { ...initial, price: 6200000 };
+  const merged = mergePropertyUpdate(current, parsePropertyUpdate({ ...edited, changedFields: ['priority'] }));
+  assert.equal(merged.priority, 10);
+  assert.equal(merged.price, 6200000);
+});
+
 test('legacy full PUT remains a full update while metadata cannot write protected or missing fields', () => {
   const current = { ...initial, price: 6200000, published: true };
   assert.deepEqual(mergePropertyUpdate(current, parsePropertyUpdate({ ...initial, description: 'Правка старого клиента', sourceId: 'forged' })),

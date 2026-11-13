@@ -6,9 +6,15 @@ test("navigation returns on upward scrolling and remains usable on mobile", asyn
   for (const width of [1440, 360]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/catalog");
+    const sort = page.getByRole("combobox", { name: "Сортировка" });
+    await sort.click();
     await expect(
-      page.getByRole("combobox", { name: "Сортировка" }),
-    ).toContainText("Сначала новые");
+      page.getByRole("option", { name: "Сначала новые" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("option", { name: "По приоритету" }),
+    ).toHaveCount(0);
+    await page.keyboard.press("Escape");
     const header = page.locator(".site-header");
     await expect(header).toHaveCSS("position", "fixed");
     if (width === 1440) {

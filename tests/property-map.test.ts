@@ -32,6 +32,17 @@ test("catalog query keeps map and grid filters identical and enforces elite apar
   assert.deepEqual(query.orderBy, [{ price: { sort: "asc", nulls: "last" } }, { id: "asc" }]);
   const ordinary = propertyQuery(propertyQuerySchema.parse({ type: "complex", view: "map" }));
   assert.deepEqual(ordinary.where, { published: true, status: "available", type: "complex", elite: false });
+  assert.deepEqual(ordinary.orderBy, [{ priority: "desc" }, { id: "asc" }]);
+  const apartment = propertyQuery(propertyQuerySchema.parse({ type: "apartment" }));
+  assert.deepEqual(apartment.where.type, "apartment");
+  assert.deepEqual(apartment.orderBy, [{ priority: "desc" }, { id: "asc" }]);
+  const elite = propertyQuery(propertyQuerySchema.parse({ elite: "true" }));
+  assert.deepEqual(elite.where, {
+    published: true, status: "available", elite: true, type: "apartment",
+  });
+  assert.deepEqual(elite.orderBy, [{ priority: "desc" }, { id: "asc" }]);
+  const newest = propertyQuery(propertyQuerySchema.parse({ type: "apartment", sort: "newest" }));
+  assert.deepEqual(newest.orderBy, [{ createdAt: "desc" }, { id: "asc" }]);
   assert.equal(propertyQuerySchema.safeParse({ bedrooms: "-1" }).success, false);
   assert.equal(propertyQuerySchema.safeParse({ elite: "invalid" }).success, false);
 });

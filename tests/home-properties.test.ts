@@ -22,19 +22,20 @@ function fixture(t: TestContext, ids: string[], items: unknown[]) {
   return { sample, find };
 }
 
-test('homepage samples only featured public objects and rechecks eligibility before returning them', async (t) => {
-  const { sample, find } = fixture(t, ['complex', 'removed', 'apartment'], [
-    { id: 'apartment', title: 'Квартира', type: 'apartment', sourceMode: null },
-    { id: 'complex', title: 'ЖК у моря', type: 'complex', sourceMode: null },
+test('homepage samples featured objects by priority and rechecks eligibility before returning them', async (t) => {
+  const { sample, find } = fixture(t, ['high-priority', 'removed', 'low-priority'], [
+    { id: 'low-priority', title: 'Квартира', type: 'apartment', priority: 2, sourceMode: null },
+    { id: 'high-priority', title: 'ЖК у моря', type: 'complex', priority: 9, sourceMode: null },
   ]);
   const response = await request();
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('Cache-Control'), 'no-store');
-  assert.deepEqual((await response.json()).items.map((item: { id: string }) => item.id), ['complex', 'apartment']);
+  assert.deepEqual((await response.json()).items.map((item: { id: string }) => item.id), ['high-priority', 'low-priority']);
   const sql = Array.from(sample.mock.calls[0]!.arguments[0] as TemplateStringsArray).join('');
   assert.match(sql, /WHERE published = true AND featured = true AND status = 'available' AND elite = false/);
+  assert.match(sql, /ORDER BY priority DESC, random\(\) LIMIT 10/);
   assert.deepEqual(find.mock.calls[0]!.arguments[0]!.where, {
-    id: { in: ['complex', 'removed', 'apartment'] },
+    id: { in: ['high-priority', 'removed', 'low-priority'] },
     published: true, featured: true, elite: false, status: 'available',
   });
 });

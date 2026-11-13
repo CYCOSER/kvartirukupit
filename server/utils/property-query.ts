@@ -11,7 +11,7 @@ export const propertyQuerySchema = z.object({
   minArea: z.coerce.number().min(0).optional(),
   maxArea: z.coerce.number().min(0).optional(),
   bedrooms: z.coerce.number().int().min(0).max(100).optional(),
-  sort: z.enum(["newest", "price_asc", "price_desc", "area_asc", "area_desc"]).default("newest"),
+  sort: z.enum(["priority", "newest", "price_asc", "price_desc", "area_asc", "area_desc"]).default("priority"),
   featured: z.enum(["true", "false"]).optional(),
   elite: z.enum(["true", "false"]).default("false"),
   page: z.coerce.number().int().min(1).max(10000).default(1),
@@ -37,6 +37,7 @@ export function propertyQuery(q: z.infer<typeof propertyQuerySchema>) {
       ? { area: { gte: q.minArea, lte: q.maxArea } } : {}),
   };
   const sort: Record<string, Prisma.PropertyOrderByWithRelationInput> = {
+    priority: { priority: "desc" },
     newest: { createdAt: "desc" },
     price_asc: { price: { sort: "asc", nulls: "last" } },
     price_desc: { price: { sort: "desc", nulls: "last" } },

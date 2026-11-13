@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { propertySchema, type PropertyInput } from './property';
 
 export const propertyEditFields = [
-  'title', 'slug', 'type', 'housingMarket', 'complexId', 'nmarketComplexId', 'rf39ComplexId', 'rf39BuildingId',
+  'title', 'priority', 'slug', 'type', 'housingMarket', 'complexId', 'nmarketComplexId', 'rf39ComplexId', 'rf39BuildingId',
   'location', 'address', 'latitude', 'longitude', 'price', 'status', 'area', 'landArea', 'bedrooms', 'floors', 'availableFloors',
   'readiness', 'finish', 'seaDistance', 'description', 'utilities', 'published', 'featured', 'elite', 'demo',
 ] as const satisfies readonly (keyof PropertyInput)[];

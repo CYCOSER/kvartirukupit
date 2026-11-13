@@ -89,6 +89,7 @@ export function withPublicTitle<T extends Pick<Property, "title" | "bedrooms" | 
 const sourceComplexId = z.string().trim().max(100).regex(/^[a-zA-Z0-9._:-]+$/).nullable().optional();
 export const propertySchema = z.object({
   title: z.string().trim().min(3).max(500),
+  priority: z.number().int().min(1).max(10).default(5),
   slug: z
     .string()
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)

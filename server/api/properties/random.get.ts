@@ -7,16 +7,15 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'Cache-Control', 'no-store');
   const selected = await db.$queryRaw<{ id: string }[]>`
     SELECT id FROM "Property"
-    WHERE published = true AND featured = true AND status = 'available' AND elite = false
-    ORDER BY random() LIMIT 10
+    WHERE published = true AND type = 'complex' AND status = 'available'
+    ORDER BY priority DESC, random() LIMIT 10
   `;
   const items = await db.property.findMany({
     omit: { rf39Baseline: true },
     where: {
       id: { in: selected.map(({ id }) => id) },
       published: true,
-      featured: true,
-      elite: false,
+      type: 'complex',
       status: 'available',
     },
     include: { images: { orderBy: { order: 'asc' } }, complex: publicComplexSelect },

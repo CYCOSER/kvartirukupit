@@ -13,5 +13,6 @@ export function propertyFixture(values: Partial<Property> = {}): Property {
     developer: null, district: null, completionDate: null, constructionStatus: null,
     priceKind: null, priceSourceUrl: null, priceArea: null, images: [], complex: null,
     ...values,
+    priority: values.priority ?? 5,
   };
 }

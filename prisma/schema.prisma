@@ -10,6 +10,7 @@ datasource db {
 model Property {
   id                 String                 @id @default(cuid())
   title              String
+  priority           Int                    @default(5)
   slug               String                 @unique
   type               String
   housingMarket      String?
