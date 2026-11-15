@@ -145,7 +145,9 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
             <NuxtLink to="/" class="brand"
               ><BrandMark class="brand-mark" /><BrandName
             /></NuxtLink>
-            <p>Ваше пространство.<br />Ваш Калининград.</p>
+            <p>
+              Ваше пространство<br /><span class="footer-script">Ваш Калининград</span>
+            </p>
           </div>
           <div class="footer-navigation">
             <nav class="footer-destinations" aria-label="Разделы сайта">
@@ -344,6 +346,11 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
   font-size: clamp(1.7rem, 2.5vw, 2.5rem);
   line-height: 1.18;
   letter-spacing: -0.05em;
+}
+.glass-home-layout .footer-script {
+  font-family: var(--font-script);
+  font-size: 1.25em;
+  letter-spacing: 0;
 }
 .glass-home-layout .site-footer .brand {
   color: #3e5574;

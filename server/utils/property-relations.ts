@@ -4,12 +4,13 @@ import type { PropertyInput } from '../../shared/property';
 
 export const publicComplexSelect = {
   where: { published: true },
-  select: { id: true, title: true, slug: true, published: true },
+  select: { id: true, title: true, slug: true, published: true, heatingType: true, fencedTerritory: true, locationTags: true },
 };
 
 export const relatedApartmentSelect = {
   id: true, title: true, slug: true, type: true, sourceMode: true, published: true,
   price: true, area: true, bedrooms: true, status: true,
+  housingMarket: true, heatingType: true, fencedTerritory: true, locationTags: true,
   images: { orderBy: { order: 'asc' as const }, take: 1 },
 } satisfies Prisma.PropertySelect;
 

@@ -106,6 +106,22 @@ test("property rejects invalid slug, price and missing attributes", () => {
     demo: true,
   };
   assert.equal(propertySchema.safeParse(p).success, true);
+  assert.equal(propertySchema.parse({ ...p, heatingType: ' Газовое автономное ' }).heatingType, 'Газовое автономное');
+  for (const heatingType of [null, undefined, 'Центральное'])
+    assert.equal(propertySchema.safeParse({ ...p, heatingType }).success, true);
+  for (const heatingType of ['', ' ', 'a'.repeat(121), true])
+    assert.equal(propertySchema.safeParse({ ...p, heatingType }).success, false);
+  for (const fencedTerritory of [true, false, null, undefined])
+    assert.equal(propertySchema.parse({ ...p, fencedTerritory }).fencedTerritory, fencedTerritory);
+  for (const fencedTerritory of ['true', 1])
+    assert.equal(propertySchema.safeParse({ ...p, fencedTerritory }).success, false);
+  assert.deepEqual(propertySchema.parse({ ...p, locationTags: ['Центр города', 'У моря', 'У парка', 'За городом'] }).locationTags,
+    ['Центр города', 'У моря', 'У парка', 'За городом']);
+  assert.deepEqual(propertySchema.parse({ ...p, locationTags: ['У моря', 'У моря'] }).locationTags, ['У моря']);
+  assert.deepEqual(propertySchema.parse({ ...p, locationTags: [] }).locationTags, []);
+  assert.equal(propertySchema.parse(p).locationTags, undefined);
+  for (const locationTags of [null, 'У моря', ['Неизвестная локация'], [1], Array(5).fill('У моря')])
+    assert.equal(propertySchema.safeParse({ ...p, locationTags }).success, false);
   assert.deepEqual(propertySchema.parse({ ...p, availableFloors: [9, 2, 2, 6] }).availableFloors, [2, 6, 9]);
   for (const availableFloors of [[0], [101], [1.5], ['2'], Array(101).fill(2)])
     assert.equal(propertySchema.safeParse({ ...p, availableFloors }).success, false);

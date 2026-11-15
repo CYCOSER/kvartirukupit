@@ -34,6 +34,9 @@ model Property {
   layoutHash         String?
   readiness          String
   finish             String
+  heatingType        String?
+  fencedTerritory    Boolean?
+  locationTags       String[]               @default([])
   seaDistance        Float?
   description        String
   utilities          String[]

@@ -422,10 +422,6 @@ useHead({
         <div v-reveal="70">
           <h3>Готовность и отделка</h3>
           <dl>
-            <div v-if="p.developer">
-              <dt>Застройщик</dt>
-              <dd>{{ p.developer }}</dd>
-            </div>
             <div v-if="p.address">
               <dt>Адрес</dt>
               <dd>{{ propertyAddress(p) }}</dd>
@@ -439,6 +435,7 @@ useHead({
               <dd>{{ p.finish }}</dd>
             </div>
           </dl>
+          <PropertyFeatures :property="p" />
         </div>
       </div>
       <div v-reveal class="detail-text">
@@ -464,6 +461,7 @@ useHead({
             <span class="detail-apartment-status">{{ statuses[apartment.status] }}</span>
             <h3>{{ apartment.title }}</h3>
             <p><span v-if="apartment.area != null">{{ apartment.area }} м²</span><span v-if="apartment.bedrooms != null">{{ apartment.bedrooms === 0 ? 'Студия' : apartment.bedrooms + '-комнатная' }}</span></p>
+            <PropertyFeatures :property="{ ...apartment, complex: p }" />
             <strong>{{ money(apartment.price) }}</strong>
             <span class="detail-apartment-link">Подробнее о квартире <ArrowUpRight :size="17" aria-hidden="true" /></span>
           </div>

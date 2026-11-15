@@ -1,0 +1,2 @@
+ALTER TABLE "Property"
+ADD COLUMN "locationTags" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

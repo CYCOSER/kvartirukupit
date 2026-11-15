@@ -8,6 +8,7 @@ test('property status cards keep keyboard semantics and the Russian photo picker
     location: 'Калининград', address: 'Тестовый адрес', price: 6000000, status: 'available',
     area: 45, landArea: null, bedrooms: 1, floors: 5, availableFloors: [2, 5], latitude: null, longitude: null,
     readiness: 'Готов', finish: 'Чистовая', seaDistance: null, description: '', utilities: [],
+    heatingType: null, fencedTerritory: null, locationTags: [], developer: 'Застройщик из CRM',
     published: false, featured: false, elite: false, demo: false, sourceId: 'nmarket:apartment:fixture',
     images: [
       { id: 'photo-one', file: '/images/baltic-coast.webp', alt: 'Первое фото', order: 0, kind: 'photo' },
@@ -21,8 +22,12 @@ test('property status cards keep keyboard semantics and the Russian photo picker
   // Browser fixtures isolate the editor UI from real catalog records and credentials.
   await page.route('**/api/admin/**', async (route) => {
     const url = new URL(route.request().url());
-    if (url.pathname === '/api/admin/login' || url.pathname === '/api/admin/me') {
+    if (url.pathname === '/api/admin/login') {
       await route.fulfill({ json: { ok: true } });
+    } else if (url.pathname === '/api/admin/me') {
+      await route.fulfill({ json: { id: 'admin-ui-fixture' } });
+    } else if (url.pathname === '/api/admin/import-jobs') {
+      await route.fulfill({ json: [] });
     } else if (url.pathname === '/api/admin/properties') {
       await route.fulfill({ json: url.searchParams.has('type') ? [] : [item] });
     } else if (url.pathname === '/api/admin/properties/' + item.id) {
@@ -50,6 +55,7 @@ test('property status cards keep keyboard semantics and the Russian photo picker
   await page.getByLabel('Пароль', { exact: true }).fill('fixture-password');
   await page.getByRole('button', { name: 'Войти', exact: true }).click();
   await page.getByRole('link', { name: item.title, exact: true }).click();
+  await expect(page.getByText('Застройщик: ' + item.developer, { exact: true })).toBeVisible();
   const market = page.getByRole('combobox', { name: 'Рынок квартиры', exact: true });
   await expect(market).toHaveText('Новостройка');
   await expect(page.getByRole('textbox', { name: 'Доступные этажи', exact: true })).toHaveValue('2, 5');
@@ -57,17 +63,36 @@ test('property status cards keep keyboard semantics and the Russian photo picker
   await expect(priority).toHaveText('4');
   await priority.click();
   await page.getByRole('option', { name: '10 — высший', exact: true }).click();
+  const heating = page.getByRole('textbox', { name: /^Тип отопления/ });
+  const fenced = page.getByRole('combobox', { name: 'Огороженная территория', exact: true });
+  await heating.fill('Газовое крышная котельная');
+  await fenced.click();
+  await page.getByRole('option', { name: 'Да', exact: true }).click();
+  const seaTag = page.getByRole('checkbox', { name: 'У моря', exact: true });
+  const parkTag = page.getByRole('checkbox', { name: 'У парка', exact: true });
+  await seaTag.check();
+  await parkTag.check();
   await page.getByRole('combobox', { name: 'Тип объекта', exact: true }).click();
   await page.getByRole('option', { name: 'Жилой комплекс', exact: true }).click();
+  await expect(heating).toHaveValue('Газовое крышная котельная');
+  await expect(fenced).toHaveText('Да');
+  await expect(seaTag).toBeChecked();
+  await expect(parkTag).toBeChecked();
   await expect(market).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: 'Доступные этажи', exact: true })).toHaveCount(0);
   await page.getByRole('combobox', { name: 'Тип объекта', exact: true }).click();
   await page.getByRole('option', { name: 'Квартира', exact: true }).click();
   await expect(market).toHaveText('Не указан');
+  await fenced.click();
+  await page.getByRole('option', { name: 'Нет', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Доступные этажи', exact: true })).toHaveValue('');
   await page.getByRole('textbox', { name: 'Доступные этажи', exact: true }).fill('5, 2, 5');
   await market.click();
   await page.getByRole('option', { name: 'Вторичка', exact: true }).click();
+  await expect(heating).toHaveCount(0);
+  await expect(fenced).toHaveCount(0);
+  await expect(seaTag).toHaveCount(0);
+  await expect(parkTag).toHaveCount(0);
   const options = page.getByTestId('property-options');
   const published = page.getByRole('checkbox', { name: 'Опубликован', exact: true });
   await published.focus();
@@ -107,7 +132,8 @@ test('property status cards keep keyboard semantics and the Russian photo picker
   await expect(media).not.toContainText('Choose Files');
   await page.getByRole('button', { name: 'Сохранить объект', exact: true }).click();
   await expect(page.getByText('Объект сохранён.', { exact: true })).toBeVisible();
-  expect(saved).toMatchObject({ published: true, featured: true, demo: true, elite: true, type: 'apartment', housingMarket: 'secondary', availableFloors: [2, 5], floors: 5, priority: 10 });
+  expect(saved).toMatchObject({ published: true, featured: true, demo: true, elite: true, type: 'apartment', housingMarket: 'secondary', availableFloors: [2, 5], floors: 5, priority: 10, heatingType: 'Газовое крышная котельная', fencedTerritory: false, locationTags: ['У моря', 'У парка'] });
+  expect(saved?.changedFields).toEqual(expect.arrayContaining(['heatingType', 'fencedTerritory', 'locationTags']));
   await expect(page.getByRole('textbox', { name: 'Доступные этажи', exact: true })).toHaveValue('2, 5');
   expect(savedImages).toHaveLength(4);
   expect(new Set(savedImages!.map(image => image.id)).size).toBe(4);

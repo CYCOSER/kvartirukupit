@@ -92,6 +92,7 @@ defineProps<{ compact?: boolean }>();
 }
 .catalog-panels :deep(.card-location),
 .catalog-panels :deep(.card-specs),
+.catalog-panels :deep(.property-features),
 .catalog-panels :deep(.card-price > span) {
   color: #d0dded;
 }

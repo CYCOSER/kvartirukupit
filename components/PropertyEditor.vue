@@ -10,6 +10,7 @@ import {
   housingMarkets,
   isCoastalLocation,
   propertySchema,
+  propertyLocationTags,
   money,
   withPublicTitle,
   type PropertyInput,
@@ -39,6 +40,9 @@ const defaults: PropertyInput = {
   availableFloors: [],
   readiness: "Уточняется",
   finish: "Уточняется",
+  heatingType: null,
+  fencedTerritory: null,
+  locationTags: [],
   seaDistance: null,
   description: "",
   utilities: [],
@@ -51,6 +55,7 @@ const form = reactive<PropertyInput & { seaDistance: number | null }>({
   ...defaults,
   ...props.initial,
   seaDistance: props.initial?.seaDistance ?? null,
+  locationTags: props.initial?.locationTags ?? [],
 });
 const initialForm = propertySchema.safeParse(form);
 let savedForm = initialForm.success ? initialForm.data : { ...form, utilities: [...form.utilities] };
@@ -70,6 +75,10 @@ const selectedHousingMarket = computed({
   set: (value: string) => {
     form.housingMarket = (value as PropertyInput["housingMarket"]) || null;
   },
+});
+const selectedFencedTerritory = computed({
+  get: () => form.fencedTerritory == null ? "" : String(form.fencedTerritory),
+  set: (value: string) => { form.fencedTerritory = value === "" ? null : value === "true"; },
 });
 const priorities = Array.from({ length: 10 }, (_, index) => 10 - index);
 const selectedPriority = computed({
@@ -305,6 +314,7 @@ function move(index: number, offset: number) {
     <PropertyPanels v-if="preview" compact class="property-card-preview mb-8" data-testid="property-card-preview">
       <PropertyCard class="catalog-panel" :property="card" :show-arrow="false" />
     </PropertyPanels>
+    <p v-if="initial?.developer" class="mb-6 text-sm text-slate-600">Застройщик: {{ initial.developer }}</p>
     <details v-if="initial?.sourceUrl" class="source-notice mb-6">
       <summary>Источник: {{ initial.sourceName || "Сайт проекта" }}</summary>
       <p>
@@ -458,6 +468,28 @@ function move(index: number, offset: number) {
           maxlength="100" /></label
       ><label
         >Отделка<input v-model="form.finish" required maxlength="100" /></label
+        ><template v-if="form.type === 'complex' || (form.type === 'apartment' && form.housingMarket !== 'secondary')">
+          <label>Тип отопления<input
+            :value="form.heatingType ?? ''"
+            maxlength="120"
+            placeholder="Например: газовое автономное"
+            @input="form.heatingType = ($event.target as HTMLInputElement).value || null"
+          /><span v-if="form.type === 'apartment'" class="text-sm text-slate-500">Если не указано, используется значение ЖК.</span></label>
+          <label>Огороженная территория<AppSelect v-model="selectedFencedTerritory" aria-label="Огороженная территория">
+            <AppSelectOption value="">Не указано</AppSelectOption>
+            <AppSelectOption value="true">Да</AppSelectOption>
+            <AppSelectOption value="false">Нет</AppSelectOption>
+          </AppSelect><span v-if="form.type === 'apartment'" class="text-sm text-slate-500">Если не указано, используется значение ЖК.</span></label>
+          <fieldset class="full property-options property-location-options">
+            <legend>Локация</legend>
+            <div class="flex flex-wrap gap-x-6 gap-y-3">
+              <label v-for="tag in propertyLocationTags" :key="tag">
+                <input v-model="form.locationTags" type="checkbox" :value="tag" />{{ tag }}
+              </label>
+            </div>
+            <p v-if="form.type === 'apartment'" class="mt-2 text-sm text-slate-500">Если ничего не выбрано, используются теги ЖК.</p>
+          </fieldset>
+        </template
       ><label v-if="isCoastalLocation(form.location)"
         >До моря, метров (необязательно)<NumberField
           v-model="form.seaDistance"
@@ -612,7 +644,8 @@ function move(index: number, offset: number) {
 .property-option-copy { display: grid; gap: 4px; flex: 1; min-width: 0; }
 .property-option-copy strong { color: #273d5e; font-size: 13px; line-height: 1.35; font-weight: 650; }
 .property-option-copy small { color: #71819a; font-size: 11px; line-height: 1.45; }
-.property-option input[type='checkbox'] { flex: 0 0 18px; width: 18px; height: 18px; margin: 0; accent-color: #245fbd; cursor: pointer; }
+.property-option input[type='checkbox'], .property-location-options input[type='checkbox'] { flex: 0 0 18px; width: 18px; height: 18px; margin: 0; accent-color: #245fbd; cursor: pointer; }
+.property-location-options label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 .property-option:focus-within { outline: 2px solid #245fbd; outline-offset: 3px; }
 .property-photos-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .property-photos-heading h2 { color: #273d5e; font-size: 20px; font-weight: 700; }

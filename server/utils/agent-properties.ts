@@ -10,6 +10,7 @@ export const agentPropertySelect = {
   housingMarket: true, price: true, area: true, bedrooms: true, floors: true,
   availableFloors: true, status: true, readiness: true, finish: true,
   seaDistance: true, utilities: true, developer: true, district: true,
+  heatingType: true, fencedTerritory: true, locationTags: true,
   completionDate: true, constructionStatus: true,
 } satisfies Prisma.PropertySelect;
 

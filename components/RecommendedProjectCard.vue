@@ -20,6 +20,9 @@ type RecommendedProject = Pick<
   | "price"
   | "readiness"
   | "constructionStatus"
+  | "heatingType"
+  | "fencedTerritory"
+  | "locationTags"
 >;
 
 const props = defineProps<{ project: RecommendedProject }>();
@@ -31,10 +34,6 @@ const readiness = computed(
       props.project.constructionStatus,
     ) || "Уточняется",
 );
-const constructionStatus = computed(() => {
-  const value = props.project.constructionStatus?.trim();
-  return value ? value[0].toLocaleUpperCase("ru") + value.slice(1) : "";
-});
 </script>
 
 <template>
@@ -58,6 +57,7 @@ const constructionStatus = computed(() => {
         <span>{{ propertyAddress(project) }}</span>
       </p>
       <h3>{{ project.title }}</h3>
+      <PropertyFeatures :property="project" :construction-status="project.constructionStatus" />
       <div class="recommended-project-details">
         <div class="recommended-project-price">
           <span
@@ -73,15 +73,6 @@ const constructionStatus = computed(() => {
         </div>
         <span class="recommended-project-readiness">{{ readiness }}</span>
       </div>
-      <span
-        v-if="constructionStatus"
-        class="recommended-project-status"
-        :class="{
-          'is-completed': constructionStatus.toLocaleLowerCase('ru') === 'сдан',
-        }"
-      >
-        {{ constructionStatus }}
-      </span>
     </div>
   </NuxtLink>
 </template>
@@ -176,19 +167,6 @@ const constructionStatus = computed(() => {
 }
 .recommended-project-readiness {
   text-align: right;
-}
-.recommended-project-status {
-  justify-self: start;
-  border-radius: 5px;
-  padding: 4px 7px;
-  background: #edf3ff;
-  color: #245fbd;
-  font-size: 10px;
-  font-weight: 650;
-}
-.recommended-project-status.is-completed {
-  background: #edf8f1;
-  color: #267d63;
 }
 @media (prefers-reduced-motion: reduce) {
   .recommended-project-card {

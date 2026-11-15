@@ -9,6 +9,7 @@ const initial = propertySchema.parse({
   location: 'Калининград', address: 'Мира, 1', latitude: null, longitude: null,
   price: 5000000, status: 'available', area: 50, landArea: null, bedrooms: 2, floors: 5, availableFloors: [],
   readiness: 'Готов', finish: 'Чистовая', seaDistance: null, description: 'Исходное описание', utilities: [],
+  heatingType: null, fencedTerritory: null, locationTags: [],
   published: false, featured: false, elite: false, demo: false,
 });
 
@@ -22,6 +23,20 @@ test('editor saves only dirty fields and retains concurrent price, publication a
   assert.deepEqual(mergePropertyUpdate(current, parsePropertyUpdate({ ...initial, changedFields: [] })), current);
 });
 
+test('heating and fence edits preserve explicit false and can be cleared to unknown', () => {
+  const edited = { ...initial, heatingType: 'Газовое автономное', fencedTerritory: false };
+  const changedFields = changedPropertyFields(initial, edited);
+  assert.deepEqual(changedFields, ['heatingType', 'fencedTerritory']);
+  const current = { ...initial, price: 6200000 };
+  const saved = mergePropertyUpdate(current, parsePropertyUpdate({ ...edited, changedFields }));
+  assert.equal(saved.heatingType, edited.heatingType);
+  assert.equal(saved.fencedTerritory, false);
+  assert.equal(saved.price, current.price);
+  const cleared = mergePropertyUpdate(saved, parsePropertyUpdate({ ...initial, changedFields }));
+  assert.equal(cleared.heatingType, null);
+  assert.equal(cleared.fencedTerritory, null);
+});
+
 test('priority defaults to 5, validates its range and saves as a dirty field', () => {
   assert.equal(initial.priority, 5);
   for (const priority of [0, 11, 1.5])
@@ -33,6 +48,19 @@ test('priority defaults to 5, validates its range and saves as a dirty field', (
   const merged = mergePropertyUpdate(current, parsePropertyUpdate({ ...edited, changedFields: ['priority'] }));
   assert.equal(merged.priority, 10);
   assert.equal(merged.price, 6200000);
+});
+
+test('location tag edits save and clear only the selected field, while old clients may omit it', () => {
+  const edited = propertySchema.parse({ ...initial, locationTags: ['У моря', 'У парка'] });
+  assert.deepEqual(changedPropertyFields(initial, edited), ['locationTags']);
+  const current = { ...initial, price: 6200000 };
+  const saved = mergePropertyUpdate(current, parsePropertyUpdate({ ...edited, changedFields: ['locationTags'] }));
+  assert.deepEqual(saved.locationTags, ['У моря', 'У парка']);
+  assert.equal(saved.price, current.price);
+  const cleared = mergePropertyUpdate(saved, parsePropertyUpdate({ ...initial, changedFields: ['locationTags'] }));
+  assert.deepEqual(cleared.locationTags, []);
+  const { locationTags, ...legacy } = initial;
+  assert.equal(Object.hasOwn(parsePropertyUpdate(legacy).data, 'locationTags'), false);
 });
 
 test('legacy full PUT remains a full update while metadata cannot write protected or missing fields', () => {

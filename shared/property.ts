@@ -4,6 +4,7 @@ export const types = {
   apartment: "Квартира",
 };
 export const housingMarkets = { newbuild: "Новостройка", secondary: "Вторичка" };
+export const propertyLocationTags = ["Центр города", "У моря", "У парка", "За городом"] as const;
 export const statuses = {
   available: "В продаже",
   reserved: "Забронирован",
@@ -114,6 +115,10 @@ export const propertySchema = z.object({
     .transform(floors => [...new Set(floors)].sort((a, b) => a - b)).optional(),
   readiness: z.string().trim().min(2).max(100),
   finish: z.string().trim().min(2).max(100),
+  heatingType: z.string().trim().min(1).max(120).nullish(),
+  fencedTerritory: z.boolean().nullish(),
+  locationTags: z.array(z.enum(propertyLocationTags)).max(4)
+    .transform(tags => [...new Set(tags)]).optional(),
   seaDistance: z.number().min(0).max(100000).nullish(),
   description: z.string().trim().max(30000),
   utilities: z.array(z.string().trim().min(1).max(120)).max(20),
@@ -171,16 +176,18 @@ export type Property = PropertyInput & {
   priceArea: number | null;
   images: { id: string; file: string; alt: string; order: number; kind?: "photo" | "plan" }[];
   tagRelations?: { tag: { name: string } }[];
-  complex?: Pick<Property, "id" | "title" | "slug" | "published"> | null;
+  complex?: Pick<Property, "id" | "title" | "slug" | "published" | "heatingType" | "fencedTerritory" | "locationTags"> | null;
   apartments?: RelatedApartment[];
 };
 export type RelatedApartment = Pick<Property,
-  "id" | "title" | "slug" | "published" | "price" | "area" | "bedrooms" | "status" | "images"
+  "id" | "title" | "slug" | "published" | "price" | "area" | "bedrooms" | "status" | "images" |
+  "housingMarket" | "heatingType" | "fencedTerritory" | "locationTags"
 >;
 export type CatalogMapItem = Pick<Property,
   "id" | "slug" | "title" | "type" | "location" | "address" | "price" |
   "priceKind" | "area" | "bedrooms" | "status" | "elite" | "latitude" | "longitude" | "images" |
-  "developer" | "constructionStatus" | "priceArea" | "readiness" | "sourceMode" | "complex"
+  "developer" | "constructionStatus" | "priceArea" | "readiness" | "sourceMode" | "complex" |
+  "housingMarket" | "heatingType" | "fencedTerritory" | "locationTags"
 >;
 export function money(value: number | null) {
   return value === null

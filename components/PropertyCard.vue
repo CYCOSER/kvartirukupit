@@ -3,8 +3,8 @@ import { ArrowUpRight, Building2, Maximize, MapPin } from "lucide-vue-next";
 import { types, statuses, money, formatReadiness, propertyAddress, type Property } from "~/shared/property";
 type CardProperty = Pick<Property,
   "title" | "slug" | "type" | "images" | "status" | "address" | "location" |
-  "area" | "developer" | "constructionStatus" | "priceKind" | "priceArea" |
-  "price" | "readiness" | "sourceMode" | "complex"
+  "area" | "constructionStatus" | "priceKind" | "priceArea" |
+  "price" | "readiness" | "sourceMode" | "complex" | "housingMarket" | "heatingType" | "fencedTerritory" | "locationTags"
 >;
 const props = withDefaults(defineProps<{
   property: CardProperty;
@@ -28,11 +28,7 @@ function expandFromKeyboard(event: KeyboardEvent) {
 const readiness = computed(() => formatReadiness(props.property.readiness, props.property.constructionStatus));
 const development = computed(() => props.property.type === 'apartment'
   ? props.property.complex && 'ЖК ' + props.property.complex.title.replace(/^ЖК\s+/i, '')
-  : props.property.developer);
-const constructionStatus = computed(() => {
-  const value = props.property.constructionStatus?.trim();
-  return value ? value[0].toLocaleUpperCase('ru') + value.slice(1) : '';
-});
+  : null);
 </script>
 <template>
   <component
@@ -103,10 +99,8 @@ const constructionStatus = computed(() => {
             <span v-if="development"
               ><Building2 :size="16" aria-hidden="true" />{{ development }}</span
             >
-            <span v-if="constructionStatus">{{
-              constructionStatus
-            }}</span>
           </div>
+          <PropertyFeatures :property="property" :construction-status="property.constructionStatus" />
         </div>
       </div>
       <div :id="disclosure ? disclosure.id + '-price' : undefined" class="card-price">

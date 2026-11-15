@@ -16,6 +16,7 @@ export default defineEventHandler(async (event) => {
         address: true, price: true, priceKind: true, area: true, bedrooms: true,
         status: true, elite: true, latitude: true, longitude: true,
         developer: true, constructionStatus: true, priceArea: true, readiness: true, sourceMode: true,
+        housingMarket: true, heatingType: true, fencedTerritory: true, locationTags: true,
         complex: publicComplexSelect,
         images: { orderBy: { order: "asc" }, take: 1, select: { id: true, file: true, alt: true, order: true, kind: true } },
       },
