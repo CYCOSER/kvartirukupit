@@ -1,4 +1,5 @@
 export default defineEventHandler((event) => {
   setHeader(event, 'Content-Type', 'text/plain');
-  return `User-agent: *\nDisallow: /api/\nDisallow: /admin-console-\nSitemap: ${useRuntimeConfig(event).public.siteUrl}/sitemap.xml`;
+  const siteUrl = new URL(useRuntimeConfig(event).public.siteUrl).origin;
+  return `User-agent: *\nDisallow: /api/\nDisallow: /admin-console-\nSitemap: ${siteUrl}/sitemap.xml`;
 });
