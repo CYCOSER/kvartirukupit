@@ -28,13 +28,16 @@ services:
       - rf39_snapshots:/app/rf39
       - ./.data/nmarket:/app/nmarket
     ports:
-      - "${PORT:-3100}:3000"
+      - "127.0.0.1:${PORT:-3100}:3000"
     environment:
       DATABASE_URL: postgresql://newh:${POSTGRES_PASSWORD}@db:5432/newh?schema=app
       ADMIN_EMAIL: ${ADMIN_EMAIL:?Set ADMIN_EMAIL in .env}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       NUXT_AGENT_API_TOKEN: ${NUXT_AGENT_API_TOKEN:-}
+      NUXT_SMART_CAPTCHA_SECRET_KEY: ${NUXT_SMART_CAPTCHA_SECRET_KEY:-}
+      NUXT_PUBLIC_SMART_CAPTCHA_SITE_KEY: ${NUXT_PUBLIC_SMART_CAPTCHA_SITE_KEY:-}
+      NUXT_TRUST_PROXY: ${NUXT_TRUST_PROXY:-false}
       UPSCALE_ENABLED: "true"
       NUXT_MAP_SEARCH_URL: ${NUXT_MAP_SEARCH_URL:-https://nominatim.openstreetmap.org/search}
       NUXT_RF39_FEED_URL: ${NUXT_RF39_FEED_URL:-https://feed.rf39.ru/30.xml}

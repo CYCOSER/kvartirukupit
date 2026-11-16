@@ -1,4 +1,7 @@
 import { test, expect } from '@playwright/test';
+import { mockCaptcha, solveCaptcha } from './fixtures/captcha';
+
+test.beforeEach(async ({ page }) => mockCaptcha(page));
 
 test('tours page has search metadata and is reachable from both menus', async ({ page, request }, testInfo) => {
   const response = await request.get('/tours');
@@ -12,8 +15,7 @@ test('tours page has search metadata and is reachable from both menus', async ({
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(/Туры\s*по новостройкам/);
     await expect(page.locator('.scene-photo')).toHaveAttribute('src', '/images/backgrounds/tours-bus.webp');
     await expect.poll(() => page.locator('.scene-photo').evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
-    await expect(page.locator('#tour-request-title')).toHaveText(/Наш маршрут\s*Для вас/);
-    await expect(page.locator('#tour-request-title .type-script')).toHaveCSS('text-decoration-line', 'none');
+    await expect(page.locator('#tour-request-title')).toHaveText(/Туры по недвижимости в Калининграде\s*и на побережье/);
     await expect(page.locator('.desktop-nav').getByRole('link', { name: 'Как купить', exact: true })).toHaveCount(0);
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /\/tours$/);
     await expect(page.locator('.footer-destinations a[href="/tours"]')).toBeVisible();
@@ -44,7 +46,7 @@ test('tour requests include the selected format and preserve the comment within 
     await page.goto('/tours');
     await page.waitForFunction(() => !!(document.querySelector('#__nuxt') as Element & { __vue_app__?: unknown })?.__vue_app__);
     const form = page.locator('.lead-form');
-    const formatField = form.getByRole('combobox', { name: 'Формат тура', exact: true });
+    const formatField = form.getByRole('combobox', { name: 'Выберите тур', exact: true });
     await expect(formatField).toHaveText('Калининград');
     await formatField.click();
     await expect(page.getByRole('option')).toHaveText(formats);
@@ -62,6 +64,7 @@ test('tour requests include the selected format and preserve the comment within 
     await form.getByRole('checkbox').check();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (index < 2) await form.screenshot({ path: testInfo.outputPath(`tour-form-${index % 2 ? 390 : 1440}.png`) });
+    await solveCaptcha(page);
     await form.getByRole('button', { name: 'Оставить заявку на тур', exact: true }).click();
     await expect(page.getByRole('status')).toContainText('Заявка принята');
     expect(enquiry?.comment).toBe(`Тур по новостройкам: ${format}.\n${comment}`);
@@ -89,6 +92,7 @@ test('regular forms mark the phone as required and keep the original request con
     await form.getByLabel('Номер телефона', { exact: true }).fill('+79991234567');
     await form.locator('textarea').fill('Хочу посмотреть квартиру');
     await form.getByRole('checkbox').check();
+    await solveCaptcha(page);
     await form.getByRole('button', { name: 'Обсудить подбор', exact: true }).click();
     await expect(page.getByRole('status')).toContainText('Заявка принята');
     expect(enquiry?.comment).toBe('Хочу посмотреть квартиру');

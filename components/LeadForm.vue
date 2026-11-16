@@ -25,7 +25,11 @@ const pending = ref(false),
   error = ref("");
 const uid = useId();
 const commentField = useAutoResizeTextarea(() => form.comment);
+const captchaSiteKey = useRuntimeConfig().public.smartCaptchaSiteKey;
+const captchaToken = ref("");
+const captcha = ref<{ reset: () => void } | null>(null);
 async function submit() {
+  if (pending.value || !captchaToken.value) return;
   pending.value = true;
   error.value = "";
   try {
@@ -38,14 +42,22 @@ async function submit() {
           : form.comment,
         propertyId: props.propertyId,
         purpose: "buyer",
+        captchaToken: captchaToken.value,
       },
+      retry: 0,
     });
     success.value = true;
   } catch (e: any) {
     error.value =
       e.status === 429
         ? "Слишком много попыток. Пожалуйста, попробуйте через 10 минут."
+        : e.status === 403
+        ? "Пройдите проверку ещё раз и повторите отправку заявки."
+        : e.status === 503
+        ? "Проверка временно недоступна. Пожалуйста, попробуйте позже."
         : "Не удалось отправить заявку. Проверьте данные и попробуйте ещё раз.";
+    captchaToken.value = "";
+    captcha.value?.reset();
   } finally {
     pending.value = false;
   }
@@ -133,8 +145,12 @@ async function submit() {
         <NuxtLink to="/privacy">Политика конфиденциальности</NuxtLink></span
       ></label
     >
+    <LeadCaptcha v-if="captchaSiteKey" ref="captcha" v-model="captchaToken" :site-key="captchaSiteKey" />
+    <p v-else role="alert" class="captcha-unavailable">
+      Отправка заявки временно недоступна. Пожалуйста, свяжитесь с нами по контактам на сайте.
+    </p>
     <p v-if="error" role="alert" class="error-text">{{ error }}</p>
-    <Button type="submit" :disabled="pending"
+    <Button type="submit" :disabled="pending || !captchaToken"
       ><span>{{ pending ? "Отправляем…" : tour ? "Оставить заявку на тур" : "Обсудить подбор" }}</span
       ><ArrowUpRight :size="18" aria-hidden="true"
     /></Button>
@@ -153,6 +169,10 @@ async function submit() {
   margin-left: 5px;
   color: #99616a;
   font-size: 0.7rem;
+}
+.captcha-unavailable {
+  color: #b4232b;
+  font-size: 0.875rem;
 }
 @media (min-width: 541px) {
   @container (max-width: 440px) {

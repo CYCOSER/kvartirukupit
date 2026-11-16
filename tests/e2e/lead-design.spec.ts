@@ -1,8 +1,10 @@
 import { test, expect } from "@playwright/test";
+import { mockCaptcha } from './fixtures/captcha';
 
 test("contact card is responsive and comment grows without manual resizing", async ({
   page,
 }) => {
+  await mockCaptcha(page);
   await page.goto("/");
   const form = page.locator(".lead-form");
   const comment = form.locator("textarea");

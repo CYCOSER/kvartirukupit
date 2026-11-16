@@ -1,21 +1,14 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { H3Event } from 'h3';
 import { db } from './db';
-const attempts = new Map<string, { count: number; until: number }>();
+import { enforceRateLimit } from './rate-limit';
 export function limit(
   event: H3Event,
   scope: string,
   max = 6,
   duration = 600000,
 ) {
-  const now = Date.now();
-  for (const [k, v] of attempts) if (v.until < now) attempts.delete(k);
-  const key = scope + ':' + getRequestIP(event, { xForwardedFor: false });
-  const entry = attempts.get(key) || { count: 0, until: now + duration };
-  entry.count++;
-  attempts.set(key, entry);
-  if (entry.count > max)
-    throw createError({ statusCode: 429, statusMessage: 'Too many requests' });
+  enforceRateLimit(event, scope, max, duration);
 }
 export function checkOrigin(event: H3Event) {
   const expected = new URL(useRuntimeConfig(event).public.siteUrl).origin;

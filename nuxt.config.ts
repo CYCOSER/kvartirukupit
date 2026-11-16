@@ -8,12 +8,15 @@ export default defineNuxtConfig({
   devtools: { enabled: false },
   runtimeConfig: {
     agentApiToken: '',
+    smartCaptchaSecretKey: '',
+    trustProxy: false,
     rf39FeedUrl: 'https://feed.rf39.ru/30.xml',
     rf39SnapshotPath: '.data/rf39/snapshot.json',
     nmarketFeedUrl: '',
     nmarketSnapshotPath: '.data/nmarket/snapshot.xml',
     mapSearchUrl: 'https://nominatim.openstreetmap.org/search',
     public: {
+      smartCaptchaSiteKey: '',
       siteName: 'Квартирукупить',
       siteUrl: 'http://localhost:3100',
       phone: '',

@@ -155,6 +155,7 @@ export const leadSchema = z.object({
   consent: z.literal(true),
   propertyId: z.string().max(100).optional(),
   website: z.string().max(200).default(""),
+  captchaToken: z.string().trim().max(4096).default(""),
 });
 export type PropertyInput = z.infer<typeof propertySchema>;
 export type Property = PropertyInput & {

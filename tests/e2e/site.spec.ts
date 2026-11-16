@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { mockCaptcha, solveCaptcha } from './fixtures/captcha';
 import { readFile } from "node:fs/promises";
 import { parseEnv } from "node:util";
 import type { Property } from "../../shared/property";
@@ -48,6 +49,7 @@ async function cleanTestProperty(request: APIRequestContext, id: string) {
 test("responsive site, source cards, filters and keyboard menu", async ({
   page,
 }) => {
+  await mockCaptcha(page);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -115,6 +117,7 @@ test("responsive site, source cards, filters and keyboard menu", async ({
 test("lead form sends explicit buyer consent and shows confirmation without test leads", async ({
   page,
 }) => {
+  await mockCaptcha(page);
   let submitted: Record<string, unknown> | undefined;
   await page.route("**/api/leads", async (route) => {
     submitted = route.request().postDataJSON();
@@ -129,6 +132,7 @@ test("lead form sends explicit buyer consent and shows confirmation without test
     .getByLabel(/Комментарий/)
     .fill("Проверка интерфейса без записи заявки");
   await page.getByRole("checkbox").check();
+  await solveCaptcha(page);
   await page.getByRole("button", { name: "Обсудить подбор", exact: true }).click();
   await expect(page.getByText("Заявка принята")).toBeVisible();
   expect(submitted).toMatchObject({
@@ -140,6 +144,7 @@ test("lead form sends explicit buyer consent and shows confirmation without test
 });
 
 test("home and property enquiry forms share their appearance on desktop and mobile", async ({ page }) => {
+  await mockCaptcha(page);
   await page.emulateMedia({ reducedMotion: "reduce" });
   const catalog = await (await page.request.get('/api/properties')).json();
   expect(catalog.items.length).toBeGreaterThan(0);

@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
     setHeader(
       event,
       'Content-Security-Policy',
-      "default-src 'self'; base-uri 'self'; connect-src 'self' https://mc.yandex.ru https://mc.yandex.com; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: https://tile.openstreetmap.org https://xn--d1aqf.xn--p1ai https://*.xn--d1aqf.xn--p1ai https://domrf.ru https://*.domrf.ru https://mc.yandex.ru https://mc.yandex.com; object-src 'none'; script-src 'self' 'unsafe-inline' https://mc.yandex.ru https://mc.yandex.com; style-src 'self' 'unsafe-inline'",
+      "default-src 'self'; base-uri 'self'; connect-src 'self' https://mc.yandex.ru https://mc.yandex.com https://smartcaptcha.cloud.yandex.ru; font-src 'self'; form-action 'self'; frame-ancestors 'none'; frame-src https://smartcaptcha.cloud.yandex.ru; img-src 'self' data: https://tile.openstreetmap.org https://xn--d1aqf.xn--p1ai https://*.xn--d1aqf.xn--p1ai https://domrf.ru https://*.domrf.ru https://mc.yandex.ru https://mc.yandex.com; object-src 'none'; script-src 'self' 'unsafe-inline' https://mc.yandex.ru https://mc.yandex.com https://smartcaptcha.cloud.yandex.ru; style-src 'self' 'unsafe-inline'",
     );
   if (useRuntimeConfig(event).public.siteUrl.startsWith('https://'))
     setHeader(

@@ -1,4 +1,7 @@
 import { test, expect } from "@playwright/test";
+import { mockCaptcha, solveCaptcha } from './fixtures/captcha';
+
+test.beforeEach(async ({ page }) => mockCaptcha(page));
 
 test("mortgage page is rendered for search engines and linked from navigation", async ({ page, request }) => {
   const response = await request.get("/ipoteka");
@@ -56,6 +59,7 @@ test("mortgage page calculator, questions and enquiry work on desktop and mobile
   await form.getByLabel("Номер телефона").fill("+79991234567");
   await form.getByLabel(/Комментарий/).fill("Интересует квартира в ипотеку");
   await form.getByRole("checkbox").check();
+  await solveCaptcha(page);
   await form.getByRole("button", { name: "Обсудить подбор" }).click();
   await expect(page.getByRole("status")).toContainText("Заявка принята");
   expect(enquiry?.comment).toBe("Интересует квартира в ипотеку");
