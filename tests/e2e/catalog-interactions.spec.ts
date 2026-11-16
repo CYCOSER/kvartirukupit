@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { propertyFixture } from "./fixtures/property";
 
 test.use({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } });
 
@@ -76,6 +77,45 @@ test("property cards have one link covering text and price, with keyboard access
   await expect(clones.first()).toHaveAttribute("aria-hidden", "true");
   await expect(clones.first()).toHaveJSProperty("tagName", "A");
   await expect(clones.first().locator("a")).toHaveCount(0);
+});
+
+test("catalog loads the next batch without replacing cards and leaves a 2em gap", async ({
+  page,
+}) => {
+  const properties = Array.from({ length: 14 }, (_, index) =>
+    propertyFixture({
+      id: `load-more-${index}`,
+      slug: `load-more-${index}`,
+      title: `Объект ${index + 1}`,
+    }),
+  );
+  const requestedPages: number[] = [];
+  await page.route("**/api/properties?*", async (route) => {
+    const requestedPage = Number(
+      new URL(route.request().url()).searchParams.get("page") || 1,
+    );
+    requestedPages.push(requestedPage);
+    await route.fulfill({
+      json: {
+        items: properties.slice((requestedPage - 1) * 12, requestedPage * 12),
+        total: properties.length,
+        pages: 2,
+        locations: ["Калининград"],
+      },
+    });
+  });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/catalog");
+  await page.getByTestId("catalog-title-search-input").fill("Объект");
+  await page.getByTestId("catalog-title-search-submit").click();
+
+  const cards = page.locator(".catalog-grid .property-card");
+  await expect(page.locator('a[href="/catalog/load-more-0"]')).toBeVisible();
+  await expect(cards).toHaveCount(12);
+  await page.getByRole("button", { name: "Загрузить еще", exact: true }).click();
+  await expect(cards).toHaveCount(14);
+  await expect.poll(() => requestedPages).toContain(2);
+  await expect(page.locator(".catalog-grid-next")).toHaveCSS("margin-top", "32px");
 });
 
 test("modal filters preserve the page width and restore scrolling on close", async ({

@@ -10,6 +10,9 @@ const mapView = computed(() => route.query.view === "map");
 const selectedPropertyId = computed(() => typeof route.query.property === "string" ? route.query.property : undefined);
 const catalogType = computed(() => props.elite || route.query.type === "apartment" ? "apartment" : "complex");
 const titleSearch = ref(typeof route.query.q === "string" ? route.query.q : "");
+const additionalBatches = ref<Property[][]>([]);
+const loadingMore = ref(false);
+const loadMoreError = ref("");
 const defaults = {
   type: props.elite ? "apartment" : "complex",
   location: "",
@@ -31,6 +34,8 @@ const filters = ref<Record<string, string>>({
 watch(
   () => route.query,
   (query) => {
+    additionalBatches.value = [];
+    loadMoreError.value = "";
     titleSearch.value = typeof query.q === "string" ? query.q : "";
     filters.value = {
       ...defaults,
@@ -56,6 +61,7 @@ const { data, error, status, refresh } = await useFetch<{
 });
 const page = computed(() => route.query.page === undefined ? 1
   : typeof route.query.page === 'string' ? Number(route.query.page) : NaN);
+const displayedPage = computed(() => page.value + additionalBatches.value.length);
 const pageOutOfRange = () => !mapView.value && (
   !Number.isInteger(page.value) || page.value < 1 || page.value > 10000
   || (data.value && page.value > Math.max(1, data.value.pages))
@@ -69,6 +75,26 @@ watch(data, () => {
   }
 });
 const cardItems = computed(() => mapView.value ? [] : (data.value?.items || []) as Property[]);
+async function loadMore() {
+  if (loadingMore.value || page.value + additionalBatches.value.length >= (data.value?.pages || 0)) return;
+  loadingMore.value = true;
+  loadMoreError.value = "";
+  try {
+    const result = await $fetch<{ items: Property[] }>("/api/properties", {
+      query: {
+        ...route.query,
+        elite: String(!!props.elite),
+        type: catalogType.value,
+        page: page.value + additionalBatches.value.length + 1,
+      },
+    });
+    additionalBatches.value.push(result.items);
+  } catch {
+    loadMoreError.value = "Не удалось загрузить следующую часть каталога. Попробуйте ещё раз.";
+  } finally {
+    loadingMore.value = false;
+  }
+}
 function changeView(view: "grid" | "map") {
   if ((view === "map") === mapView.value) return;
   const query = { ...route.query };
@@ -262,6 +288,22 @@ useCatalogTools(async (values) => {
             :show-arrow="false"
           />
         </PropertyPanels>
+        <PropertyPanels
+          v-for="(batch, batchIndex) in additionalBatches"
+          :key="`${page}-${batchIndex}`"
+          compact
+          class="catalog-grid catalog-grid-next"
+          :aria-busy="loadingMore"
+        >
+          <PropertyCard
+            v-for="property in batch"
+            :key="property.id"
+            v-reveal
+            class="catalog-panel"
+            :property="property"
+            :show-arrow="false"
+          />
+        </PropertyPanels>
         <nav
           v-if="!mapView && (data?.pages || 0) > 1"
           class="pagination"
@@ -273,14 +315,25 @@ useCatalogTools(async (values) => {
             class="catalog-inline-link"
             >Назад</NuxtLink
           >
-          <span>{{ page }} / {{ data?.pages }}</span>
+          <span>{{ displayedPage }} / {{ data?.pages }}</span>
+          <button
+            v-if="!elite && displayedPage < (data?.pages || 0)"
+            class="catalog-inline-link"
+            :disabled="loadingMore"
+            @click="loadMore"
+          >
+            {{ loadingMore ? "Загружаем…" : "Загрузить еще" }}
+          </button>
           <NuxtLink
-            v-if="page < (data?.pages || 0)"
-            :to="{ query: { ...route.query, page: page + 1 }, hash: '#homes' }"
+            v-if="displayedPage < (data?.pages || 0)"
+            :to="{ query: { ...route.query, page: displayedPage + 1 }, hash: '#homes' }"
             class="catalog-inline-link"
             >Далее</NuxtLink
           >
         </nav>
+        <p v-if="loadMoreError" class="catalog-load-more-error" role="alert">
+          {{ loadMoreError }}
+        </p>
         <div class="catalog-invitation-wrap">
           <section
             class="catalog-invitation"
@@ -344,6 +397,14 @@ useCatalogTools(async (values) => {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   max-width: 643px;
   margin-inline: auto;
+}
+.catalog-page .catalog-grid-next {
+  margin-top: 2em;
+}
+.catalog-load-more-error {
+  margin-top: 12px;
+  text-align: center;
+  color: #ffd5d5;
 }
 @media (min-width: 860px) {
   .catalog-page .catalog-grid {
