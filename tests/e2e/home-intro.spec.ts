@@ -14,7 +14,9 @@ test("homepage intro reveals the site and respects reduced motion", async ({
     await expect(intro).toHaveAttribute("aria-hidden", "true");
     await expect(intro).toHaveAttribute("inert", "");
     const symbol = intro.locator(".home-intro-symbol");
-    await expect(symbol.locator("rect")).toHaveCount(0);
+    await expect(symbol.locator("rect")).toHaveCount(1);
+    const bar = symbol.locator(".home-intro-bar");
+    await expect(bar).toHaveCSS("fill", "rgb(122, 167, 237)");
     await expect(symbol.locator("path")).toHaveCount(2);
     await expect(symbol.locator("path").first()).toHaveCSS("fill", "rgb(122, 167, 237)");
     await expect(symbol.locator("path").last()).toHaveCSS("fill", "rgb(184, 212, 244)");
@@ -36,6 +38,8 @@ test("homepage intro reveals the site and respects reduced motion", async ({
       }
     });
     expect(await arrowOffsets()).toEqual([4, -4]);
+    const barStart = (await bar.boundingBox())!;
+    expect(barStart.height).toBe(0);
     expect(
       await page.locator(".home-intro-title").evaluate((element) => {
         const house = element.firstElementChild!.getBoundingClientRect();
@@ -51,6 +55,7 @@ test("homepage intro reveals the site and respects reduced motion", async ({
     ).toBe(true);
     const symbolStart = (await symbol.boundingBox())!;
     let previousArrowOffset = 4;
+    let previousBarHeight = 0;
     // It slides from behind Квартиру at full opacity; only its left edge is masked.
     for (const time of [350, 450, 650, 850]) {
       await intro.evaluate((element, time) => {
@@ -65,6 +70,10 @@ test("homepage intro reveals the site and respects reduced motion", async ({
       expect(leftOffset).toBeLessThan(previousArrowOffset);
       expect(rightOffset).toBeCloseTo(-leftOffset, 5);
       previousArrowOffset = leftOffset;
+      const barFrame = (await bar.boundingBox())!;
+      expect(barFrame.height).toBeGreaterThan(previousBarHeight);
+      expect(barFrame.y + barFrame.height).toBeCloseTo(barStart.y, 3);
+      previousBarHeight = barFrame.height;
       await expect(page.locator(".home-intro-tail")).toHaveCSS("opacity", "1");
       expect(
         await page.locator(".home-intro-tail").evaluate((element) => {
@@ -100,6 +109,10 @@ test("homepage intro reveals the site and respects reduced motion", async ({
       "matrix(1, 0, 0, 1, 0, 0)",
     );
     expect(await arrowOffsets()).toEqual([0, 0]);
+    const barEnd = (await bar.boundingBox())!;
+    const arrowEnd = (await arrows.first().boundingBox())!;
+    expect(barEnd.height).toBeCloseTo(arrowEnd.height, 3);
+    expect(barEnd.y + barEnd.height).toBeCloseTo(barStart.y, 3);
     await expect(page.locator(".home-intro-dash")).toHaveCSS(
       "color",
       "rgb(184, 212, 244)",

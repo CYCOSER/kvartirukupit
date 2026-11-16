@@ -31,7 +31,7 @@ export default defineNuxtConfig({
         { name: 'referrer', content: 'origin' },
       ],
       link: [
-        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg?v=9' },
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg?v=10' },
         { rel: 'preload', href: '/fonts/anticva-regular.otf', as: 'font', type: 'font/otf', crossorigin: 'anonymous' },
         { rel: 'preload', href: '/fonts/miama-nueva.otf', as: 'font', type: 'font/otf', crossorigin: 'anonymous' },
       ],

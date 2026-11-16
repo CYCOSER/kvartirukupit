@@ -13,6 +13,7 @@ export default defineNitroPlugin((nitroApp) => {
 .home-intro::after{left:auto;right:0;--exit:101%}
 .home-intro-content{display:grid;justify-items:center;gap:24px;width:calc(100% - 40px);text-align:center;animation:home-intro-arrive .65s .05s backwards,home-intro-fade .2s 1.2s forwards}
 .home-intro-symbol{width:clamp(68px,9vw,104px);height:auto;color:#b8d4f4}
+.home-intro-bar{transform-box:fill-box;transform-origin:center bottom;animation:home-intro-grow .65s .3s cubic-bezier(.22,1,.36,1) both}
 .home-intro-arrow{--arrow-start:4px;animation:home-intro-separate .65s .3s cubic-bezier(.22,1,.36,1) both}
 .home-intro-arrow:last-child{--arrow-start:-4px}
 .home-intro-title{display:flex;align-items:baseline;justify-content:center;margin:0;font:500 clamp(25px,5.4vw,60px)/1.25 'Manrope Variable',Arial,sans-serif;letter-spacing:-.045em;white-space:nowrap}
@@ -28,10 +29,11 @@ export default defineNitroPlugin((nitroApp) => {
 @keyframes home-intro-expand{to{grid-template-columns:1fr}}
 @keyframes home-intro-slide{from{transform:translateX(-100%)}to{transform:translateX(0)}}
 @keyframes home-intro-separate{from{transform:translateX(var(--arrow-start))}to{transform:translateX(0)}}
+@keyframes home-intro-grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
 @keyframes home-intro-fade{to{opacity:0}}
 @keyframes home-intro-open{to{transform:translateX(var(--exit))}}
 @keyframes home-intro-finish{to{visibility:hidden}}
 @media(prefers-reduced-motion:reduce){.home-intro{display:none}.home-intro,.home-intro *,.home-intro::before,.home-intro::after{animation:none}}
-</style><div class="home-intro" aria-hidden="true" inert><div class="home-intro-content"><svg class="home-intro-symbol" viewBox="6 6 36 36" width="104" height="104"><path class="home-intro-arrow" d="M17.5 10H25L14.5 24 25 38H17.5L7 24Z" fill="#7aa7ed"/><path class="home-intro-arrow" d="M33 10H40.5L30 24 40.5 38H33L22.5 24Z" fill="currentColor"/></svg><p class="home-intro-title"><span>Квартиру</span><span class="home-intro-reveal"><span class="home-intro-clip"><span class="home-intro-tail"><span class="home-intro-dash">купить</span></span></span></span></p><span class="home-intro-rule"></span><p class="home-intro-caption">Новостройки · Калининград</p></div><p class="home-intro-location">Калининград · В ритме Балтики</p></div>`);
+</style><div class="home-intro" aria-hidden="true" inert><div class="home-intro-content"><svg class="home-intro-symbol" viewBox="-1 6 43 36" width="104" height="87"><rect class="home-intro-bar" x="0.5" y="10" width="1.5" height="28" rx="0.5" fill="#7aa7ed"/><path class="home-intro-arrow" d="M17.5 10H25L14.5 24 25 38H17.5L7 24Z" fill="#7aa7ed"/><path class="home-intro-arrow" d="M33 10H40.5L30 24 40.5 38H33L22.5 24Z" fill="currentColor"/></svg><p class="home-intro-title"><span>Квартиру</span><span class="home-intro-reveal"><span class="home-intro-clip"><span class="home-intro-tail"><span class="home-intro-dash">купить</span></span></span></span></p><span class="home-intro-rule"></span><p class="home-intro-caption">Новостройки · Калининград</p></div><p class="home-intro-location">Калининград · В ритме Балтики</p></div>`);
   });
 });
