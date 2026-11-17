@@ -122,7 +122,7 @@ defineExpose({ reset });
 
 <template>
   <div class="lead-captcha">
-    <div ref="frame" class="captcha-frame" :style="{ height: `${118 * scale}px` }">
+    <div ref="frame" class="captcha-frame">
       <p v-if="loading" role="status" class="captcha-loading">Загружаем проверку…</p>
       <div ref="container" class="captcha-widget" :style="{ transform: `scale(${scale})` }" />
     </div>
