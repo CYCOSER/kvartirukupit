@@ -1,6 +1,9 @@
 import type { Page } from '@playwright/test';
 
 export async function mockCaptcha(page: Page, failFirstLoad = false) {
+  await page.addInitScript(() => {
+    localStorage.setItem('site-analytics-consent', 'accepted');
+  });
   let loads = 0;
   await page.route('https://smartcaptcha.cloud.yandex.ru/captcha.js**', async route => {
     loads++;

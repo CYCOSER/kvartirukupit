@@ -92,6 +92,9 @@ test("articles: authenticated editor, draft, SEO, publish, unpublish and delete"
     await page.getByLabel("Опубликовать статью").check();
     await page.getByRole("button", { name: "Сохранить статью" }).click();
     await expect(page.getByRole("status")).toHaveText("Статья сохранена.");
+    await page.addInitScript(() => {
+      localStorage.setItem("site-analytics-consent", "accepted");
+    });
     await page.goto("/blog/" + slug);
     await expect(page).toHaveTitle(/Проверочный SEO заголовок/);
     await expect(page.locator('meta[name="description"]')).toHaveAttribute(

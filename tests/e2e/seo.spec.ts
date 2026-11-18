@@ -1,18 +1,46 @@
 import { test, expect } from '@playwright/test';
 
-test('SSR includes the Yandex Metrika counter and noscript fallback', async ({ request }) => {
+test('SSR does not include Yandex Metrika before visitor consent', async ({ request }) => {
   const response = await request.get('/');
   expect(response.status()).toBe(200);
   const html = await response.text();
   expect(html).toMatch(/<meta[^>]*name="referrer"[^>]*content="origin"/);
-  expect(html).toContain('https://mc.yandex.ru/metrika/tag.js?id=114233228');
-  expect(html).toContain("ym(114233228, 'init'");
-  expect(html).toContain('https://mc.yandex.ru/watch/114233228');
+  expect(html).not.toContain('https://mc.yandex.ru/metrika/tag.js');
+  expect(html).not.toContain('https://mc.yandex.ru/watch/114233228');
+  expect(html).not.toContain("ym(114233228, 'init'");
   const csp = response.headers()['content-security-policy'] || '';
   for (const directive of ['connect-src', 'img-src', 'script-src']) {
     const policy = csp.split(';').find((item) => item.trim().startsWith(directive));
     expect(policy).toContain('https://mc.yandex.com');
   }
+});
+
+test('Yandex scripts load only after explicit consent', async ({ page }) => {
+  const yandexRequests: string[] = [];
+  await page.route(
+    /^https:\/\/(?:mc\.yandex\.ru|smartcaptcha\.cloud\.yandex\.ru)\//,
+    async (route) => {
+      yandexRequests.push(route.request().url());
+      await route.abort();
+    },
+  );
+
+  await page.goto('/tours');
+  await expect(page.getByRole('button', { name: 'Согласен(-на)' })).toBeVisible();
+  await expect.poll(() => yandexRequests).toHaveLength(0);
+  expect(
+    await page.locator('script[src*="yandex"]').count(),
+  ).toBe(0);
+
+  await page.getByRole('button', { name: 'Согласен(-на)' }).click();
+  await expect.poll(() => yandexRequests.some((url) => url.includes('metrika/tag.js'))).toBe(true);
+  await expect(page.getByRole('button', { name: 'Согласен(-на)' })).toHaveCount(0);
+  expect(
+    await page.evaluate(() => localStorage.getItem('site-analytics-consent')),
+  ).toBe('accepted');
+
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Согласен(-на)' })).toHaveCount(0);
 });
 
 test('SSR normalizes canonicals and returns 404 for a missing catalog page', async ({ request }) => {

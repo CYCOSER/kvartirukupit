@@ -2,8 +2,10 @@
 import type { Article } from "~/shared/article";
 import { combineTagKeywords } from "~/shared/tag";
 import RecommendedProjectCard from "~/components/RecommendedProjectCard.vue";
+import { useAnalyticsConsent } from "~/composables/useAnalyticsConsent";
 import { Eye, ThumbsUp } from "lucide-vue-next";
 const route = useRoute();
+const { consent } = useAnalyticsConsent();
 const { data: article, error } = await useFetch<Article>(
   "/api/articles/" + route.params.slug,
 );
@@ -44,10 +46,15 @@ async function recordArticleView(id: string, slug: string) {
 }
 
 watch(
-  () => article.value?.id,
-  (id) => {
+  [() => article.value?.id, consent],
+  ([id, permission]) => {
     const slug = article.value?.slug;
-    if (import.meta.client && id && slug) void recordArticleView(id, slug);
+    if (
+      import.meta.client &&
+      permission === "accepted" &&
+      id &&
+      slug
+    ) void recordArticleView(id, slug);
   },
   { immediate: true },
 );

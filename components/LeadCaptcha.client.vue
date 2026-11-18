@@ -44,9 +44,11 @@ function loadCaptcha() {
 
 <script setup lang="ts">
 import Button from '~/components/ui/button/Button.vue';
+import { useAnalyticsConsent } from '~/composables/useAnalyticsConsent';
 
 const props = defineProps<{ siteKey: string }>();
 const token = defineModel<string>({ required: true });
+const { consent, openSettings } = useAnalyticsConsent();
 const frame = ref<HTMLElement>();
 const container = ref<HTMLElement>();
 const scale = ref(1);
@@ -102,16 +104,23 @@ function reset() {
   }
 }
 
-watch(frame, element => {
+watch([frame, consent], ([element, value]) => {
   observer?.disconnect();
-  if (!element) return;
+  if (value !== 'accepted' || !element) {
+    if (widgetId !== undefined) {
+      api?.destroy(widgetId);
+      widgetId = undefined;
+      token.value = '';
+    }
+    return;
+  }
   // SmartCaptcha's checkbox requires a minimum width of 300px.
   observer = new ResizeObserver(([entry]) => {
     if (entry) scale.value = Math.min(1, entry.contentRect.width / 300);
   });
   observer.observe(element);
   initialize();
-}, { flush: 'post' });
+}, { flush: 'post', immediate: true });
 onBeforeUnmount(() => {
   disposed = true;
   observer?.disconnect();
@@ -123,7 +132,11 @@ defineExpose({ reset });
 <template>
   <div class="lead-captcha">
     <div ref="frame" class="captcha-frame">
-      <p v-if="loading" role="status" class="captcha-loading">Загружаем проверку…</p>
+      <p v-if="consent !== 'accepted'" class="captcha-consent">
+        Для защиты формы нужен сервис Яндекса.
+        <button type="button" @click="openSettings">Настроить cookie</button>
+      </p>
+      <p v-else-if="loading" role="status" class="captcha-loading">Загружаем проверку…</p>
       <div ref="container" class="captcha-widget" :style="{ transform: `scale(${scale})` }" />
     </div>
     <p v-if="error" role="alert" class="captcha-error">{{ error }}</p>
@@ -152,6 +165,16 @@ defineExpose({ reset });
 .captcha-loading {
   position: absolute;
   margin: 0;
+}
+.captcha-consent {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.captcha-consent button {
+  color: #245fbd;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .captcha-error {
   margin-bottom: 12px;

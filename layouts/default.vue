@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ArrowUpRight, MapPin, Menu, MessageCircle, Phone } from "lucide-vue-next";
 import Sheet from "~/components/ui/sheet/Sheet.vue";
+import { useAnalyticsConsent } from "~/composables/useAnalyticsConsent";
 const config = useRuntimeConfig();
+const { openSettings: openCookieSettings } = useAnalyticsConsent();
 const menu = ref(false);
 const route = useRoute();
 const headerHidden = ref(false);
@@ -173,6 +175,8 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
           <span
             >© {{ new Date().getFullYear() }} {{ config.public.siteName }}</span
           ><NuxtLink to="/privacy">Конфиденциальность</NuxtLink
+          ><button class="cookie-settings-link" type="button" @click="openCookieSettings"
+            >Настройки cookie</button
           ><span>Калининград</span>
         </div>
       </div>
@@ -405,6 +409,19 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
 }
 .glass-home-layout .footer-bottom a:hover,
 .glass-home-layout .footer-bottom a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.cookie-settings-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.cookie-settings-link:hover,
+.cookie-settings-link:focus-visible {
   text-decoration: underline;
   text-underline-offset: 4px;
 }

@@ -28,7 +28,7 @@ services:
       - rf39_snapshots:/app/rf39
       - ./.data/nmarket:/app/nmarket
     ports:
-      - "127.0.0.1:${PORT:-3100}:3000"
+      - "${PORT:-3100}:3000"
     environment:
       DATABASE_URL: postgresql://newh:${POSTGRES_PASSWORD}@db:5432/newh?schema=app
       ADMIN_EMAIL: ${ADMIN_EMAIL:?Set ADMIN_EMAIL in .env}
