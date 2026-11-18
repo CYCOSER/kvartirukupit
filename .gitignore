@@ -16,3 +16,4 @@ data/SOURCES.md
 test-results/
 playwright-report/
 preview.png
+public/google*
