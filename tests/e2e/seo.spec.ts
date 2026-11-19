@@ -15,6 +15,15 @@ test('SSR does not include Yandex Metrika before visitor consent', async ({ requ
   }
 });
 
+test('SSR renders the dedicated 404 page with the original HTTP status', async ({ request }) => {
+  const response = await request.get('/__missing-page-test__');
+  expect(response.status()).toBe(404);
+  expect(response.headers()['content-type']).toContain('text/html');
+  const html = await response.text();
+  expect(html).toContain('Страница не найдена');
+  expect(html).toContain('Перейти в каталог');
+});
+
 test('Yandex scripts load only after explicit consent', async ({ page }) => {
   const yandexRequests: string[] = [];
   await page.route(
