@@ -58,7 +58,7 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
         >
         <nav class="desktop-nav" aria-label="Основная навигация">
           <NuxtLink to="/catalog">Новостройки</NuxtLink
-          ><NuxtLink to="/elite">Квартиры с ремонтом</NuxtLink
+          ><NuxtLink to="/elite">Готовые квартиры</NuxtLink
           ><NuxtLink to="/tours">Туры</NuxtLink
           ><NuxtLink to="/ipoteka">Ипотека</NuxtLink
           ><NuxtLink to="/blog">Блог</NuxtLink>
@@ -96,7 +96,7 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
                 ><ArrowUpRight :size="19" aria-hidden="true"
               /></NuxtLink>
               <NuxtLink to="/elite"
-                ><span><small aria-hidden="true">02</small>Квартиры с ремонтом</span
+                ><span><small aria-hidden="true">02</small>Готовые квартиры</span
                 ><ArrowUpRight :size="19" aria-hidden="true"
               /></NuxtLink>
               <NuxtLink to="/tours"
