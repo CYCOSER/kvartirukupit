@@ -279,9 +279,13 @@ export async function processNextImportJob(config: ImportConfig) {
     return true;
   } catch (error) {
     if (importInfrastructureError(error)) throw error;
+    const detail = isError(error) && typeof (error.data as { message?: unknown })?.message === 'string'
+      ? (error.data as { message: string }).message : null;
     await db.$transaction(async tx => {
       await guard(tx);
-      await tx.importJob.update({ where: { id: next.id }, data: { status: 'failed', token: null, leaseExpiresAt: null, activeTitle: '', finishedAt: new Date(), error: 'Обработка остановлена из-за ошибки сервера. Необработанные объекты сохранены для повтора.' } });
+      await tx.importJob.update({ where: { id: next.id }, data: { status: 'failed', token: null, leaseExpiresAt: null, activeTitle: '', finishedAt: new Date(),
+        error: detail ? `Обработка остановлена из-за ошибки сервера: ${detail} Необработанные объекты сохранены для повтора.`
+          : 'Обработка остановлена из-за ошибки сервера. Необработанные объекты сохранены для повтора.' } });
       if (next.kind === 'sync') await tx.feedSyncSetting.updateMany({ where: { id: 'rf39', lastJobId: next.id }, data: { lastError: isError(error) && typeof (error.data as { message?: unknown })?.message === 'string'
         ? (error.data as { message: string }).message : 'Не удалось завершить синхронизацию XML.' } });
     });

@@ -105,6 +105,23 @@ test('failed, truncated, empty and duplicate feeds never overwrite saved source'
   assert.deepEqual(await readdir(resolve(path, '..')), ['snapshot.json']);
 });
 
+test('refresh shows a safe parser cause and keeps the previous saved snapshot', async t => {
+  const path = await temporary(t);
+  t.mock.method(globalThis, 'fetch', async () => response(1));
+  await getRf39Snapshot(source, path);
+  const original = await readFile(path);
+  t.mock.method(globalThis, 'fetch', async () =>
+    new Response(rf39Xml(rf39Offer(2)).slice(0, -5)));
+
+  await assert.rejects(getRf39Snapshot(source, path, 'refresh'), error => {
+    const message = (error as { data?: { message?: string } }).data?.message || '';
+    assert.match(message, /Синтаксическая ошибка XML/);
+    assert.doesNotMatch(message, /PRIVATE_PHONE|<offer/);
+    return (error as { statusCode?: number }).statusCode === 502;
+  });
+  assert.deepEqual(await readFile(path), original);
+});
+
 test('corrupt or oversized snapshots fail closed and explicit refresh repairs them', async t => {
   const path = await temporary(t);
   let calls = 0;

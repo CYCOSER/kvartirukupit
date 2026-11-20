@@ -295,3 +295,21 @@ test('RF39 failures never leak upstream data or become an empty catalog', async 
     });
   }
 });
+
+test('RF39 reports safe XML syntax location and upstream HTTP status', async t => {
+  t.mock.method(globalThis, 'fetch', async () => new Response('<realty-feed xmlns="http://webmaster.yandex.ru/schemas/feed/realty/2010-06"><private>SECRET_VALUE</realty-feed>'));
+  await assert.rejects(fetchRf39Feed('https://feed.rf39.ru/103.xml', true), error => {
+    const message = (error as { data?: { message?: string } }).data?.message || '';
+    assert.match(message, /Синтаксическая ошибка XML \(строка \d+, столбец \d+\)/);
+    assert.doesNotMatch(message, /SECRET_VALUE|<private>/);
+    return (error as { statusCode?: number }).statusCode === 502;
+  });
+
+  t.mock.method(globalThis, 'fetch', async () => new Response('upstream body', { status: 503 }));
+  await assert.rejects(fetchRf39Feed('https://feed.rf39.ru/104.xml', true), error => {
+    const message = (error as { data?: { message?: string } }).data?.message || '';
+    assert.match(message, /HTTP 503/);
+    assert.doesNotMatch(message, /upstream body/);
+    return (error as { statusCode?: number }).statusCode === 502;
+  });
+});

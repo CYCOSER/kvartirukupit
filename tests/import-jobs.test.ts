@@ -158,6 +158,24 @@ test('XML job details expose imported cards and failed offers without the intern
   } finally { await f.close(); }
 });
 
+test('failed XML sync shows a safe parser cause in the job error', async () => {
+  const f = await fixture();
+  try {
+    const job = await db.importJob.create({ data: { ownerId: 'owner', requestId: randomUUID(), kind: 'sync',
+      request: { kind: 'sync', feedUrl: DEFAULT_RF39_FEED_URL } } });
+    await db.importJobItem.create({ data: { jobId: job.id, key: 'feed-plan', kind: 'feed-plan', source: 'rf39',
+      title: 'Загрузка XML CRM RF39', payload: {}, groupOrder: 0, step: -1 } });
+    globalThis.fetch = async () => new Response('<realty-feed xmlns="http://webmaster.yandex.ru/schemas/feed/realty/2010-06"><offer internal-id="offer-1">SECRET_VALUE</realty-feed>');
+
+    assert.equal(await processNextImportJob(f.config), true);
+    const failed = await getImportJob('owner', job.id, false);
+    assert.equal(failed.status, 'failed');
+    assert.match(failed.error || '', /Синтаксическая ошибка XML/);
+    assert.match(failed.error || '', /сохранены для повтора/);
+    assert.doesNotMatch(failed.error || '', /SECRET_VALUE|<offer>/);
+  } finally { await f.close(); }
+});
+
 test('durable import resumes an expired claim, skips item errors and retries only failures under its owner', async () => {
   const f = await fixture();
   try {

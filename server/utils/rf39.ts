@@ -1,6 +1,7 @@
 import { createError } from 'h3';
 import sax from 'sax';
 import { StringDecoder } from 'node:string_decoder';
+import { ZodError } from 'zod';
 import { apartmentTitle } from '../../shared/property';
 import { DEFAULT_RF39_FEED_URL, feedSyncInputSchema } from '../../shared/feed-sync';
 import { rf39ImageUrl, rf39Number, rf39ObjectSchema, type Rf39Object } from './rf39-data';
@@ -11,6 +12,7 @@ export type Rf39Snapshot = {
   snapshotDate: string; authoritative: boolean;
 };
 const MAX_BYTES = 128 * 1024 * 1024;
+class Rf39FeedFailure extends Error {}
 const fields = new Set(['url', 'type', 'property-type', 'category', 'description', 'rooms', 'studio', 'floor', 'floors-total',
   'built-year', 'ready-quarter', 'building-state', 'building-name', 'new-flat', 'renovation', 'quality',
   'location/locality-name', 'location/address', 'location/apartment', 'location/sub-locality-name', 'location/district',
@@ -18,6 +20,16 @@ const fields = new Set(['url', 'type', 'property-type', 'category', 'description
 
 export function rf39FeedUrl(value: string) {
   return feedSyncInputSchema.shape.url.parse(value);
+}
+
+function feedRecordError(error: unknown) {
+  if (error instanceof Error && error.message === 'Duplicate fields')
+    return 'В XML объекта повторяются поля. Объект пропущен, его существующая карточка сохранена.';
+  if (error instanceof ZodError) {
+    const path = error.issues[0]?.path.filter(part => typeof part === 'string' || typeof part === 'number').join('.');
+    return `${path ? `Поле «${path}» имеет неподдерживаемый формат. ` : 'Данные объекта имеют неподдерживаемый формат. '}Объект пропущен, его существующая карточка сохранена.`;
+  }
+  return 'Данные объекта некорректны. Объект пропущен, его существующая карточка сохранена.';
 }
 
 function sourceId(value: string | undefined): number | null {
@@ -62,18 +74,23 @@ export async function parseRf39Feed(chunks: AsyncIterable<Uint8Array>, limit = M
   const errors: Rf39Snapshot['errors'] = [];
   let bytes = 0, root = false, offerId = '', values: Record<string, string> = {}, images: string[] = [];
   let invalid = false, ambiguousIdentity = false, rejectedImages = false, authoritative = true, snapshotDate = new Date().toISOString();
-  parser.onerror = error => { throw error; };
-  parser.ondoctype = () => { throw new Error('DTD is not supported'); };
+  parser.onerror = error => {
+    const position = error.message.match(/(?:^|\n)Line:\s*(\d+)\s*\nColumn:\s*(\d+)/);
+    const location = position ? ` (строка ${Number(position[1]) + 1}, столбец ${Number(position[2]) + 1})` : '';
+    throw new Rf39FeedFailure(`Синтаксическая ошибка XML${location}.`);
+  };
+  parser.ondoctype = () => { throw new Rf39FeedFailure('XML содержит запрещённое объявление DTD.'); };
   parser.onopentag = node => {
     if (!stack.length) {
-      if (root || node.name !== 'realty-feed' || node.attributes.xmlns !== 'http://webmaster.yandex.ru/schemas/feed/realty/2010-06') throw new Error('Invalid feed root');
+      if (root || node.name !== 'realty-feed' || node.attributes.xmlns !== 'http://webmaster.yandex.ru/schemas/feed/realty/2010-06')
+        throw new Rf39FeedFailure('Не найден корневой элемент realty-feed с ожидаемым пространством имён.');
       root = true;
     }
-    if (stack.length > 8) throw new Error('XML nesting limit');
+    if (stack.length > 8) throw new Rf39FeedFailure('Превышена допустимая глубина вложенности XML.');
     if (node.name === 'offer') {
       const id = node.attributes['internal-id'];
       if (stack.length !== 1 || typeof id !== 'string' || !id.trim() || id.length > 100 || internalIds.has(id) || internalIds.size >= 20000)
-        throw new Error('Invalid or duplicate offer');
+        throw new Rf39FeedFailure('У предложения отсутствует уникальный internal-id или превышен лимит записей.');
       internalIds.add(id); offerId = id; values = {}; images = []; invalid = false; ambiguousIdentity = false; rejectedImages = false;
     }
     const path = [...stack.slice(2).map(frame => frame.name), node.name].join('/');
@@ -83,7 +100,7 @@ export async function parseRf39Feed(chunks: AsyncIterable<Uint8Array>, limit = M
     const frame = stack.at(-1);
     if (frame?.capture) {
       frame.text += text;
-      if (frame.text.length > 100000) throw new Error('XML field limit');
+      if (frame.text.length > 100000) throw new Rf39FeedFailure('Превышен допустимый размер XML-поля.');
     }
   };
   parser.onclosetag = name => {
@@ -110,24 +127,24 @@ export async function parseRf39Feed(chunks: AsyncIterable<Uint8Array>, limit = M
       const id = ambiguousIdentity ? null : sourceId(values.url);
       if (id === null) { authoritative = false; errors.push({ id: null, message: 'У объекта нет однозначного ID в публичной ссылке RF39.' }); }
       else {
-        if (presentIds.has(id)) throw new Error('Duplicate RF39 object ID');
+        if (presentIds.has(id)) throw new Rf39FeedFailure('В выгрузке повторяется публичный ID объекта CRM.');
         presentIds.add(id);
         try {
           if (invalid) throw new Error('Duplicate fields');
           items.push(feedObject(id, values, images, rejectedImages));
           if (rejectedImages) errors.push({ id, message: 'Часть фотографий пропущена: недопустимый адрес или превышен лимит галереи.' });
-        } catch { errors.push({ id, message: 'Данные объекта некорректны. Объект пропущен, его существующая карточка сохранена.' }); }
+        } catch (error) { errors.push({ id, message: feedRecordError(error) }); }
       }
       offerId = '';
     }
   };
   for await (const chunk of chunks) {
     bytes += chunk.byteLength;
-    if (bytes > limit) throw new Error('RF39 feed exceeds limit');
+    if (bytes > limit) throw new Rf39FeedFailure('Размер XML-выгрузки превышает допустимый лимит.');
     parser.write(decoder.write(chunk));
   }
   parser.write(decoder.end()).close();
-  if (!root || !internalIds.size) throw new Error('Empty RF39 feed');
+  if (!root || !internalIds.size) throw new Rf39FeedFailure('XML-выгрузка пуста или не содержит предложений.');
   return { items, presentIds: [...presentIds], errors, snapshotDate, authoritative };
 }
 
@@ -160,7 +177,10 @@ export async function fetchRf39Feed(source = DEFAULT_RF39_FEED_URL, refresh = fa
   const promise = (async () => {
     try {
       const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(120000) });
-      if (!response.ok || !response.body || Number(response.headers.get('content-length')) > MAX_BYTES) throw new Error('Invalid feed response');
+      if (!response.ok) throw new Rf39FeedFailure(`CRM ответила с HTTP ${response.status}.`);
+      if (!response.body) throw new Rf39FeedFailure('CRM вернула ответ без тела выгрузки.');
+      if (Number(response.headers.get('content-length')) > MAX_BYTES)
+        throw new Rf39FeedFailure('Размер XML-выгрузки превышает допустимый лимит.');
       const reader = response.body.getReader();
       async function* chunks() {
         try { while (true) { const { done, value } = await reader.read(); if (done) break; yield value; } }
@@ -169,7 +189,13 @@ export async function fetchRf39Feed(source = DEFAULT_RF39_FEED_URL, refresh = fa
       const snapshot = await parseRf39Feed(chunks());
       cached = { source: url, expires: Date.now() + 10 * 60 * 1000, snapshot };
       return snapshot;
-    } catch { throw createError({ statusCode: 502, data: { message: 'Не удалось прочитать полную XML-выгрузку CRM. Предыдущие данные сохранены; снятие объектов с публикации не выполняется.' } }); }
+    } catch (error) {
+      const detail = error instanceof Rf39FeedFailure ? error.message
+        : error instanceof Error && error.name === 'TimeoutError' ? 'Превышено время ожидания ответа CRM (120 секунд).'
+        : error instanceof Error ? 'Соединение с CRM прервано во время чтения выгрузки.'
+        : 'Неизвестная ошибка при чтении выгрузки CRM.';
+      throw createError({ statusCode: 502, data: { message: `Не удалось прочитать полную XML-выгрузку CRM: ${detail} Предыдущие данные сохранены; снятие объектов с публикации не выполняется.` } });
+    }
     finally { pending.delete(url); }
   })();
   pending.set(url, promise);

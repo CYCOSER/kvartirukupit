@@ -52,15 +52,26 @@ function refreshSnapshot(path: string, source: string, sourceHash: string) {
     const temporary = `${path}.${randomUUID()}.tmp`;
     try {
       const snapshot = await fetchRf39Feed(source, true);
-      const data = JSON.stringify({ version: 2, sourceHash, ...snapshot });
-      if (Buffer.byteLength(data) > MAX_BYTES) throw new Error('Snapshot exceeds limit');
-      await mkdir(dirname(path), { recursive: true });
-      const file = await open(temporary, 'wx', 0o600);
-      try { await file.writeFile(data); await file.sync(); } finally { await file.close(); }
-      await rename(temporary, path);
-      cached = undefined;
-      return snapshot;
-    } catch { throw createError({ statusCode: 502, data: { message: 'Не удалось обновить полную XML-выгрузку CRM. Предыдущая сохранённая выгрузка не заменена. Повторите обновление.' } }); }
+      try {
+        const data = JSON.stringify({ version: 2, sourceHash, ...snapshot });
+        if (Buffer.byteLength(data) > MAX_BYTES)
+          throw createError({ statusCode: 502, data: { message: 'Новая выгрузка превышает допустимый размер сохранённого файла.' } });
+        await mkdir(dirname(path), { recursive: true });
+        const file = await open(temporary, 'wx', 0o600);
+        try { await file.writeFile(data); await file.sync(); } finally { await file.close(); }
+        await rename(temporary, path);
+        cached = undefined;
+        return snapshot;
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        const detail = typeof (error as { data?: { message?: unknown } })?.data?.message === 'string'
+          ? (error as { data: { message: string } }).data.message
+          : code === 'ENOSPC' ? 'На сервере недостаточно места для сохранения.'
+          : code === 'EACCES' || code === 'EPERM' ? 'У сервера нет разрешения на запись в хранилище выгрузок.'
+          : 'Не удалось записать новый файл в хранилище выгрузок.';
+        throw createError({ statusCode: 502, data: { message: `Не удалось обновить полную XML-выгрузку CRM: ${detail} Предыдущая сохранённая выгрузка не заменена. Повторите обновление.` } });
+      }
+    }
     finally { await unlink(temporary).catch(() => {}); refreshing.delete(key); }
   })();
   refreshing.set(key, promise);
