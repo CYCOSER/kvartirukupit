@@ -127,7 +127,8 @@ export async function parseRf39Feed(chunks: AsyncIterable<Uint8Array>, limit = M
       const id = ambiguousIdentity ? null : sourceId(values.url);
       if (id === null) { authoritative = false; errors.push({ id: null, message: 'У объекта нет однозначного ID в публичной ссылке RF39.' }); }
       else {
-        if (presentIds.has(id)) throw new Rf39FeedFailure('В выгрузке повторяется публичный ID объекта CRM.');
+        if (presentIds.has(id))
+          throw new Rf39FeedFailure(`В XML несколько записей ссылаются на один публичный объект CRM (ID ${id}). Найдите ссылки, заканчивающиеся на /object/${id}, устраните дубликат в исходной выгрузке CRM и повторите обновление.`);
         presentIds.add(id);
         try {
           if (invalid) throw new Error('Duplicate fields');

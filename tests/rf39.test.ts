@@ -249,6 +249,15 @@ test('XML rejects empty, truncated, duplicate, oversized and entity-bearing docu
     assert.throws(() => rf39FeedUrl(url));
 });
 
+test('duplicate public IDs explain what to check in the CRM export', async () => {
+  await assert.rejects(parseRf39Feed(rf39Chunks(rf39Xml(rf39Offer(42), rf39Offer(42, '', 'J42-copy')))), error => {
+    const message = (error as Error).message;
+    assert.match(message, /несколько записей ссылаются на один публичный объект CRM \(ID 42\)/);
+    assert.match(message, /\/object\/42.*устраните дубликат.*повторите обновление/);
+    return true;
+  });
+});
+
 test('XML accepts CRM public object URLs while rejecting untrusted hosts and credentialed links', async () => {
   const links = [
     'https://crm.rf39.ru/catalog/sale/vtorichka/object/1',
