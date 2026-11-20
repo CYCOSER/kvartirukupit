@@ -11,7 +11,7 @@ import type { ImportJobRequest, StoredImportJobRequest, ImportJobView, ImportJob
 import { processRf39FeedJob } from './rf39-feed-sync';
 import { startRf39FeedSync } from './rf39-feed-settings';
 
-type Candidate = { id: string | number; layoutId?: number; preferredNmarketId?: string; matchedNmarketIds?: string[] };
+type Candidate = { id: string | number; layoutId?: number; complexSourceId?: string; complexTitle?: string; preferredNmarketId?: string; matchedNmarketIds?: string[] };
 type SearchResult = Awaited<ReturnType<typeof findComplexApartments>>;
 type ItemData = Pick<ImportJobItem, 'key' | 'groupOrder' | 'step' | 'kind' | 'source' | 'title' | 'complexId' | 'complexTitle'> & {
   payload: Prisma.InputJsonValue; status?: string; result?: Prisma.InputJsonValue;
@@ -95,10 +95,17 @@ async function saveJob(ownerId: string, request: ImportJobRequest, items: ItemDa
 }
 export async function createImportJob(ownerId: string, request: ImportJobRequest) {
   if (request.kind === 'import') {
-    const chosen = [...new Map(request.items.map(item => [String(item.id), item])).values()];
+    const selected = [...new Map(request.items.map(item => [String(item.id), item])).values()];
+    const chosen = request.source === 'rf39' ? selected.reduce<typeof selected>((items, item) => {
+      if (item.complexSourceId && !items.some(existing => String(existing.id) === item.complexSourceId))
+        items.push({ id: item.complexSourceId, title: item.complexTitle });
+      if (!items.some(existing => String(existing.id) === String(item.id))) items.push(item);
+      return items;
+    }, []) : selected;
     return saveJob(ownerId, { ...request, items: chosen }, chosen.map((item, step) => ({
       key: `import:${item.id}`, groupOrder: 0, step, kind: 'import', source: request.source,
-      title: item.title || `Объект ${item.id}`, complexId: null, complexTitle: null, payload: json({ id: item.id }),
+      title: item.title || `Объект ${item.id}`, complexId: null, complexTitle: null,
+      payload: json({ id: item.id, ...(item.complexSourceId ? { complexSourceId: item.complexSourceId, complexTitle: item.complexTitle } : {}) }),
     })));
   }
   const ids = [...new Set(request.complexIds)];
@@ -131,7 +138,12 @@ export async function retryImportJob(ownerId: string, id: string, requestId: str
   if (request.kind === 'sync') return startRf39FeedSync(ownerId, requestId);
   const items = await db.importJobItem.findMany({ where: { jobId: id }, orderBy: [...itemOrder] });
   if (request.kind === 'import') {
-    return createImportJob(ownerId, { ...request, requestId, items: items.filter(item => !['completed', 'skipped'].includes(item.status)).map(item => ({ id: (item.payload as unknown as Candidate).id, title: item.title })) });
+    return createImportJob(ownerId, { ...request, requestId, items: items.filter(item => !['completed', 'skipped'].includes(item.status)).map(item => {
+      const payload = item.payload as unknown as Candidate;
+      return { id: payload.id, title: item.title, ...(payload.complexSourceId
+        ? { complexSourceId: payload.complexSourceId, complexTitle: payload.complexTitle }
+        : {}) };
+    }) });
   }
   const groups = new Set(items.filter(item => item.kind !== 'plan' && !['completed', 'skipped'].includes(item.status)).map(item => item.groupOrder));
   const selected = items.filter(item => groups.has(item.groupOrder));
@@ -252,7 +264,7 @@ export async function processNextImportJob(config: ImportConfig) {
             const match = (search?.result as unknown as SearchResult | undefined)?.apartmentMatches?.find(([id]) => id === sourceId)?.[1];
             if (match) persistedMatch = { ...match, expires: Infinity };
           }
-          await importRf39Property(config, { id: Number(input.id), layoutId: input.layoutId, preferredNmarketId: input.preferredNmarketId,
+          await importRf39Property(config, { id: input.id, layoutId: input.layoutId, complexSourceId: input.complexSourceId, preferredNmarketId: input.preferredNmarketId,
             complexId, snapshot: request.snapshot, preferredSource: request.kind === 'apartments' ? request.preferredSource : 'nmarket' }, execution, persistedMatch || null);
         } else {
           const existing = await existingImportedProperty(`nmarket:${input.id}`, complexId, [], execution);

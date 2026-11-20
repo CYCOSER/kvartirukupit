@@ -5,10 +5,12 @@ export type ImportJobStatus = 'queued' | 'running' | 'completed' | 'stopped' | '
 export type ImportJobItemStatus = 'queued' | 'running' | 'completed' | 'failed' | 'skipped';
 const requestId = z.string().uuid();
 const sourceId = z.union([z.number().int().positive().max(Number.MAX_SAFE_INTEGER), z.string().min(1).max(100)]);
+const rf39CatalogId = z.string().regex(/^(?:rf39:[1-9]\d*|rf39-layout:[1-9]\d*:[1-9]\d*|rf39:complex:yandex-(?:building|house):[a-zA-Z0-9_-]{1,100})$/);
 export const importJobRequestSchema = z.discriminatedUnion('kind', [
   z.object({
     requestId, kind: z.literal('import'), source: z.enum(['rf39', 'nmarket']),
-    items: z.array(z.object({ id: sourceId, title: z.string().trim().max(300).optional() }).strict()).min(1).max(10000),
+    items: z.array(z.object({ id: sourceId, title: z.string().trim().max(300).optional(),
+      complexSourceId: rf39CatalogId.optional(), complexTitle: z.string().trim().max(300).optional() }).strict()).min(1).max(10000),
     snapshot: z.literal('saved').optional(),
   }).strict(),
   z.object({
@@ -18,8 +20,12 @@ export const importJobRequestSchema = z.discriminatedUnion('kind', [
 ]).superRefine((value, context) => {
   if (value.kind !== 'import') return;
   for (const [index, item] of value.items.entries()) {
-    const valid = value.source === 'rf39' ? typeof item.id === 'number' : typeof item.id === 'string' && /^(?:apartment|complex):\d{1,20}$/.test(item.id);
+    const valid = value.source === 'rf39'
+      ? typeof item.id === 'number' || typeof item.id === 'string' && rf39CatalogId.safeParse(item.id).success
+      : typeof item.id === 'string' && /^(?:apartment|complex):\d{1,20}$/.test(item.id);
     if (!valid) context.addIssue({ code: z.ZodIssueCode.custom, path: ['items', index, 'id'], message: 'Invalid source ID' });
+    if (item.complexSourceId && (value.source !== 'rf39' || typeof item.id !== 'string' || !rf39CatalogId.safeParse(item.complexSourceId).success))
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['items', index, 'complexSourceId'], message: 'Invalid complex source ID' });
   }
 });
 export const importJobRetrySchema = z.object({ requestId }).strict();

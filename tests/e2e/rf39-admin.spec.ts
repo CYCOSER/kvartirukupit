@@ -3,7 +3,7 @@ import { test } from './fixtures/admin-session';
 import { mockImportJobs, openImportResults } from './fixtures/import-jobs';
 
 for (const source of ["rf39", "nmarket"] as const) {
-  const actionName = source === 'rf39' ? 'Опубликовать квартиры' : 'Создать черновики';
+  const actionName = source === 'rf39' ? 'Создать ЖК и квартиры' : 'Создать черновики';
   const resultAction = source === 'rf39' ? 'открыть карточку' : 'открыть черновик';
   test(`${source} bulk import skips failed objects and retries only failures`, async ({ page }) => {
     const items = Array.from({ length: 5 }, (_, index) => ({
@@ -68,7 +68,7 @@ for (const source of ["rf39", "nmarket"] as const) {
   });
 }
 
-test("CRM import resumes listing, publishes apartments and reuses saved lists with an animated source switch", async ({
+test("CRM import resumes listing, creates complexes and apartments, and reuses saved lists with an animated source switch", async ({
   page,
 }, testInfo) => {
   const first = {
@@ -180,7 +180,7 @@ test("CRM import resumes listing, publishes apartments and reuses saved lists wi
   await expect(page.getByRole("checkbox").first()).toBeChecked();
   await expect(page.getByRole("checkbox").last()).toBeChecked();
   await page
-    .getByRole("button", { name: "Опубликовать квартиры (2)", exact: true })
+    .getByRole("button", { name: "Создать ЖК и квартиры (2)", exact: true })
     .click();
   await expect(page.getByRole("alert")).toContainText(
     "Не удалось загрузить фото",
@@ -198,7 +198,7 @@ test("CRM import resumes listing, publishes apartments and reuses saved lists wi
   await expect(page.getByRole("checkbox")).toBeChecked();
 
   await page
-    .getByRole("button", { name: "Опубликовать квартиры (1)", exact: true })
+    .getByRole("button", { name: "Создать ЖК и квартиры (1)", exact: true })
     .click();
   await expect(page.locator('.import-page .import-progress')).toContainText('Обработано: 1 из 1');
   await openImportResults(page);
@@ -208,7 +208,7 @@ test("CRM import resumes listing, publishes apartments and reuses saved lists wi
   expect(imported).toEqual([101, 102, 102]);
   await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Опубликовать квартиры (0)", exact: true }),
+    page.getByRole("button", { name: "Создать ЖК и квартиры (0)", exact: true }),
   ).toBeDisabled();
 
   await page.unroute("**/api/admin/rf39/objects?*");

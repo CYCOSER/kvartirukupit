@@ -5,7 +5,7 @@ import { propertySchema } from '../../shared/property';
 import { mergeRf39Feed, rf39FeedBaseline } from '../../shared/rf39-feed-merge';
 import { db } from './db';
 import { getRf39Snapshot } from './rf39-snapshot';
-import { rf39Draft, rf39Supported } from './rf39-data';
+import { rf39CatalogDraft, rf39CatalogItems, rf39Draft, rf39Supported } from './rf39-data';
 import { prepareImportImages } from './import-images';
 import { lockPropertyRelations } from './property-relations';
 import { ImportOwnershipLost, importInfrastructureError, type ImportConfig, type ImportExecution } from './import-execution';
@@ -13,9 +13,9 @@ import { findApartmentLayout, indexApartmentLayouts, layoutScopeWhere, mergeLayo
 import { missingApartmentFloorPlans } from './apartment-layout-gallery';
 
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
-type FeedDraft = ReturnType<typeof rf39Draft> & { unitPlanImageUrls?: string[]; floorPlanImageUrls?: string[] };
+type FeedDraft = ReturnType<typeof rf39Draft> & { complexSourceId?: string; aliasSourceIds?: string[]; unitPlanImageUrls?: string[]; floorPlanImageUrls?: string[] };
 type Prepared = { item: ImportJobItem; draft: FeedDraft; images: Awaited<ReturnType<typeof prepareImportImages>>['images']; imagesPrepared: boolean; layoutHash: string | null; warnings: string[] };
-type Plan = { presentIds: number[]; authoritative: boolean; snapshotDate: string; fetchedAt: string };
+type Plan = { presentIds: number[]; presentSourceIds?: string[]; authoritative: boolean; snapshotDate: string; fetchedAt: string };
 const pending = ['queued', 'running'];
 const batchSize = 25;
 const crmSourceId = (sourceId: string | null) => {
@@ -48,18 +48,23 @@ async function planFeed(job: ImportJob, config: ImportConfig, execution: ImportE
   if (item.status === 'completed') return item.result as unknown as Plan;
   const { feedUrl } = job.request as unknown as { feedUrl: string };
   const snapshot = await getRf39Snapshot(feedUrl, config.rf39SnapshotPath, 'refresh');
-  const plan: Plan = { presentIds: snapshot.presentIds, authoritative: snapshot.authoritative, snapshotDate: snapshot.snapshotDate, fetchedAt: new Date().toISOString() };
+  const catalog = rf39CatalogItems(snapshot.items);
+  const plan: Plan = { presentIds: snapshot.presentIds, presentSourceIds: catalog.filter(entry => rf39Supported(entry.item)).map(entry => entry.sourceId),
+    authoritative: snapshot.authoritative, snapshotDate: snapshot.snapshotDate, fetchedAt: new Date().toISOString() };
   const work: Prisma.ImportJobItemCreateManyInput[] = [];
   const errors = [...snapshot.errors];
-  for (const source of snapshot.items) {
-    if (!rf39Supported(source)) continue;
+  for (const entry of catalog) {
+    if (!rf39Supported(entry.item)) continue;
     try {
-      const draft = rf39Draft(source, 'apartment');
+      const draft = rf39CatalogDraft(entry);
       draft.data.sourceMode = 'rf39-xml';
       draft.data.sourceFetchedAt = new Date(snapshot.snapshotDate);
+      const feedDraft: FeedDraft = { ...draft,
+        ...(entry.complexSourceId ? { complexSourceId: entry.complexSourceId } : {}),
+        ...(entry.legacySourceId ? { aliasSourceIds: [entry.legacySourceId] } : {}) };
       work.push({ jobId: job.id, key: `feed:${draft.data.sourceId}`, groupOrder: 0, step: work.length,
-        kind: 'feed-import', source: 'rf39', title: `${draft.data.title} — CRM ${source.id}`, payload: json(draft) });
-    } catch { errors.push({ id: source.id, message: 'Данные квартиры не подходят для карточки. Существующая карточка сохранена без изменений.' }); }
+        kind: 'feed-import', source: 'rf39', title: `${draft.data.title} — CRM ${entry.objectId}`, payload: json(feedDraft) });
+    } catch { errors.push({ id: entry.objectId, message: `Данные ${entry.type === 'complex' ? 'ЖК' : 'квартиры'} не подходят для карточки. Существующая карточка сохранена без изменений.` }); }
   }
   for (const [index, error] of errors.entries()) work.push({ jobId: job.id, key: `feed-error:${index}`, groupOrder: 0, step: work.length,
     kind: 'feed-error', source: 'rf39', title: error.id ? `Объект CRM ${error.id}` : 'Объект без ID CRM',
@@ -97,11 +102,36 @@ async function writeBatch(job: ImportJob, batch: Prepared[], execution: ImportEx
     await execution.guard(tx);
     if (await finishStopped(tx, job.id)) return false;
     await lockPropertyRelations(tx);
-    const current = await existingProperties(tx, batch.map(row => row.draft.data.sourceId));
+    const current = await existingProperties(tx, batch.flatMap(row =>
+      [row.draft.data.sourceId, row.draft.complexSourceId, ...(row.draft.aliasSourceIds || [])]
+        .filter((sourceId): sourceId is string => !!sourceId)));
     const slugs = new Set((await tx.property.findMany({ where: { slug: { in: batch.map(row => row.draft.data.slug) } }, select: { slug: true } })).map(row => row.slug));
     const creates: Prisma.PropertyCreateManyInput[] = [], images: Prisma.PropertyImageCreateManyInput[] = [], aliases: Prisma.PropertyImportSourceCreateManyInput[] = [];
     const propertiesById = new Map<string, (typeof current.properties)[number]>();
     const groupedIds = new Map<string, boolean>();
+    const complexIds = new Map<string, string>();
+    const queuedAliases = new Map<string, string>();
+    function addAlias(sourceId: string, propertyId: string, type: string, offer: { price: number | null; availableFloors: number[] }) {
+      const matches = current.matches(sourceId);
+      if (matches.length && matches.every(property => property.type !== type)) return;
+      if (matches.some(property => property.id !== propertyId)) throw createError({ statusCode: 409,
+        data: { message: 'ID CRM связан с другой карточкой; дополнительная связь ЖК не сохранена.' } });
+      const queued = queuedAliases.get(sourceId);
+      if (matches.length) return;
+      if (queued && queued !== propertyId) throw createError({ statusCode: 409,
+        data: { message: 'ID CRM связан с несколькими карточками; дополнительная связь ЖК не сохранена.' } });
+      if (queued) return;
+      queuedAliases.set(sourceId, propertyId);
+      aliases.push({ sourceId, propertyId, ...offer });
+    }
+    function findComplexId(sourceId: string) {
+      const staged = complexIds.get(sourceId);
+      if (staged) return staged;
+      const matches = current.matches(sourceId).filter(property => property.type === 'complex');
+      if (matches.length !== 1) throw createError({ statusCode: 409,
+        data: { message: 'Не удалось однозначно найти карточку ЖК для связи с квартирой. ЖК сохранён, квартиру можно повторить после проверки.' } });
+      return matches[0]!.id;
+    }
     async function isGrouped(id: string) {
       if (!groupedIds.has(id)) {
         const sources = await tx.propertyImportSource.findMany({ where: { propertyId: id } });
@@ -111,7 +141,12 @@ async function writeBatch(job: ImportJob, batch: Prepared[], execution: ImportEx
     }
     const results: { item: ImportJobItem; result: { id: string; created: boolean; updated: boolean; warnings: string[] } }[] = [];
     for (const row of batch) {
-      const source = row.draft.data, matches = current.matches(source.sourceId);
+      const source = row.draft.data;
+      const matches = [...new Map([...current.matches(source.sourceId),
+        ...(row.draft.aliasSourceIds || []).flatMap(sourceId => current.matches(sourceId)).filter(property => property.type === source.type)]
+        .map(property => [property.id, property])).values()];
+      const isApartment = source.type === 'apartment';
+      const requestedComplexId = isApartment && row.draft.complexSourceId ? findComplexId(row.draft.complexSourceId) : undefined;
       if (matches.length > 1) throw createError({ statusCode: 409, data: { message: 'ID CRM связан с разными карточками. Проверьте дубликаты вручную.' } });
       let property: (typeof matches)[number] | undefined = matches[0];
       let queued: Prisma.PropertyCreateManyInput | undefined;
@@ -130,8 +165,9 @@ async function writeBatch(job: ImportJob, batch: Prepared[], execution: ImportEx
         propertiesById.set(property.id, property);
       }
       const target = property || queued;
-      if (property && property.type !== 'apartment') throw createError({ statusCode: 409,
-        data: { message: 'Тип существующей карточки изменён вручную. Синхронизация квартиры пропущена.' } });
+      if (property && property.type !== source.type) throw createError({ statusCode: 409,
+        data: { message: `Тип существующей карточки изменён вручную. Синхронизация ${isApartment ? 'квартиры' : 'ЖК'} пропущена.` } });
+      if (!isApartment && property) complexIds.set(source.sourceId, property.id);
       let addedFloors = 0;
       let galleryWarnings: string[] = [];
       if (target && row.images.some(image => image.planRole === 'floor')) {
@@ -145,47 +181,68 @@ async function writeBatch(job: ImportJob, batch: Prepared[], execution: ImportEx
       if (target && target.sourceId !== source.sourceId) {
         if (newLayoutMatch) groupedIds.set(target.id!, true);
         const grouped = !!target.layoutHash && await isGrouped(target.id!);
-        const availability = grouped ? { ...mergeLayoutAvailability([
+        const sameCrmSource = !isApartment && !!property && ['rf39-copy', 'rf39-xml'].includes(property.sourceMode || '');
+        const availability = isApartment && grouped ? { ...mergeLayoutAvailability([
           { price: target.price, availableFloors: Array.isArray(target.availableFloors) ? target.availableFloors : [] }, source,
         ]), priceKind: 'from' } : {};
-        const updated = addedFloors > 0 || !target.published || !target.elite || Object.entries(availability).some(([key, value]) => JSON.stringify(target[key as keyof typeof target]) !== JSON.stringify(value));
-        if (queued) Object.assign(queued, { published: true, elite: true, ...availability });
-        else if (updated) Object.assign(property!, await tx.property.update({ where: { id: property!.id }, data: { published: true, elite: true, ...availability } }));
+        const linkComplex = isApartment && requestedComplexId && !target.complexId ? { complexId: requestedComplexId } : {};
+        const publish = isApartment ? { published: true, elite: true } : {};
+        let updated = addedFloors > 0 || isApartment && (!target.published || !target.elite) ||
+          Object.entries({ ...availability, ...linkComplex }).some(([key, value]) => JSON.stringify(target[key as keyof typeof target]) !== JSON.stringify(value));
+        if (queued) Object.assign(queued, publish, availability, linkComplex);
+        else if (updated) Object.assign(property!, await tx.property.update({ where: { id: property!.id }, data: { ...publish, ...availability, ...linkComplex } }));
+        else if (sameCrmSource && property) {
+          const merge = mergeRf39Feed(property as unknown as Record<string, unknown>, source, property.rf39Baseline);
+          propertySchema.parse({ ...property, ...merge.changes });
+          updated = Object.keys(merge.changes).length > 0;
+          Object.assign(property, await tx.property.update({ where: { id: property.id },
+            data: { ...merge.changes, sourceFetchedAt: source.sourceFetchedAt, rf39Baseline: json(merge.baseline) } }));
+        }
         const id = target.id!;
+        if (!isApartment) complexIds.set(source.sourceId, id);
         const existingAlias = current.aliases.find(alias => alias.sourceId === source.sourceId);
         const offer = { price: source.price, availableFloors: source.availableFloors || [] };
         if (existingAlias) await tx.propertyImportSource.update({ where: { sourceId: source.sourceId }, data: offer });
         else aliases.push({ sourceId: source.sourceId, propertyId: id, ...offer });
         results.push({ item: row.item, result: { id, created: false, updated,
-          warnings: [...row.warnings, ...galleryWarnings, grouped
+          warnings: [...row.warnings, ...galleryWarnings, requestedComplexId && target.complexId && target.complexId !== requestedComplexId
+            ? 'Сохранена существующая ручная связь квартиры с другим ЖК.' : '', grouped
             ? 'Квартира с таким набором фотографий или планировок уже есть. Сохранена одна карточка с минимальной ценой и списком этажей.'
-            : 'Объект связан с карточкой другого основного источника. Его характеристики и ручные правки сохранены.'] } });
+            : isApartment ? 'Объект связан с карточкой другого основного источника. Его характеристики и ручные правки сохранены.'
+              : sameCrmSource ? '' : 'ЖК связан с карточкой другого основного источника; его ручные данные сохранены.'].filter(Boolean) } });
         continue;
       }
       const id = property?.id || randomUUID();
       let updated = false;
       if (property) {
         const merge = mergeRf39Feed(property as unknown as Record<string, unknown>, source, property.rf39Baseline);
-        const availability = property.layoutHash && await isGrouped(id)
+        const availability = isApartment && property.layoutHash && await isGrouped(id)
           ? { ...mergeLayoutAvailability([property, source]), priceKind: 'from' } : {};
-        propertySchema.parse({ ...property, ...merge.changes, ...availability, elite: true, published: true });
-        updated = addedFloors > 0 || Object.keys(merge.changes).length > 0 || !property.published || !property.elite ||
-          Object.entries(availability).some(([key, value]) => JSON.stringify(property![key as keyof typeof property]) !== JSON.stringify(value));
-        Object.assign(property, await tx.property.update({ where: { id }, data: { ...merge.changes, ...availability, published: true, elite: true,
+        const linkComplex = isApartment && requestedComplexId && !property.complexId ? { complexId: requestedComplexId } : {};
+        const publish = isApartment ? { published: true, elite: true } : {};
+        propertySchema.parse({ ...property, ...merge.changes, ...availability, ...linkComplex, ...publish });
+        updated = addedFloors > 0 || Object.keys(merge.changes).length > 0 || isApartment && (!property.published || !property.elite) ||
+          Object.entries({ ...availability, ...linkComplex }).some(([key, value]) => JSON.stringify(property![key as keyof typeof property]) !== JSON.stringify(value));
+        Object.assign(property, await tx.property.update({ where: { id }, data: { ...merge.changes, ...availability, ...linkComplex, ...publish,
           sourceFetchedAt: source.sourceFetchedAt, rf39Baseline: json(merge.baseline) } }));
       } else {
         if (!row.imagesPrepared) throw createError({ statusCode: 409,
           data: { message: 'Карточка удалена во время синхронизации. Повторите запуск, чтобы создать её заново с фотографиями.' } });
         const slug = slugs.has(source.slug) ? `${source.slug}-${randomUUID().slice(0, 8)}` : source.slug;
         slugs.add(slug);
-        creates.push({ ...source, id, slug, type: 'apartment', published: true, elite: true, sourceMode: 'rf39-xml', layoutHash: row.layoutHash,
+        creates.push({ ...source, id, slug, ...(isApartment ? { type: 'apartment', published: true, elite: true, complexId: requestedComplexId || null }
+          : { type: 'complex', published: false, elite: false, complexId: null }), sourceMode: 'rf39-xml', layoutHash: row.layoutHash,
           rf39Baseline: json(rf39FeedBaseline(source)), sourceNote: ['Синхронизация XML CRM RF39.', ...row.warnings].join('\n') });
         images.push(...row.images.map(image => ({ ...image, propertyId: id })));
       }
+      if (!isApartment) complexIds.set(source.sourceId, id);
+      if (isApartment && property?.complexId && requestedComplexId && property.complexId !== requestedComplexId)
+        row.warnings.push('Сохранена существующая ручная связь квартиры с другим ЖК.');
       const offer = { price: source.price, availableFloors: source.availableFloors || [] };
       if (current.aliases.some(alias => alias.sourceId === source.sourceId))
         await tx.propertyImportSource.update({ where: { sourceId: source.sourceId }, data: offer });
       else aliases.push({ sourceId: source.sourceId, propertyId: id, ...offer });
+      for (const aliasSourceId of row.draft.aliasSourceIds || []) addAlias(aliasSourceId, id, source.type, offer);
       results.push({ item: row.item, result: { id, created: !property, updated, warnings: [...row.warnings, ...galleryWarnings] } });
     }
     if (creates.length) await tx.property.createMany({ data: creates });
@@ -214,7 +271,8 @@ async function prepareBatch(job: ImportJob, items: ImportJobItem[], execution: I
     const stored = item.payload as unknown as FeedDraft;
     return { ...stored, data: { ...stored.data, slug: stored.data.slug.replace(/^rf39-/, 'robj-'), sourceFetchedAt: new Date(stored.data.sourceFetchedAt) } };
   });
-  const current = await existingProperties(db, drafts.map(draft => draft.data.sourceId));
+  const current = await existingProperties(db, drafts.flatMap(draft =>
+    [draft.data.sourceId, draft.complexSourceId, ...(draft.aliasSourceIds || [])].filter((sourceId): sourceId is string => !!sourceId)));
   const settled: (PromiseSettledResult<Prepared> | undefined)[] = new Array(items.length);
   let next = 0, abort = false;
   await Promise.all(Array.from({ length: Math.min(4, items.length) }, async () => {
@@ -223,8 +281,10 @@ async function prepareBatch(job: ImportJob, items: ImportJobItem[], execution: I
       try {
         const state = await db.importJob.findUniqueOrThrow({ where: { id: job.id }, select: { stopRequested: true } });
         if (state.stopRequested) return;
-        const imagesPrepared = current.matches(draft.data.sourceId).length === 0 || !!draft.floorPlanImageUrls?.length;
-        const prepared = imagesPrepared ? await prepareImportImages(draft, true) : { images: [], warnings: [], complete: true };
+        const hasExisting = [draft.data.sourceId, ...(draft.aliasSourceIds || [])].some(sourceId =>
+          current.matches(sourceId).some(property => property.type === draft.data.type));
+        const imagesPrepared = !hasExisting || !!draft.floorPlanImageUrls?.length;
+        const prepared = imagesPrepared ? await prepareImportImages(draft, draft.data.type === 'apartment') : { images: [], warnings: [], complete: true };
         const layoutHash = !prepared.complete ? '' : imagesPrepared && layoutScopeWhere(draft.data)
           ? await prepareApartmentLayout(draft.data, prepared.images) : null;
         if (layoutHash) await indexApartmentLayouts(draft.data);
@@ -254,13 +314,19 @@ async function finish(job: ImportJob, plan: Plan, execution: ImportExecution) {
     if (plan.authoritative && plan.presentIds.length && !current.failed && sameFeed) {
       await lockPropertyRelations(tx);
       const present = new Set(plan.presentIds);
+      const presentSources = new Set(plan.presentSourceIds || []);
+      const isPresent = (sourceId: string | null) => {
+        if (!sourceId) return false;
+        if (presentSources.has(sourceId)) return true;
+        const id = crmSourceId(sourceId);
+        return id !== null && present.has(id);
+      };
       const properties = await tx.property.findMany({ where: { published: true, OR: [
         { sourceId: { startsWith: 'rf39:' } }, { sourceId: { startsWith: 'rf39-layout:' } },
       ] }, select: { id: true, sourceId: true } });
       const aliases = await tx.propertyImportSource.findMany({ where: { propertyId: { in: properties.map(property => property.id) } } });
       const absent = properties.filter(property => {
-        const primary = crmSourceId(property.sourceId);
-        return primary !== null && !present.has(primary) && !aliases.some(alias => alias.propertyId === property.id && present.has(crmSourceId(alias.sourceId) || 0));
+        return !isPresent(property.sourceId) && !aliases.some(alias => alias.propertyId === property.id && isPresent(alias.sourceId));
       }).map(property => property.id);
       for (let offset = 0; offset < absent.length; offset += 500)
         unpublished += (await tx.property.updateMany({ where: { id: { in: absent.slice(offset, offset + 500) }, published: true }, data: { published: false } })).count;

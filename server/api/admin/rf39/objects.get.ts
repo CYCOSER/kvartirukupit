@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { getRf39Snapshot } from '../../../utils/rf39-snapshot';
-import { rf39Summary } from '../../../utils/rf39-data';
+import { rf39CatalogItems } from '../../../utils/rf39-data';
 import { getRf39FeedUrl } from '../../../utils/rf39-feed-settings';
 
 export default defineEventHandler(async (event) => {
@@ -9,15 +9,24 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, data: { message: 'Некорректная страница списка. Обновление начинается с первой страницы.' } });
   const config = useRuntimeConfig(event);
   const snapshot = await getRf39Snapshot(await getRf39FeedUrl(), config.rf39SnapshotPath, !!query.data.refresh);
-  const items = snapshot.items.slice(query.data.offset, query.data.offset + 100);
+  const catalog = rf39CatalogItems(snapshot.items);
+  const items = catalog.slice(query.data.offset, query.data.offset + 100);
+  const sourceIds = [...new Set(items.flatMap(item => [item.sourceId, item.legacySourceId].filter((id): id is string => !!id)))];
   const [existing, aliases] = await Promise.all([db.property.findMany({
-    where: { sourceId: { in: items.map(item => `rf39:${item.id}`) } },
-    select: { sourceId: true, id: true },
-  }), db.propertyImportSource.findMany({ where: { sourceId: { in: items.map(item => `rf39:${item.id}`) } }, select: { sourceId: true, propertyId: true } })]);
-  const ids = new Map([...aliases.map(item => [item.sourceId, item.propertyId] as const), ...existing.map(item => [item.sourceId, item.id] as const)]);
+    where: { sourceId: { in: sourceIds } },
+    select: { sourceId: true, id: true, type: true },
+  }), db.propertyImportSource.findMany({ where: { sourceId: { in: sourceIds } },
+    select: { sourceId: true, propertyId: true, property: { select: { type: true } } } })]);
+  const ids = new Map([
+    ...aliases.map(item => [item.sourceId, { id: item.propertyId, type: item.property.type }] as const),
+    ...existing.map(item => [item.sourceId, { id: item.id, type: item.type }] as const),
+  ]);
   return {
-    items: items.map(item => ({ ...rf39Summary(item), existingId: ids.get(`rf39:${item.id}`) || null })),
-    nextOffset: query.data.offset + items.length < snapshot.items.length ? query.data.offset + items.length : null,
+    items: items.map(item => ({ ...item.summary, type: item.type, complexSourceId: item.complexSourceId,
+      complexTitle: item.complexTitle,
+      existingId: [ids.get(item.sourceId), item.type === 'complex' && item.legacySourceId ? ids.get(item.legacySourceId) : undefined]
+        .find(existing => existing?.type === item.type)?.id || null })),
+    nextOffset: query.data.offset + items.length < catalog.length ? query.data.offset + items.length : null,
     snapshot: 'saved', snapshotDate: snapshot.snapshotDate, errors: snapshot.errors,
   };
 });

@@ -3,7 +3,7 @@ import { test } from './fixtures/admin-session';
 import { mockImportJobs } from './fixtures/import-jobs';
 
 for (const source of ['rf39', 'nmarket'] as const) {
-  const action = source === 'rf39' ? 'Опубликовать квартиры' : 'Создать черновики';
+  const action = source === 'rf39' ? 'Создать ЖК и квартиры' : 'Создать черновики';
   test(`${source} exclusions remove previous selections before creating a background job`, async ({ page }, testInfo) => {
     const items = [
       { title: 'Квартира у моря', location: 'Зеленоградск', address: 'Морская, 8' },

@@ -11,6 +11,9 @@ export type ImportObject = {
   bedrooms: number | null;
   floors: number | null;
   developer: string | null;
+  type?: 'complex' | 'apartment';
+  complexSourceId?: string;
+  complexTitle?: string;
   layoutCount?: number;
   supported: boolean;
   existingId: string | null;

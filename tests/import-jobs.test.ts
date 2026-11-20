@@ -131,6 +131,39 @@ test('job input validates source IDs, count limits and unexpected fields', () =>
     { ...request, items: [{ id: -1 }] }, { ...request, items: [{ id: '1' }] }, { ...request, items: Array(10001).fill({ id: 1 }) } ])
     assert.equal(importJobRequestSchema.safeParse(invalid).success, false);
   assert.equal(importJobRequestSchema.safeParse({ ...request, source: 'nmarket', items: [{ id: 'apartment:123' }] }).success, true);
+  assert.equal(importJobRequestSchema.safeParse({ ...request, items: [{
+    id: 'rf39-layout:17328:21255', complexSourceId: 'rf39:complex:yandex-building:3217449', complexTitle: 'ЖК Солнечный',
+  }] }).success, true);
+  assert.equal(importJobRequestSchema.safeParse({ ...request, items: [{ id: 'rf39-layout:17328:21255', complexSourceId: 'nmarket:complex:7' }] }).success, false);
+});
+
+test('manual XML import creates the selected apartment complex first and persists the relation', async () => {
+  const f = await fixture();
+  try {
+    const item = apartment(17328, {
+      type: 'Квартиры в новостройках', development: { title: 'ЖК Солнечный' }, yandexBuildingId: '3217449',
+      layouts: [{ id: 21255, apartment: '12', price: '9200000', params: {
+        area: { value: 55 }, rooms: { value: 2 }, floor: { value: 3 },
+      } }],
+    });
+    await f.saveCrm([item]);
+    f.tables.property.push({ id: 'legacy-complex', sourceId: 'rf39:17328', type: 'complex', complexId: null });
+    const job = await createImportJob('owner', { requestId: randomUUID(), kind: 'import', source: 'rf39', snapshot: 'saved', items: [{
+      id: 'rf39-layout:17328:21255', title: '2-к квартира', complexSourceId: 'rf39:complex:yandex-building:3217449', complexTitle: 'ЖК Солнечный',
+    }] });
+    assert.deepEqual(f.tables.importJobItem.map(row => row.payload.id), [
+      'rf39:complex:yandex-building:3217449', 'rf39-layout:17328:21255',
+    ]);
+    await f.drain();
+    const complex = f.tables.property.find(row => row.sourceId === 'rf39:17328');
+    const apartmentCard = f.tables.property.find(row => row.sourceId === 'rf39-layout:17328:21255');
+    assert.ok(complex);
+    assert.equal(complex.type, 'complex');
+    assert.ok(f.tables.propertyImportSource.some(row => row.sourceId === 'rf39:complex:yandex-building:3217449' && row.propertyId === complex.id));
+    assert.equal(apartmentCard.complexId, complex.id);
+    assert.equal((await getImportJob('owner', job.id)).created, 1);
+    assert.equal(f.tables.property.length, 2);
+  } finally { await f.close(); }
 });
 
 test('XML job details expose imported cards and failed offers without the internal plan', async () => {

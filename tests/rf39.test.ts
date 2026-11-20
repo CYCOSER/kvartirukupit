@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseRf39Response, rf39Draft, rf39ImageUrl, rf39IsComplex, rf39LayoutDraft, rf39Number, rf39Summary } from '../server/utils/rf39-data';
+import { parseRf39Response, rf39CatalogDraft, rf39CatalogItems, rf39Draft, rf39ImageUrl, rf39IsComplex, rf39LayoutDraft, rf39Number, rf39Summary } from '../server/utils/rf39-data';
 import { fetchRf39Feed, fetchRf39Objects, parseRf39Feed, rf39FeedUrl, rf39ReadBody } from '../server/utils/rf39';
 
 import { rf39Offer, rf39Xml, rf39Chunks } from './fixtures/rf39-feed';
@@ -209,6 +209,41 @@ test('XML uses trusted public IDs, skips houses and keeps only public fields', a
   assert.equal(draft.data.published, true);
   assert.equal(draft.data.housingMarket, 'newbuild');
   assert.deepEqual(draft.imageUrls, ['https://rf39.ru/images/objects/14567/a.jpg']);
+});
+
+test('XML groups distinct CRM layout offers into a complex and linked apartment catalog entries', async () => {
+  const building = '<building-name>ЖК Солнечный</building-name><yandex-building-id>3217449</yandex-building-id><yandex-house-id>987654</yandex-house-id>';
+  const offer = (layout: number, rooms: number, area: number) => rf39Offer(17328, building, `J17328L${layout}`)
+    .replace('<rooms>3</rooms>', `<rooms>${rooms}</rooms>`)
+    .replace('<area><value>90.5</value><unit>кв. м</unit></area>', `<area><value>${area}</value><unit>кв. м</unit></area>`);
+  const snapshot = await parseRf39Feed(rf39Chunks(rf39Xml(
+    offer(21255, 1, 42), offer(8012, 2, 56), offer(8013, 3, 78),
+  )));
+  assert.deepEqual(snapshot.presentIds, [17328]);
+  assert.equal(snapshot.items.length, 1);
+  assert.equal(snapshot.items[0]!.title, 'ЖК Солнечный');
+  assert.deepEqual(Object.values(snapshot.items[0]!.layouts || {}).map(layout => layout.id), [21255, 8012, 8013]);
+  const catalog = rf39CatalogItems(snapshot.items);
+  assert.equal(catalog.length, 4);
+  assert.equal(catalog[0]!.type, 'complex');
+  assert.equal(catalog[0]!.sourceId, 'rf39:complex:yandex-building:3217449');
+  assert.equal(rf39CatalogDraft(catalog[0]!).data.type, 'complex');
+  const apartments = catalog.slice(1);
+  assert.deepEqual(apartments.map(item => item.sourceId), [
+    'rf39-layout:17328:21255', 'rf39-layout:17328:8012', 'rf39-layout:17328:8013',
+  ]);
+  assert.ok(apartments.every(item => item.complexSourceId === catalog[0]!.sourceId));
+  assert.deepEqual(apartments.map(item => rf39CatalogDraft(item).data.bedrooms), [1, 2, 3]);
+});
+
+test('RF39 falls back to Yandex house ID when a building ID is absent', () => {
+  const item = parse({
+    ...fixture, type: 'Квартиры в новостройках', yandexHouseId: 'house-42',
+    params: { area: { value: 55 }, rooms: { value: 2 } },
+  });
+  const catalog = rf39CatalogItems([item]);
+  assert.equal(catalog[0]!.sourceId, 'rf39:complex:yandex-house:house-42');
+  assert.equal(catalog[1]!.complexSourceId, catalog[0]!.sourceId);
 });
 
 test('XML preserves invalid record IDs while independent records continue', async () => {

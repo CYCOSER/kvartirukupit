@@ -14,7 +14,8 @@ export type Rf39Snapshot = {
 const MAX_BYTES = 128 * 1024 * 1024;
 class Rf39FeedFailure extends Error {}
 const fields = new Set(['url', 'type', 'property-type', 'category', 'description', 'rooms', 'studio', 'floor', 'floors-total',
-  'built-year', 'ready-quarter', 'building-state', 'building-name', 'new-flat', 'renovation', 'quality',
+  'built-year', 'ready-quarter', 'building-state', 'building-name', 'building-type', 'new-flat', 'renovation', 'quality',
+  'yandex-building-id', 'yandex-house-id', 'complex-description',
   'location/locality-name', 'location/address', 'location/apartment', 'location/sub-locality-name', 'location/district',
   'location/latitude', 'location/longitude', 'price/value', 'price/currency', 'area/value', 'area/unit']);
 
@@ -61,16 +62,30 @@ function feedObject(id: number, values: Record<string, string>, images: string[]
     coordinates: values['location/latitude'] && values['location/longitude'] ? [values['location/latitude'], values['location/longitude']] : null,
     price: ['RUR', 'RUB'].includes(values['price/currency'] || '') ? rf39Number(values['price/value']) : null,
     images, imagesIncomplete, params,
+    yandexBuildingId: values['yandex-building-id'] || null,
+    yandexHouseId: values['yandex-house-id'] || null,
+    complexDescription: values['complex-description'] || null,
     // Yandex building IDs are not CRM IDs and must never overwrite existing source mappings.
     development: values['building-name'] ? { title: values['building-name'] } : null,
   });
+}
+
+function feedLayout(id: number, layoutId: number, values: Record<string, string>, images: string[], imagesIncomplete: boolean) {
+  const parsed = feedObject(id, values, images, imagesIncomplete);
+  return {
+    id: layoutId,
+    description: parsed.description, external_description: parsed.external_description,
+    apartment: parsed.apartment, price: parsed.price, images: parsed.images, imagesIncomplete: parsed.imagesIncomplete, params: parsed.params,
+    yandexBuildingId: parsed.yandexBuildingId, yandexHouseId: parsed.yandexHouseId,
+    buildingName: values['building-name'] || null, complexDescription: parsed.complexDescription,
+  };
 }
 
 export async function parseRf39Feed(chunks: AsyncIterable<Uint8Array>, limit = MAX_BYTES): Promise<Rf39Snapshot> {
   const parser = sax.parser(true, { strictEntities: true });
   const decoder = new StringDecoder('utf8');
   const stack: { name: string; text: string; capture: boolean }[] = [];
-  const items: Rf39Object[] = [], presentIds = new Set<number>(), internalIds = new Set<string>();
+  const items: Rf39Object[] = [], itemsById = new Map<number, Rf39Object>(), presentIds = new Set<number>(), internalIds = new Set<string>();
   const errors: Rf39Snapshot['errors'] = [];
   let bytes = 0, root = false, offerId = '', values: Record<string, string> = {}, images: string[] = [];
   let invalid = false, ambiguousIdentity = false, rejectedImages = false, authoritative = true, snapshotDate = new Date().toISOString();
@@ -127,14 +142,40 @@ export async function parseRf39Feed(chunks: AsyncIterable<Uint8Array>, limit = M
       const id = ambiguousIdentity ? null : sourceId(values.url);
       if (id === null) { authoritative = false; errors.push({ id: null, message: 'У объекта нет однозначного ID в публичной ссылке RF39.' }); }
       else {
-        if (presentIds.has(id))
-          throw new Rf39FeedFailure(`В XML несколько записей ссылаются на один публичный объект CRM (ID ${id}). Найдите ссылки, заканчивающиеся на /object/${id}, устраните дубликат в исходной выгрузке CRM и повторите обновление.`);
         presentIds.add(id);
-        try {
-          if (invalid) throw new Error('Duplicate fields');
-          items.push(feedObject(id, values, images, rejectedImages));
-          if (rejectedImages) errors.push({ id, message: 'Часть фотографий пропущена: недопустимый адрес или превышен лимит галереи.' });
-        } catch (error) { errors.push({ id, message: feedRecordError(error) }); }
+        const layoutIdentity = offerId.match(/^J([1-9]\d*)L([1-9]\d*)$/);
+        const layoutId = layoutIdentity && Number(layoutIdentity[1]) === id && Number.isSafeInteger(Number(layoutIdentity[2]))
+          ? Number(layoutIdentity[2]) : null;
+        if (invalid) errors.push({ id, message: feedRecordError(new Error('Duplicate fields')) });
+        else if (layoutId !== null) {
+          const parent = itemsById.get(id);
+          if (parent) {
+            const layouts = Object.values(parent.layouts || {});
+            if (layouts.some(layout => layout.id === layoutId))
+              throw new Rf39FeedFailure(`У объекта CRM ${id} повторяется internal-id планировки ${layoutId}.`);
+            const layout = feedLayout(id, layoutId, values, images, rejectedImages);
+            parent.layouts = [...layouts, layout];
+          } else {
+            try {
+              const parentItem = feedObject(id, values, images, rejectedImages);
+              const layout = feedLayout(id, layoutId, values, images, rejectedImages);
+              parentItem.title = values['building-name'] || `ЖК №${id}`;
+              parentItem.layouts = [layout];
+              parentItem.params = { ...parentItem.params, area: { value: null }, rooms: { value: null } };
+              items.push(parentItem);
+              itemsById.set(id, parentItem);
+            } catch (error) { errors.push({ id, message: feedRecordError(error) }); }
+          }
+        } else if (itemsById.has(id)) {
+          throw new Rf39FeedFailure(`В XML несколько записей ссылаются на один публичный объект CRM (ID ${id}). Найдите ссылки, заканчивающиеся на /object/${id}, устраните дубликат в исходной выгрузке CRM и повторите обновление.`);
+        } else {
+          try {
+            const item = feedObject(id, values, images, rejectedImages);
+            items.push(item);
+            itemsById.set(id, item);
+          } catch (error) { errors.push({ id, message: feedRecordError(error) }); }
+        }
+        if (rejectedImages) errors.push({ id, message: 'Часть фотографий пропущена: недопустимый адрес или превышен лимит галереи.' });
       }
       offerId = '';
     }

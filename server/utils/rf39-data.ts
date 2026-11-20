@@ -14,7 +14,12 @@ const layoutSchema = z.object({
   apartment: z.string().nullish(),
   price: z.union([z.number(), z.string()]).nullish(),
   images: z.array(z.string()).nullish(),
+  imagesIncomplete: z.boolean().optional(),
   params: paramsSchema,
+  yandexBuildingId: z.string().max(100).nullish(),
+  yandexHouseId: z.string().max(100).nullish(),
+  buildingName: z.string().max(300).nullish(),
+  complexDescription: z.string().nullish(),
 });
 export const rf39ObjectSchema = z.object({
   id: idSchema,
@@ -41,8 +46,24 @@ export const rf39ObjectSchema = z.object({
     developer: z.object({ title: z.string().nullish() }).nullish(),
   }).nullish(),
   complex: z.object({ id: idSchema, title: z.string().nullish() }).nullish(),
+  yandexBuildingId: z.string().max(100).nullish(),
+  yandexHouseId: z.string().max(100).nullish(),
+  complexDescription: z.string().nullish(),
 });
 export type Rf39Object = z.infer<typeof rf39ObjectSchema>;
+type Rf39Layout = z.infer<typeof layoutSchema>;
+export type Rf39CatalogEntry = {
+  id: string;
+  sourceId: string;
+  objectId: number;
+  layoutId?: number;
+  type: 'complex' | 'apartment';
+  complexSourceId?: string;
+  complexTitle?: string;
+  legacySourceId?: string;
+  item: Rf39Object;
+  summary: Omit<ReturnType<typeof rf39Summary>, 'id'> & { id: string | number };
+};
 
 export function parseRf39Response(input: unknown): Rf39Object[] {
   const response = z.object({
@@ -57,7 +78,11 @@ export function parseRf39Response(input: unknown): Rf39Object[] {
 
 export function rf39Supported(item: Rf39Object) {
   return item.deal_type === 'sale' &&
-    ['Квартиры в новостройках', 'Квартиры - вторичное жильё'].includes(item.type);
+    (['Квартиры в новостройках', 'Квартиры - вторичное жильё'].includes(item.type) || isComplexType(item.type));
+}
+
+function isComplexType(value: string) {
+  return /^(?:жк|жилой\s+комплекс|новостройка)(?:\s|$|[«"“№#])/iu.test(value.trim());
 }
 
 export function rf39HasSticker(item: Rf39Object, stickerId: number) {
@@ -85,6 +110,7 @@ export function rf39Number(value: unknown): number | null {
 
 export function rf39IsComplex(item: Rf39Object) {
   if (Object.keys(item.layouts || {}).length) return true;
+  if (isComplexType(item.type)) return true;
   if (item.type !== 'Квартиры в новостройках' || !item.complex?.id || item.apartment?.trim() ||
       rf39Number(item.params?.area?.value) !== null || rf39Number(item.params?.rooms?.value) !== null) return false;
   const title = item.title?.trim() || '';
@@ -110,6 +136,140 @@ export function rf39Summary(item: Rf39Object) {
   };
 }
 
+function buildingKey(item: Rf39Object, layout?: { yandexBuildingId?: string | null; yandexHouseId?: string | null }) {
+  const buildingId = layout?.yandexBuildingId || item.yandexBuildingId;
+  const houseId = layout?.yandexHouseId || item.yandexHouseId;
+  const id = buildingId || houseId;
+  if (!id || !/^[a-zA-Z0-9_-]{1,60}$/.test(id)) return null;
+  return `${buildingId ? 'building' : 'house'}:${id}`;
+}
+
+export function rf39CatalogItems(items: Rf39Object[]): Rf39CatalogEntry[] {
+  type Offer = { item: Rf39Object; layoutId?: number; layout?: Rf39Layout; sourceId: string };
+  const offers: Offer[] = [];
+  const explicitComplexes: Offer[] = [];
+  for (const item of items) {
+    const layouts = Object.values(item.layouts || {});
+    if (layouts.length) {
+      for (const layout of layouts) offers.push({ item, layoutId: layout.id, layout, sourceId: `rf39-layout:${item.id}:${layout.id}` });
+      continue;
+    }
+    offers.push({ item, sourceId: `rf39:${item.id}` });
+  }
+
+  const groups = new Map<string, Offer[]>();
+  const ungrouped: Offer[] = [];
+  const layoutGroupsByParent = new Map<number, Set<string>>();
+  for (const offer of offers) {
+    const key = buildingKey(offer.item, offer.layout);
+    if (rf39IsComplex(offer.item) && offer.layoutId === undefined) {
+      if (key && rf39Supported(offer.item)) groups.set(key, [...(groups.get(key) || []), offer]);
+      else explicitComplexes.push(offer);
+      continue;
+    }
+    if (!key || !rf39Supported(offer.item)) { ungrouped.push(offer); continue; }
+    groups.set(key, [...(groups.get(key) || []), offer]);
+    if (offer.layoutId !== undefined) {
+      if (!layoutGroupsByParent.has(offer.item.id)) layoutGroupsByParent.set(offer.item.id, new Set());
+      layoutGroupsByParent.get(offer.item.id)!.add(key);
+    }
+  }
+
+  const result: Rf39CatalogEntry[] = [];
+  for (const [key, group] of groups) {
+    const sourceId = `rf39:complex:yandex-${key}`;
+    const representative = group.find(offer => rf39IsComplex(offer.item) && offer.layoutId === undefined)?.item ||
+      group.find(offer => offer.layoutId !== undefined)?.item || group[0]!.item;
+    const buildingName = group.map(offer => offer.layout?.buildingName || offer.item.development?.title).find(Boolean)?.trim();
+    const addresses = new Set(group.map(offer => offer.item.address?.trim()).filter(Boolean));
+    const locations = new Set(group.map(offer => offer.item.city?.trim()).filter(Boolean));
+    const prices = group.map(offer => rf39Number(offer.layout?.price ?? offer.item.price));
+    const floors = group.map(offer => rf39Number(offer.layout?.params?.['floors-total']?.value ?? offer.item.params?.['floors-total']?.value));
+    const dates = group.map(offer => {
+      const year = String(offer.layout?.params?.['built-year']?.value ?? offer.item.params?.['built-year']?.value ?? '').match(/\b(?:19|20)\d{2}\b/)?.[0];
+      const quarter = String(offer.layout?.params?.['ready-quarter']?.value ?? offer.item.params?.['ready-quarter']?.value ?? '').match(/^[1-4]$/)?.[0];
+      return year && quarter ? new Date(Date.UTC(Number(year), Number(quarter) * 3, 0)).toISOString().slice(0, 10) : null;
+    }).filter((value): value is string => !!value);
+    const images = [...new Set(group.flatMap(offer => offer.layout?.images || offer.item.images || [])
+      .filter(url => !url.includes('/images/objects/layouts/')))].slice(0, 100);
+    const complex: Rf39Object = {
+      ...representative,
+      title: buildingName || `ЖК ${key.split(':').at(-1)}`,
+      type: 'Жилой комплекс',
+      description: representative.complexDescription || '',
+      external_description: representative.complexDescription || '',
+      address: addresses.size === 1 ? [...addresses][0]! : '',
+      city: locations.size === 1 ? [...locations][0]! : representative.city,
+      price: prices.every(price => price !== null) ? String(Math.min(...prices as number[])) : null,
+      images,
+      imagesIncomplete: group.some(offer => offer.layout?.imagesIncomplete || offer.item.imagesIncomplete),
+      params: {
+        ...representative.params,
+        area: { value: null },
+        rooms: { value: null },
+        'floors-total': { value: floors.every(floor => floor !== null) && floors.length ? Math.max(...floors as number[]) : null },
+        'built-year': { value: dates.length ? Math.max(...dates.map(date => Number(date.slice(0, 4))) ) : null },
+      },
+      layouts: null,
+      development: { ...(representative.development || {}), title: buildingName || representative.development?.title || null },
+    };
+    const complexEntry: Rf39CatalogEntry = {
+      id: sourceId, sourceId, objectId: representative.id, type: 'complex', item: complex,
+      ...(group.every(offer => offer.layoutId !== undefined && offer.item.id === representative.id) &&
+          layoutGroupsByParent.get(representative.id)?.size === 1
+        ? { legacySourceId: `rf39:${representative.id}` } : {}),
+      summary: { ...rf39Summary(complex), id: sourceId, category: 'Жилые комплексы' },
+    };
+    result.push(complexEntry);
+    for (const offer of group) {
+      if (!rf39Supported(offer.item) || rf39IsComplex(offer.item) && offer.layoutId === undefined) continue;
+      const apartment = offer.layoutId === undefined ? offer.item : {
+        ...offer.item,
+        apartment: offer.layout?.apartment || null,
+        price: offer.layout?.price ?? null,
+        images: offer.layout?.images || [],
+        imagesIncomplete: offer.layout?.imagesIncomplete,
+        params: offer.layout?.params || {},
+        layouts: null,
+      };
+      const summary = rf39Summary(apartment);
+      result.push({ id: offer.sourceId, sourceId: offer.sourceId, objectId: offer.item.id, layoutId: offer.layoutId,
+        type: 'apartment', complexSourceId: sourceId, complexTitle: complex.title || undefined, item: offer.item,
+        summary: { ...summary, id: offer.sourceId } });
+    }
+  }
+  for (const offer of ungrouped) {
+    const type = offer.layoutId !== undefined ? 'apartment' : rf39IsComplex(offer.item) ? 'complex' : 'apartment';
+    const summary = offer.layoutId !== undefined ? rf39Summary({
+      ...offer.item, apartment: offer.layout?.apartment || null, price: offer.layout?.price ?? null,
+      images: offer.layout?.images || [], params: offer.layout?.params || {}, layouts: null,
+    }) : rf39Summary(offer.item);
+    result.push({ id: offer.sourceId, sourceId: offer.sourceId, objectId: offer.item.id, layoutId: offer.layoutId,
+      type, item: offer.item, summary: { ...summary, id: offer.sourceId,
+        ...(type === 'complex' ? { category: 'Жилые комплексы' } : {}) } });
+  }
+  for (const offer of explicitComplexes) {
+    const summary = rf39Summary(offer.item);
+    result.push({ id: offer.sourceId, sourceId: offer.sourceId, objectId: offer.item.id,
+      type: 'complex', item: offer.item, summary: { ...summary, id: offer.sourceId, category: 'Жилые комплексы' } });
+  }
+  return result;
+}
+
+export function rf39CatalogDraft(entry: Rf39CatalogEntry, missingPolicy: 'main' | 'draft' = 'main') {
+  const draft = entry.type === 'complex' ? rf39Draft({ ...entry.item, layouts: null }, 'complex', missingPolicy)
+    : entry.layoutId === undefined ? rf39Draft(entry.item, 'apartment', missingPolicy)
+      : rf39LayoutDraft(entry.item, entry.layoutId);
+  draft.data.sourceId = entry.sourceId;
+  draft.data.slug = `robj-${entry.sourceId.replace(/[^a-zA-Z0-9-]/g, '-').slice(0, 115)}`;
+  if (entry.type === 'complex') {
+    draft.data.developer = entry.item.development?.developer?.title || null;
+    draft.data.published = false;
+    draft.data.elite = false;
+  }
+  return draft;
+}
+
 // RF39 also returns server filesystem paths instead of public image URLs.
 export function rf39ImageUrl(value: string): string | null {
   const path = value.replace(/^\/var\/www\/jokercrm\/web(?=\/images\/)/, '');
@@ -133,6 +293,7 @@ export function rf39Draft(item: Rf39Object, type: 'complex' | 'apartment' = rf39
   const year = String(param('built-year') || '').match(/\b(19|20)\d{2}\b/)?.[0];
   const quarter = String(param('ready-quarter') || '').match(/^[1-4]$/)?.[0];
   const stage = String(param('building-state') || '').trim();
+  const developmentTitle = item.development?.title?.trim() || '';
   const readiness = formatReadiness(year ? `${quarter ? quarter + ' кв. ' : ''}${year}` : 'Уточняется');
   const warnings: string[] = [];
   const number = (value: unknown, max: number, integer = false) => {
@@ -149,7 +310,8 @@ export function rf39Draft(item: Rf39Object, type: 'complex' | 'apartment' = rf39
   const bedrooms = type === 'apartment' ? number(param('rooms'), 100, true) : null;
   const data = propertySchema.parse({
     housingMarket: type === 'apartment' ? (item.type === 'Квартиры в новостройках' ? 'newbuild' : 'secondary') : null,
-    title: type === 'apartment' ? apartmentTitle(bedrooms, area) : item.title?.trim() || `Объект CRM №${item.id}`,
+    title: type === 'apartment' ? apartmentTitle(bedrooms, area)
+      : developmentTitle.length >= 3 ? developmentTitle : item.title?.trim() || `Объект CRM №${item.id}`,
     slug: `robj-${item.id}`, type,
     location: item.city?.trim() || 'Уточняется', address: item.address || '',
     latitude: validCoords ? coords[0] : null, longitude: validCoords ? coords[1] : null,
@@ -188,7 +350,7 @@ export function rf39LayoutDraft(parent: Rf39Object, layoutId: number) {
   const draft = rf39Draft({
     ...parent, layouts: null,
     apartment: layout.apartment, description: layout.description, external_description: layout.external_description, price: layout.price,
-    images: layout.images, imagesIncomplete: undefined, params,
+    images: layout.images, imagesIncomplete: layout.imagesIncomplete, params,
   }, 'apartment');
   draft.data.sourceId = `rf39-layout:${parent.id}:${id}`;
   draft.data.slug = `robj-layout-${parent.id}-${id}`;

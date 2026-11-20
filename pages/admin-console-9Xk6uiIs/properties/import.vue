@@ -254,7 +254,8 @@ async function importSelected() {
   );
   if (!pending.length) return;
   const input = { kind: 'import' as const, source: source.value,
-    items: pending.map(item => ({ id: item.id, title: item.title })),
+    items: pending.map(item => ({ id: item.id, title: item.title,
+      ...(item.complexSourceId ? { complexSourceId: item.complexSourceId, complexTitle: item.complexTitle } : {}) })),
     ...(snapshot.value ? { snapshot: snapshot.value } : {}),
   };
   const key = JSON.stringify(input);
@@ -530,7 +531,7 @@ async function importSelected() {
             ><ArrowDownToLine :size="16" />{{
               importing || submitting
                 ? submitting ? "Запускаем…" : "Создаём карточки…"
-                : (isNmarket ? "Создать черновики (" : "Опубликовать квартиры (") + selected.length + ")"
+                : (isNmarket ? "Создать черновики (" : "Создать ЖК и квартиры (") + selected.length + ")"
             }}</Button
           >
         </div>
@@ -579,6 +580,10 @@ async function importSelected() {
                 }}<template v-if="item.developer">
                   · {{ item.developer }}</template
                 ></small
+              ><small v-if="item.type === 'complex'">
+                ЖК · Связанные квартиры можно выбрать отдельно</small
+              ><small v-else-if="item.complexTitle"
+                >Квартира в ЖК «{{ item.complexTitle }}»</small
               ><small v-if="item.layoutCount"
                 >Корпус / ЖК · Планировок в CRM: {{ item.layoutCount }}</small
               >
@@ -609,7 +614,7 @@ async function importSelected() {
                 class="import-existing"
                 >Уже добавлен — открыть</NuxtLink
               ><span v-else-if="!item.supported" class="import-unavailable"
-                >Недоступен: импортируются только {{ isNmarket ? 'ЖК и квартиры' : 'квартиры' }} на продажу.</span
+                >Недоступен: импортируются только ЖК и квартиры на продажу.</span
               ><span v-else class="import-ready">Готов к импорту</span>
             </td>
           </tr>

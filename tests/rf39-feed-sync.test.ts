@@ -161,6 +161,49 @@ test('feed sync publishes aliases without replacing primary data and removes onl
   } finally { await f.close(); }
 });
 
+test('feed sync creates a complex before its apartments and stores the real apartment relation', async () => {
+  const f = await fixture([1, 2]);
+  try {
+    const complex = rf39Draft({ ...apartment(1), type: 'Жилой комплекс', development: { title: 'ЖК Солнечный' } }, 'complex');
+    complex.data.sourceId = 'rf39:complex:yandex-building:3217449';
+    complex.data.slug = 'robj-rf39-complex-yandex-building-3217449';
+    f.tables.importJobItem!.find(row => row.id === 'work-1').payload = JSON.parse(JSON.stringify(complex));
+    f.tables.importJobItem!.find(row => row.id === 'work-2').payload = JSON.parse(JSON.stringify({
+      ...sourceDraft(2), complexSourceId: complex.data.sourceId,
+    }));
+    await f.run();
+    const localComplex = f.tables.property!.find(row => row.sourceId === complex.data.sourceId);
+    const localApartment = f.tables.property!.find(row => row.sourceId === 'rf39:2');
+    assert.ok(localComplex);
+    assert.equal(localComplex.type, 'complex');
+    assert.equal(localComplex.published, false);
+    assert.equal(localApartment.complexId, localComplex.id);
+    assert.equal(localApartment.published, true);
+  } finally { await f.close(); }
+});
+
+test('feed sync maps a synthetic complex ID onto an existing legacy CRM complex', async () => {
+  const f = await fixture([1, 2]);
+  try {
+    f.tables.property!.push(property(1, { sourceId: 'rf39:1', type: 'complex', housingMarket: null, published: false, elite: false }));
+    const complex = rf39Draft({ ...apartment(1), type: 'Жилой комплекс', development: { title: 'ЖК Солнечный' } }, 'complex');
+    complex.data.sourceId = 'rf39:complex:yandex-building:3217449';
+    complex.data.slug = 'robj-rf39-complex-yandex-building-3217449';
+    f.tables.importJobItem!.find(row => row.id === 'work-1').payload = JSON.parse(JSON.stringify({
+      ...complex, aliasSourceIds: ['rf39:1'],
+    }));
+    f.tables.importJobItem!.find(row => row.id === 'work-2').payload = JSON.parse(JSON.stringify({
+      ...sourceDraft(2), complexSourceId: complex.data.sourceId,
+    }));
+    await f.run();
+    const legacy = f.tables.property!.find(row => row.sourceId === 'rf39:1');
+    const child = f.tables.property!.find(row => row.sourceId === 'rf39:2');
+    assert.equal(f.tables.property!.length, 2);
+    assert.ok(f.tables.propertyImportSource!.some(row => row.sourceId === complex.data.sourceId && row.propertyId === legacy.id));
+    assert.equal(child.complexId, legacy.id);
+  } finally { await f.close(); }
+});
+
 test('a CRM alias linked to a complex is a conflict and cannot publish the complex as an elite apartment', async () => {
   const f = await fixture([1, 2]);
   try {

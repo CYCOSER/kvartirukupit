@@ -44,7 +44,7 @@ for (const source of ['rf39', 'nmarket'] as const) test(`${source} job survives 
   } }));
   await page.goto(`/admin-console-9Xk6uiIs/properties/import?source=${source}`);
   await page.getByRole('button', { name: 'Выбрать все найденные', exact: true }).click();
-  await page.getByRole('button', { name: `${source === 'rf39' ? 'Опубликовать квартиры' : 'Создать черновики'} (2)`, exact: true }).click();
+  await page.getByRole('button', { name: `${source === 'rf39' ? 'Создать ЖК и квартиры' : 'Создать черновики'} (2)`, exact: true }).click();
   await expect(page.locator('.import-page .import-progress')).toContainText('Обработано: 0 из 2');
   await page.reload();
   await expect(page.locator('.import-page .import-progress')).toContainText('Обработано: 0 из 2');
