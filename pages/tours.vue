@@ -28,16 +28,14 @@ usePageSeo(
         Посмотрите будущий дом вживую. Подберём жилые комплексы под ваши
         пожелания и согласуем удобное время для знакомства с ними.
       </p>
-      <NuxtLink v-reveal="255" to="/tours#tour-request" class="text-link">
-        Оставить заявку <ArrowDown :size="18" aria-hidden="true" />
-      </NuxtLink>
       <template #aside>
-        <small v-reveal="170">ГОРОД И МОРЕ</small>
-        <strong v-reveal="255">Почувствуйте место,<br />где хочется жить.</strong>
-        <p v-reveal="340">
+        <p v-reveal="170">
           Оцените планировки, прогуляйтесь по двору и познакомьтесь с районом.
           Поможем сравнить и выбрать лучшее для покупки.
         </p>
+        <NuxtLink v-reveal="255" to="/tours#tour-request" class="text-link">
+          Оставить заявку <ArrowDown :size="18" aria-hidden="true" />
+        </NuxtLink>
       </template>
     </SceneHero>
 

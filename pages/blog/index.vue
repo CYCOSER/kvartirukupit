@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Eye, ThumbsUp } from "lucide-vue-next";
+import { ArrowDown, Eye, ThumbsUp } from "lucide-vue-next";
 import type { Article } from "~/shared/article";
 usePageSeo(
   "Новостройки Калининграда — журнал покупателя квартиры",
@@ -22,15 +22,15 @@ const { data, error } = await useFetch<Article[]>("/api/articles");
       <p v-reveal="170">
         Как выбрать новостройку, разобраться в документах и найти свой район.
       </p>
-      <a v-reveal="255" href="#journal" class="text-link">Открыть журнал ↓</a>
-      <template #aside
-        ><small v-reveal="170">КАЛИНИНГРАД · НОВОСТРОЙКИ</small
-        ><strong v-reveal="255">От выбора квартиры<br />до получения ключей</strong>
-        <p v-reveal="340">
+      <template #aside>
+        <p v-reveal="170">
           Как сравнить жилые комплексы, разобраться в условиях покупки
           и подготовиться к переезду.
-        </p></template
-      >
+        </p>
+        <a v-reveal="255" href="#journal" class="text-link">
+          Открыть журнал <ArrowDown :size="18" aria-hidden="true" />
+        </a>
+      </template>
     </SceneHero>
     <section id="journal" class="shell section">
       <div class="section-heading">

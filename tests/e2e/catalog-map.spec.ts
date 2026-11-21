@@ -62,11 +62,11 @@ test.afterAll(async () => {
   expect(failures, "Temporary map objects must be removed").toEqual([]);
 });
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page, context }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1440, height: 900 });
   // Tile network availability must not hide failures in the real catalog or Leaflet markers.
-  await page.route("https://tile.openstreetmap.org/**", (route) => route.fulfill({
+  await context.route("https://tile.openstreetmap.org/**", (route) => route.fulfill({
     contentType: "image/png",
     body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aO24AAAAASUVORK5CYII=", "base64"),
   }));
@@ -94,27 +94,29 @@ function maxTileZoom(page: Page) {
   return page.locator(".leaflet-tile").evaluateAll((images) => Math.max(...images.map((image) => Number(new URL((image as HTMLImageElement).src).pathname.split("/")[1]))));
 }
 
-test("property pages open the matching catalog map with the requested object expanded", async ({ page }) => {
+test("property pages open the matching catalog map in a new tab with the requested object expanded", async ({ page }) => {
   test.setTimeout(120000);
   for (const index of [0, 14, 17, 11]) {
     const item = fixtures[index];
     await page.goto(`/catalog/${item.slug}`);
     const link = page.getByTestId("property-map-link");
     await expect(link).toBeVisible();
-    await link.click();
-    await expect(page).toHaveURL((url) => url.pathname === (item.elite ? "/elite" : "/catalog")
+    const [mapPage] = await Promise.all([page.waitForEvent("popup"), link.click()]);
+    await expect(page).toHaveURL(`/catalog/${item.slug}`);
+    await expect(mapPage).toHaveURL((url) => url.pathname === (item.elite ? "/elite" : "/catalog")
       && url.searchParams.get("view") === "map"
       && url.searchParams.get("type") === item.type
       && url.searchParams.get("property") === item.id
       && url.hash === "#homes");
-    const row = page.locator(`[data-testid="catalog-map-item"][data-property-id="${item.id}"]`);
+    const row = mapPage.locator(`[data-testid="catalog-map-item"][data-property-id="${item.id}"]`);
     await expect(row).toHaveAttribute("data-selected", "true");
     await expect(row).toHaveAttribute("data-expanded", "true");
     await expect(row.getByTestId("catalog-map-detail")).toHaveAttribute("href", `/catalog/${item.slug}`);
     if (index === 11) await expect(row.getByText("Местоположение уточняется")).toBeVisible();
-    else await expect(page.locator(`.catalog-map-pin[data-property-id="${item.id}"]`)).toHaveClass(/is-selected/);
-    await page.reload();
+    else await expect(mapPage.locator(`.catalog-map-pin[data-property-id="${item.id}"]`)).toHaveClass(/is-selected/);
+    await mapPage.reload();
     await expect(row).toHaveAttribute("data-expanded", "true");
+    await mapPage.close();
   }
 });
 

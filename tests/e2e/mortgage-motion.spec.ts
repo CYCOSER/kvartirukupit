@@ -41,7 +41,7 @@ for (const width of [390, 1440]) {
 
     await page.goto("/ipoteka");
     await expect(section).toHaveCSS("height", "0px");
-    await page.getByRole("link", { name: "Рассчитать платёж ↓" }).click();
+    await page.getByRole("link", { name: "Рассчитать платёж", exact: true }).click();
     await expect(page).toHaveURL(/#mortgage$/);
     await expectOpen(section);
     await expect.poll(() => page.locator("#mortgage").evaluate(el => el.getBoundingClientRect().top)).toBeGreaterThanOrEqual(0);

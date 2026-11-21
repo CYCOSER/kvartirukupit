@@ -22,7 +22,7 @@ test("mortgage page is rendered for search engines and linked from navigation", 
 
 test("mortgage page calculator, questions and enquiry work on desktop and mobile", async ({ page }) => {
   await page.goto("/ipoteka");
-  await page.getByRole("link", { name: "Рассчитать платёж ↓" }).click();
+  await page.getByRole("link", { name: "Рассчитать платёж", exact: true }).click();
   const calculator = page.locator("#mortgage");
   await expect(page.locator('.purchase-disclaimer')).toContainText('Ипотечные кредиты предоставляются банками-партнёрами.');
   await expect(page.locator('.purchase-disclaimer')).toContainText('не выступаем кредиторами');

@@ -104,6 +104,22 @@ withDefaults(
   line-height: 1.65;
   letter-spacing: -0.02em;
 }
+.scene-intro .scene-aside :deep(p) {
+  margin-top: 0;
+  color: #f2f6fb;
+}
+.scene-intro .scene-aside :deep(.text-link) {
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 18px;
+  width: fit-content;
+  margin-top: 32px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #ffffff70;
+  color: #f2f6fb;
+  font-size: 12px;
+  font-weight: 400;
+}
 .scene-aside :deep(strong) {
   display: block;
   font-weight: 400;
@@ -168,6 +184,10 @@ withDefaults(
   border-left: 1px solid #ffffff38;
   padding: 0 0 6px 28px;
 }
+.scene-intro .scene-aside {
+  padding: 0 0 8px 30px;
+  border-left-color: #ffffff40;
+}
 .scene-editorial .scene-aside :deep(strong) {
   font-size: 24px;
   line-height: 1.3;
@@ -193,11 +213,33 @@ withDefaults(
     border-left: 0;
     border-top: 1px solid #ffffff38;
   }
+  .scene-intro .scene-aside {
+    display: flex;
+    justify-content: space-between;
+    justify-self: stretch;
+    align-items: end;
+    gap: 24px;
+    max-width: none;
+    padding: 0;
+    border: 0;
+  }
+  .scene-intro .scene-aside :deep(.text-link) {
+    margin-top: 0;
+  }
   .scene-editorial .scene-panel :deep(h1) {
     font-size: clamp(38px, 6.8vw, 60px);
   }
   .scene-editorial .scene-panel :deep(.breadcrumb) {
     margin-bottom: 30px;
+  }
+}
+@media (max-width: 540px) {
+  .scene-intro .scene-aside {
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .scene-intro .scene-aside :deep(.text-link) {
+    gap: 12px;
   }
 }
 </style>

@@ -266,6 +266,11 @@ useHead({
   </article>
 </template>
 <style scoped>
+.article-page :deep(.scene-editorial .scene-panel h1) {
+  font-size: clamp(30px, 3.6vw, 54px);
+  line-height: 1.16;
+  letter-spacing: -0.025em;
+}
 .blog-article {
   display: grid;
   grid-template-columns: minmax(160px, 0.6fr) minmax(0, 2fr);

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus } from "lucide-vue-next";
+import { ArrowDown, Plus } from "lucide-vue-next";
 import { TooltipContent, TooltipPortal, TooltipProvider, TooltipRoot, TooltipTrigger } from "reka-ui";
 
 const config = useRuntimeConfig();
@@ -117,15 +117,15 @@ const questions = [
         Своя квартира начинается с понятного бюджета. Рассчитайте платёж,
         разберитесь в программах и выберите новостройку под свои планы.
       </p>
-      <NuxtLink v-reveal="255" to="/ipoteka#mortgage" class="text-link">Рассчитать платёж ↓</NuxtLink>
       <template #aside>
-        <small v-reveal="170">ОТ ПЛАНОВ К ПОКУПКЕ</small>
-        <strong v-reveal="255">Сначала возможности.<br />Потом — ваша квартира.</strong>
-        <p v-reveal="340">
+        <p v-reveal="170">
           Подберем оптимальные условия в 20+ банках, проведем переговоры, проверим
           документы, поможем с их оформлением и с экономией на страховке. Найдем
           выход в любой ситуации, сбережем ваш бюджет и ваше время.
         </p>
+        <NuxtLink v-reveal="255" to="/ipoteka#mortgage" class="text-link">
+          Рассчитать платёж <ArrowDown :size="18" aria-hidden="true" />
+        </NuxtLink>
       </template>
     </SceneHero>
 

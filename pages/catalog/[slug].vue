@@ -212,8 +212,7 @@ useHead({
       /></a>
       <template #aside>
         <small v-reveal="170"
-          >{{ p.type === "complex" ? "Жилой комплекс" : statuses[p.status] }} /
-          {{ priceCaption }}</small
+          ><template v-if="p.type !== 'complex'">{{ statuses[p.status] }} / </template>{{ priceCaption }}</small
         >
         <strong v-reveal="255" class="detail-hero-price">{{ money(p.price) }}</strong>
         <p v-reveal="340">{{ readiness }}</p>
@@ -240,6 +239,9 @@ useHead({
           <NuxtLink
             class="detail-gallery-action"
             data-testid="property-map-link"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Посмотреть на карте (откроется в новой вкладке)"
             :to="{ path: p.elite ? '/elite' : '/catalog', query: { view: 'map', type: p.type, status: p.status, property: p.id }, hash: '#homes' }"
           ><MapPin :size="18" aria-hidden="true" /><span>Посмотреть на карте</span></NuxtLink>
         </div>
@@ -657,12 +659,19 @@ useHead({
 }
 .detail-hero :deep(.scene-aside .detail-hero-price) {
   font-family: var(--font-display);
-  font-size: clamp(16px, 11cqi, 48px);
+  font-size: clamp(20px, 14cqi, 48px);
   font-weight: 400;
   line-height: 1.25;
   letter-spacing: 0;
   color: #fff;
   overflow-wrap: anywhere;
+}
+.detail-hero :deep(.scene-aside small) {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+.detail-hero :deep(.scene-aside p) {
+  font-size: 17px;
 }
 .detail-gallery {
   padding-top: clamp(54px, 7vw, 92px);

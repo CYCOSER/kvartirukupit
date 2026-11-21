@@ -61,7 +61,8 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
           ><NuxtLink to="/elite">Готовые квартиры</NuxtLink
           ><NuxtLink to="/tours">Туры</NuxtLink
           ><NuxtLink to="/ipoteka">Ипотека</NuxtLink
-          ><NuxtLink to="/blog">Блог</NuxtLink>
+          ><NuxtLink to="/blog">Блог</NuxtLink
+          ><NuxtLink to="/#contact">Контакты</NuxtLink>
         </nav>
         <NuxtLink to="/catalog" class="header-catalog">Новостройки</NuxtLink>
         <a
@@ -109,6 +110,10 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
               /></NuxtLink>
               <NuxtLink to="/blog"
                 ><span><small aria-hidden="true">05</small>Блог</span
+                ><ArrowUpRight :size="19" aria-hidden="true"
+              /></NuxtLink>
+              <NuxtLink to="/#contact"
+                ><span><small aria-hidden="true">06</small>Контакты</span
                 ><ArrowUpRight :size="19" aria-hidden="true"
               /></NuxtLink>
             </nav>
