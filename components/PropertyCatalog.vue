@@ -209,7 +209,7 @@ useCatalogTools(async (values) => {
         <div class="catalog-heading">
           <div>
             <p class="eyebrow">01 / КОЛЛЕКЦИЯ</p>
-            <h2 id="catalog-heading">{{ elite ? "ВЫ ДОСТОЙНЫ ЛУЧШЕГО" : "Найдите свою квартиру" }}</h2>
+            <h1 id="catalog-heading">{{ elite ? "ВЫ ДОСТОЙНЫ ЛУЧШЕГО" : "Найдите свою квартиру" }}</h1>
           </div>
           <div class="catalog-heading-actions">
             <div class="catalog-view-switch" :class="{ 'is-map': mapView }" role="group" aria-label="Вид каталога">
