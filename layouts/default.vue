@@ -3,6 +3,27 @@ import { ArrowUpRight, MapPin, Menu, MessageCircle, Phone } from "lucide-vue-nex
 import Sheet from "~/components/ui/sheet/Sheet.vue";
 import { useAnalyticsConsent } from "~/composables/useAnalyticsConsent";
 const config = useRuntimeConfig();
+
+useHead({
+  script: [
+    {
+      type: "application/ld+json",
+      innerHTML: JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        name: config.public.siteName,
+        url: config.public.siteUrl,
+        logo: config.public.siteLogo,
+        address: {
+          "@type": "PostalAddress",
+          addressLocality: "Калининград, пр-т Ленинский, 30 (ТЦ Плаза)",
+          addressCountry: "RU",
+        }
+      }).replace(/</g, "\\u003c"),
+    },
+  ],
+});
+
 const { openSettings: openCookieSettings } = useAnalyticsConsent();
 const menu = ref(false);
 const route = useRoute();
