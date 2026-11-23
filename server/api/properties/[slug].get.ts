@@ -1,10 +1,11 @@
-import { publicComplexSelect, relatedApartmentSelect } from '../../utils/property-relations';
+import { propertyFeatureSelect, publicComplexSelect, relatedApartmentSelect } from '../../utils/property-relations';
 import { withPublicTitle } from '../../../shared/property';
 export default defineEventHandler(async (event) => {
   const property = await db.property.findFirst({
     where: { slug: getRouterParam(event, 'slug'), published: true },
     omit: { rf39Baseline: true },
     include: {
+      features: propertyFeatureSelect,
       images: { orderBy: { order: 'asc' } },
       tagRelations: { select: { tag: { select: { name: true } } } },
       complex: {

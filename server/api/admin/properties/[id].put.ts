@@ -1,6 +1,7 @@
 import { parsePropertyUpdate, mergePropertyUpdate, propertyEditFields } from '~/shared/property-edit';
 import { rf39ManualBaseline } from '~/shared/rf39-feed-merge';
-import { lockPropertyRelations, validatePropertyRelation } from '../../../utils/property-relations';
+import { lockPropertyRelations, validatePropertyRelation, propertyFeatureSelect } from '../../../utils/property-relations';
+import { validatePropertyFeatureSelection } from '../../../utils/property-features';
 export default defineEventHandler(async (event) => {
   let submitted: ReturnType<typeof parsePropertyUpdate>;
   try { submitted = parsePropertyUpdate(await readBody(event)); }
@@ -10,11 +11,12 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!;
   return db.$transaction(async (tx) => {
     await lockPropertyRelations(tx);
-    const existing = await tx.property.findUnique({ where: { id } });
+    const existing = await tx.property.findUnique({ where: { id }, include: { features: propertyFeatureSelect } });
     if (!existing)
       throw createError({ statusCode: 404, statusMessage: 'Not found' });
     let data: ReturnType<typeof mergePropertyUpdate>;
-    try { data = mergePropertyUpdate(existing, submitted); }
+    const current = { ...existing, featureIds: existing.features.map(feature => feature.id) };
+    try { data = mergePropertyUpdate(current, submitted); }
     catch {
       throw createError({ statusCode: 409, data: { message: 'Объект изменился во время редактирования. Обновите страницу и проверьте связанные поля.' } });
     }
@@ -28,12 +30,14 @@ export default defineEventHandler(async (event) => {
         statusMessage: 'Slug already exists',
       });
     await validatePropertyRelation(tx, data, existing);
-    const edited = propertyEditFields.filter(field => JSON.stringify(existing[field]) !== JSON.stringify(data[field]));
+    await validatePropertyFeatureSelection(tx, data, existing);
+    const edited = propertyEditFields.filter(field => JSON.stringify(current[field]) !== JSON.stringify(data[field]));
+    const { featureIds, ...fields } = data;
     return tx.property.update({
       where: { id },
-      data: { ...data, ...(existing.sourceId?.startsWith('rf39:') && edited.length
+      data: { ...fields, ...(featureIds !== undefined ? { features: { set: featureIds.map(id => ({ id })) } } : {}), ...(existing.sourceId?.startsWith('rf39:') && edited.length
         ? { rf39Baseline: JSON.parse(JSON.stringify(rf39ManualBaseline(existing.rf39Baseline, edited))) } : {}) },
-      include: { images: { orderBy: { order: 'asc' } } },
+      include: { images: { orderBy: { order: 'asc' } }, features: propertyFeatureSelect },
     });
   });
 });

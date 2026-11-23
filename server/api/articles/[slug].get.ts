@@ -2,8 +2,9 @@ import {
   randomArticleRecommendations,
   type ProjectRecommendation,
 } from "~/shared/article-recommendations";
-import { propertyLocationTags, type Property } from "~/shared/property";
+import type { Property } from "~/shared/property";
 import { sanitizeArticleContent } from "~/server/utils/article-content";
+import { propertyFeatureSelect } from "~/server/utils/property-relations";
 
 function isPropertyStatus(value: string): value is Property["status"] {
   return value === "available" || value === "reserved" || value === "sold";
@@ -76,9 +77,8 @@ export default defineEventHandler(async (event) => {
             location: true,
             area: true,
             developer: true,
-            heatingType: true,
-            fencedTerritory: true,
-            locationTags: true,
+              features: propertyFeatureSelect,
+              featureOverrides: true,
             constructionStatus: true,
             priceKind: true,
             price: true,
@@ -94,7 +94,6 @@ export default defineEventHandler(async (event) => {
     .map((project) => ({
       ...project,
       type: "complex",
-      locationTags: propertyLocationTags.filter(tag => project.locationTags.includes(tag)),
       images: project.images.map((image) => ({
         ...image,
         kind: "photo" as const,

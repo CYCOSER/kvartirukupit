@@ -5,12 +5,13 @@ import AddressMap from "~/components/admin/AddressMap.client.vue";
 import { Eye, Star, FlaskConical, ImagePlus, Building2, ArrowUpRight } from "lucide-vue-next";
 import { adminPropertyType, adminPropertyTypes } from "~/shared/admin-property";
 import { changedPropertyFields, propertyEditFields } from "~/shared/property-edit";
+import { propertyFeatureGroups, propertyFeatureGroupLabels, type PropertyFeature, type PropertyFeatureGroup } from "~/shared/property-feature";
+import { propertyFeatures } from "~/shared/property-features";
 import {
   statuses,
   housingMarkets,
   isCoastalLocation,
   propertySchema,
-  propertyLocationTags,
   money,
   withPublicTitle,
   type PropertyInput,
@@ -40,9 +41,8 @@ const defaults: PropertyInput = {
   availableFloors: [],
   readiness: "Уточняется",
   finish: "Уточняется",
-  heatingType: null,
-  fencedTerritory: null,
-  locationTags: [],
+  featureIds: [],
+  featureOverrides: [],
   seaDistance: null,
   description: "",
   utilities: [],
@@ -55,7 +55,8 @@ const form = reactive<PropertyInput & { seaDistance: number | null }>({
   ...defaults,
   ...props.initial,
   seaDistance: props.initial?.seaDistance ?? null,
-  locationTags: props.initial?.locationTags ?? [],
+  featureIds: props.initial?.features?.map(feature => feature.id) ?? [],
+  featureOverrides: [...(props.initial?.featureOverrides ?? [])],
 });
 const initialForm = propertySchema.safeParse(form);
 let savedForm = initialForm.success ? initialForm.data : { ...form, utilities: [...form.utilities] };
@@ -75,10 +76,6 @@ const selectedHousingMarket = computed({
   set: (value: string) => {
     form.housingMarket = (value as PropertyInput["housingMarket"]) || null;
   },
-});
-const selectedFencedTerritory = computed({
-  get: () => form.fencedTerritory == null ? "" : String(form.fencedTerritory),
-  set: (value: string) => { form.fencedTerritory = value === "" ? null : value === "true"; },
 });
 const priorities = Array.from({ length: 10 }, (_, index) => 10 - index);
 const selectedPriority = computed({
@@ -105,6 +102,49 @@ const complexes = ref<Property[]>([]);
 const complexesLoaded = ref(false);
 const complexesPending = ref(false);
 const complexesError = ref("");
+const featureDictionary = ref<PropertyFeature[]>(props.initial?.features || []);
+const featuresPending = ref(false), featuresLoaded = ref(false), featuresError = ref("");
+const selectedFeatures = computed(() => featureDictionary.value.filter(feature => form.featureIds?.includes(feature.id)));
+const featureComplex = computed(() => {
+  const complex = complexes.value.find(value => value.id === form.complexId)
+    || (props.initial?.complex && props.initial.complex.id === form.complexId ? props.initial.complex : null);
+  return !complex || !featuresLoaded.value ? complex
+    : { ...complex, features: featureDictionary.value.filter(feature => complex.features?.some(value => value.id === feature.id)) };
+});
+const effectiveFeatures = computed(() => propertyFeatures({ ...form, features: selectedFeatures.value, complex: featureComplex.value }));
+const inheritsFeatures = (group: PropertyFeatureGroup) => form.type === 'apartment' && !!form.complexId && !form.featureOverrides?.includes(group);
+const groupFeatures = (group: PropertyFeatureGroup) => featureDictionary.value.filter(feature => feature.group === group);
+const displayedFeatures = (group: PropertyFeatureGroup) => inheritsFeatures(group)
+  ? effectiveFeatures.value.filter(feature => feature.group === group) : selectedFeatures.value.filter(feature => feature.group === group);
+function setGroupFeatures(group: PropertyFeatureGroup, ids: string[]) {
+  const groupIds = new Set(groupFeatures(group).map(feature => feature.id));
+  form.featureIds = [...(form.featureIds || []).filter(id => !groupIds.has(id)), ...ids];
+  form.featureOverrides = [...new Set([...(form.featureOverrides || []), group])];
+}
+function setInheritance(group: PropertyFeatureGroup, inherit: boolean) {
+  const ids = displayedFeatures(group).map(feature => feature.id);
+  setGroupFeatures(group, inherit ? [] : ids);
+  if (inherit) form.featureOverrides = form.featureOverrides!.filter(value => value !== group);
+}
+function toggleFeature(feature: PropertyFeature, checked: boolean) {
+  const ids = selectedFeatures.value.filter(value => value.group === feature.group && value.id !== feature.id).map(value => value.id);
+  setGroupFeatures(feature.group, checked ? [...ids, feature.id] : ids);
+}
+const selectedHeating = computed({
+  get: () => displayedFeatures('heating')[0]?.id || '',
+  set: (id: string) => setGroupFeatures('heating', id ? [id] : []),
+});
+async function loadFeatures() {
+  if (featuresPending.value) return;
+  featuresPending.value = true;
+  featuresError.value = '';
+  try {
+    featureDictionary.value = await $fetch<PropertyFeature[]>('/api/admin/property-features');
+    form.featureIds = (form.featureIds || []).filter(id => featureDictionary.value.some(feature => feature.id === id));
+    featuresLoaded.value = true;
+  } catch { featuresError.value = 'Не удалось загрузить справочник преимуществ.'; }
+  finally { featuresPending.value = false; }
+}
 const linkedApartments = ref(props.initial?.apartments || []);
 const mappingFields = ['nmarketComplexId', 'rf39ComplexId', 'rf39BuildingId'] as const;
 const mappingValue = (value: string | null | undefined) => value?.trim() || null;
@@ -131,7 +171,7 @@ async function loadComplexes() {
     complexesPending.value = false;
   }
 }
-onMounted(() => { if (form.type === "apartment") loadComplexes(); });
+onMounted(() => { loadFeatures(); if (form.type === "apartment") loadComplexes(); });
 watch(() => form.type, (type) => { if (type === "apartment") loadComplexes(); });
 let linkedRequest = 0;
 async function refreshLinkedApartments() {
@@ -153,8 +193,8 @@ const uploadInput = ref<HTMLInputElement>();
 const preview = ref(false);
 const card = computed(() => withPublicTitle({
   ...form,
-  complex: complexes.value.find((complex) => complex.id === form.complexId && complex.published)
-    || (props.initial?.complex?.published && props.initial.complex.id === form.complexId ? props.initial.complex : null),
+  features: selectedFeatures.value,
+  complex: featureComplex.value?.published ? featureComplex.value : null,
   id: id.value || "preview",
   createdAt: "",
   updatedAt: "",
@@ -213,7 +253,7 @@ async function save() {
     );
     linkedRequest++;
     if (id.value) {
-      const saved = propertySchema.parse(p);
+      const saved = propertySchema.parse({ ...p, featureIds: p.features?.map(feature => feature.id) || [] });
       for (const field of propertyEditFields) {
         if (JSON.stringify(form[field]) === JSON.stringify(submittedForm[field]))
           Object.assign(form, { [field]: saved[field] });
@@ -468,28 +508,25 @@ function move(index: number, offset: number) {
           maxlength="100" /></label
       ><label
         >Отделка<input v-model="form.finish" required maxlength="100" /></label
-        ><template v-if="form.type === 'complex' || (form.type === 'apartment' && form.housingMarket !== 'secondary')">
-          <label>Тип отопления<input
-            :value="form.heatingType ?? ''"
-            maxlength="120"
-            placeholder="Например: газовое автономное"
-            @input="form.heatingType = ($event.target as HTMLInputElement).value || null"
-          /><span v-if="form.type === 'apartment'" class="text-sm text-slate-500">Если не указано, используется значение ЖК.</span></label>
-          <label>Огороженная территория<AppSelect v-model="selectedFencedTerritory" aria-label="Огороженная территория">
-            <AppSelectOption value="">Не указано</AppSelectOption>
-            <AppSelectOption value="true">Да</AppSelectOption>
-            <AppSelectOption value="false">Нет</AppSelectOption>
-          </AppSelect><span v-if="form.type === 'apartment'" class="text-sm text-slate-500">Если не указано, используется значение ЖК.</span></label>
-          <fieldset class="full property-options property-location-options">
-            <legend>Локация</legend>
-            <div class="flex flex-wrap gap-x-6 gap-y-3">
-              <label v-for="tag in propertyLocationTags" :key="tag">
-                <input v-model="form.locationTags" type="checkbox" :value="tag" />{{ tag }}
-              </label>
-            </div>
-            <p v-if="form.type === 'apartment'" class="mt-2 text-sm text-slate-500">Если ничего не выбрано, используются теги ЖК.</p>
-          </fieldset>
-        </template
+        ><section v-if="form.type === 'complex' || (form.type === 'apartment' && form.housingMarket !== 'secondary')" class="full property-benefits" aria-labelledby="property-benefits-title">
+          <div class="property-benefits-heading"><div><h2 id="property-benefits-title">Преимущества</h2><p>Отметьте особенности, которые будут видны в карточке объекта.</p></div><div class="property-benefits-actions"><NuxtLink to="/admin-console-9Xk6uiIs/tools/features" target="_blank" rel="noopener">Управлять справочником</NuxtLink><button type="button" :disabled="featuresPending" @click="loadFeatures">Обновить преимущества</button></div></div>
+          <p v-if="featuresPending" role="status">Загружаем преимущества…</p>
+          <p v-if="featuresError" class="error-text" role="alert">{{ featuresError }} <button type="button" class="underline" @click="loadFeatures">Повторить</button></p>
+          <div v-if="featuresLoaded" class="property-benefits-grid">
+            <fieldset v-for="group in propertyFeatureGroups" :key="group" class="property-benefit-group" :data-feature-group="group">
+              <legend>{{ propertyFeatureGroupLabels[group] }}</legend>
+              <label v-if="form.type === 'apartment' && form.complexId" class="property-feature-check property-feature-inherit"><input type="checkbox" :checked="inheritsFeatures(group)" :aria-label="'Использовать от ЖК: ' + propertyFeatureGroupLabels[group]" @change="setInheritance(group, ($event.target as HTMLInputElement).checked)" />Использовать от ЖК</label>
+              <AppSelect v-if="group === 'heating'" v-model="selectedHeating" :disabled="inheritsFeatures(group)" aria-label="Тип отопления">
+                <AppSelectOption value="">Не показывать</AppSelectOption>
+                <AppSelectOption v-for="feature in groupFeatures(group)" :key="feature.id" :value="feature.id">{{ feature.name }}</AppSelectOption>
+              </AppSelect>
+              <template v-else><label v-for="feature in groupFeatures(group)" :key="feature.id" class="property-feature-check"><input type="checkbox" :checked="displayedFeatures(group).some(value => value.id === feature.id)" :disabled="inheritsFeatures(group)" @change="toggleFeature(feature, ($event.target as HTMLInputElement).checked)" />{{ feature.name }}</label></template>
+              <p v-if="!groupFeatures(group).length" class="property-feature-hint">В этой группе пока нет преимуществ.</p>
+              <p v-if="inheritsFeatures(group)" class="property-feature-hint">{{ displayedFeatures(group).map(feature => feature.name).join(', ') || 'У ЖК не указано.' }}</p>
+            </fieldset>
+          </div>
+          <div v-if="featuresLoaded" class="property-benefits-preview"><strong>На сайте</strong><PropertyFeatures :property="card" /><p v-if="!propertyFeatures(card).length" class="property-feature-hint">Преимущества не выбраны.</p></div>
+        </section
       ><label v-if="isCoastalLocation(form.location)"
         >До моря, метров (необязательно)<NumberField
           v-model="form.seaDistance"
@@ -628,6 +665,20 @@ function move(index: number, offset: number) {
   </div>
 </template>
 <style scoped>
+.property-benefits { display: grid; gap: 18px; border: 1px solid #e5eaf2; border-radius: 12px; padding: 20px; min-width: 0; }
+.property-benefits-heading { display: flex; justify-content: space-between; align-items: start; gap: 16px; flex-wrap: wrap; }
+.property-benefits-heading h2 { font-size: 1.125rem; font-weight: 700; }
+.property-benefits-heading p, .property-feature-hint { color: #63728a; font-size: 0.875rem; font-weight: 400; }
+.property-benefits-actions { display: flex; gap: 14px; flex-wrap: wrap; }
+.property-benefits-actions a, .property-benefits-actions button { color: #245fbd; text-decoration: underline; font-size: 0.875rem; }
+.property-benefits-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.property-benefit-group { display: grid; align-content: start; gap: 10px; min-width: 0; }
+.property-benefit-group legend { margin-bottom: 10px; font-weight: 700; }
+.property-benefit-group .property-feature-check { display: flex; align-items: center; gap: 8px; font-weight: 400; }
+.property-feature-check input { width: 18px; height: 18px; margin: 0; padding: 0; flex-shrink: 0; accent-color: #245fbd; }
+.property-feature-inherit { color: #63728a; font-size: 0.875rem; }
+.property-benefits-preview { border-top: 1px solid #e5eaf2; padding-top: 14px; }
+@media (max-width: 600px) { .property-benefits-grid { grid-template-columns: 1fr; } .property-benefits { padding: 14px; } }
 .admin-form textarea { resize: none; overflow: hidden; }
 .property-card-preview.property-grid { grid-template-columns: minmax(0, 1fr); width: min(100%, 320px); }
 .property-complex-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 5px; }
@@ -644,8 +695,7 @@ function move(index: number, offset: number) {
 .property-option-copy { display: grid; gap: 4px; flex: 1; min-width: 0; }
 .property-option-copy strong { color: #273d5e; font-size: 13px; line-height: 1.35; font-weight: 650; }
 .property-option-copy small { color: #71819a; font-size: 11px; line-height: 1.45; }
-.property-option input[type='checkbox'], .property-location-options input[type='checkbox'] { flex: 0 0 18px; width: 18px; height: 18px; margin: 0; accent-color: #245fbd; cursor: pointer; }
-.property-location-options label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.property-option input[type='checkbox'] { flex: 0 0 18px; width: 18px; height: 18px; margin: 0; accent-color: #245fbd; cursor: pointer; }
 .property-option:focus-within { outline: 2px solid #245fbd; outline-offset: 3px; }
 .property-photos-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .property-photos-heading h2 { color: #273d5e; font-size: 20px; font-weight: 700; }

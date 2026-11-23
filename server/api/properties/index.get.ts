@@ -1,6 +1,6 @@
 import { propertyQuery, propertyQuerySchema } from "../../utils/property-query";
 import { withPublicTitle } from "../../../shared/property";
-import { publicComplexSelect } from "../../utils/property-relations";
+import { propertyFeatureSelect, publicComplexSelect } from "../../utils/property-relations";
 
 export default defineEventHandler(async (event) => {
   const parsed = propertyQuerySchema.safeParse(getQuery(event));
@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
       orderBy,
       skip: (parsed.data.page - 1) * 12,
       take: 12,
-      include: { images: { orderBy: { order: "asc" } }, complex: publicComplexSelect },
+      include: { images: { orderBy: { order: "asc" } }, complex: publicComplexSelect, features: propertyFeatureSelect },
     }),
     db.property.count({ where }),
     db.property.findMany({

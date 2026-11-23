@@ -2,6 +2,7 @@ import type { Property } from '../../../shared/property';
 
 export function propertyFixture(values: Partial<Property> = {}): Property {
   return {
+    features: [], featureOverrides: [],
     id: 'property-fixture', title: 'Тестовая квартира', slug: 'property-fixture', type: 'apartment',
     housingMarket: 'newbuild', complexId: null, nmarketComplexId: null, rf39ComplexId: null, rf39BuildingId: null,
     location: 'Калининград', address: 'Тестовая, 1', latitude: null, longitude: null,

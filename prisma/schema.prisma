@@ -37,6 +37,8 @@ model Property {
   heatingType        String?
   fencedTerritory    Boolean?
   locationTags       String[]               @default([])
+  features           PropertyFeature[]
+  featureOverrides   PropertyFeatureGroup[] @default([])
   seaDistance        Float?
   description        String
   utilities          String[]
@@ -68,6 +70,22 @@ model Property {
   @@index([published, status])
   @@index([complexId])
   @@index([layoutHash])
+}
+
+enum PropertyFeatureGroup {
+  heating
+  territory
+  location
+  other
+}
+
+model PropertyFeature {
+  id         String     @id @default(cuid())
+  name       String
+  group      PropertyFeatureGroup
+  properties Property[]
+
+  @@unique([group, name])
 }
 
 model PropertyImportSource {

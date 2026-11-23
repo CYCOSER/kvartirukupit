@@ -9,7 +9,7 @@ const initial = propertySchema.parse({
   location: 'Калининград', address: 'Мира, 1', latitude: null, longitude: null,
   price: 5000000, status: 'available', area: 50, landArea: null, bedrooms: 2, floors: 5, availableFloors: [],
   readiness: 'Готов', finish: 'Чистовая', seaDistance: null, description: 'Исходное описание', utilities: [],
-  heatingType: null, fencedTerritory: null, locationTags: [],
+  featureIds: [], featureOverrides: [],
   published: false, featured: false, elite: false, demo: false,
 });
 
@@ -23,18 +23,18 @@ test('editor saves only dirty fields and retains concurrent price, publication a
   assert.deepEqual(mergePropertyUpdate(current, parsePropertyUpdate({ ...initial, changedFields: [] })), current);
 });
 
-test('heating and fence edits preserve explicit false and can be cleared to unknown', () => {
-  const edited = { ...initial, heatingType: 'Газовое автономное', fencedTerritory: false };
+test('feature selections and empty group overrides preserve concurrent fields', () => {
+  const edited = propertySchema.parse({ ...initial, featureIds: ['heating-gas'], featureOverrides: ['heating', 'territory'] });
   const changedFields = changedPropertyFields(initial, edited);
-  assert.deepEqual(changedFields, ['heatingType', 'fencedTerritory']);
+  assert.deepEqual(changedFields, ['featureIds', 'featureOverrides']);
   const current = { ...initial, price: 6200000 };
   const saved = mergePropertyUpdate(current, parsePropertyUpdate({ ...edited, changedFields }));
-  assert.equal(saved.heatingType, edited.heatingType);
-  assert.equal(saved.fencedTerritory, false);
+  assert.deepEqual(saved.featureIds, ['heating-gas']);
+  assert.deepEqual(saved.featureOverrides, ['heating', 'territory']);
   assert.equal(saved.price, current.price);
   const cleared = mergePropertyUpdate(saved, parsePropertyUpdate({ ...initial, changedFields }));
-  assert.equal(cleared.heatingType, null);
-  assert.equal(cleared.fencedTerritory, null);
+  assert.deepEqual(cleared.featureIds, []);
+  assert.deepEqual(cleared.featureOverrides, []);
 });
 
 test('priority defaults to 5, validates its range and saves as a dirty field', () => {
@@ -50,17 +50,18 @@ test('priority defaults to 5, validates its range and saves as a dirty field', (
   assert.equal(merged.price, 6200000);
 });
 
-test('location tag edits save and clear only the selected field, while old clients may omit it', () => {
-  const edited = propertySchema.parse({ ...initial, locationTags: ['У моря', 'У парка'] });
-  assert.deepEqual(changedPropertyFields(initial, edited), ['locationTags']);
-  const current = { ...initial, price: 6200000 };
-  const saved = mergePropertyUpdate(current, parsePropertyUpdate({ ...edited, changedFields: ['locationTags'] }));
-  assert.deepEqual(saved.locationTags, ['У моря', 'У парка']);
+test('clearing selected features can retain explicit empty overrides instead of inheriting', () => {
+  const edited = propertySchema.parse({ ...initial, featureIds: ['sea', 'park'], featureOverrides: ['location'] });
+  const current = { ...initial, price: 6200000, featureOverrides: edited.featureOverrides };
+  const saved = mergePropertyUpdate(current, parsePropertyUpdate({ ...edited, changedFields: ['featureIds'] }));
+  assert.deepEqual(saved.featureIds, ['sea', 'park']);
   assert.equal(saved.price, current.price);
-  const cleared = mergePropertyUpdate(saved, parsePropertyUpdate({ ...initial, changedFields: ['locationTags'] }));
-  assert.deepEqual(cleared.locationTags, []);
-  const { locationTags, ...legacy } = initial;
-  assert.equal(Object.hasOwn(parsePropertyUpdate(legacy).data, 'locationTags'), false);
+  const cleared = mergePropertyUpdate(saved, parsePropertyUpdate({ ...initial, changedFields: ['featureIds'] }));
+  assert.deepEqual(cleared.featureIds, []);
+  assert.deepEqual(cleared.featureOverrides, ['location']);
+  const { featureIds, featureOverrides, ...legacy } = initial;
+  assert.equal(Object.hasOwn(parsePropertyUpdate(legacy).data, 'featureIds'), false);
+  assert.equal(Object.hasOwn(parsePropertyUpdate(legacy).data, 'featureOverrides'), false);
 });
 
 test('legacy full PUT remains a full update while metadata cannot write protected or missing fields', () => {

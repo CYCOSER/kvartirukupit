@@ -4,7 +4,7 @@ import { propertySchema, type PropertyInput } from './property';
 export const propertyEditFields = [
   'title', 'priority', 'slug', 'type', 'housingMarket', 'complexId', 'nmarketComplexId', 'rf39ComplexId', 'rf39BuildingId',
   'location', 'address', 'latitude', 'longitude', 'price', 'status', 'area', 'landArea', 'bedrooms', 'floors', 'availableFloors',
-  'readiness', 'finish', 'heatingType', 'fencedTerritory', 'locationTags', 'seaDistance', 'description', 'utilities', 'published', 'featured', 'elite', 'demo',
+  'readiness', 'finish', 'featureIds', 'featureOverrides', 'seaDistance', 'description', 'utilities', 'published', 'featured', 'elite', 'demo',
 ] as const satisfies readonly (keyof PropertyInput)[];
 export type PropertyEditField = typeof propertyEditFields[number];
 const metadataSchema = z.object({ changedFields: z.array(z.enum(propertyEditFields)).max(propertyEditFields.length).optional() });

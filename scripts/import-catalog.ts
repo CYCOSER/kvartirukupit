@@ -170,7 +170,7 @@ export async function importCatalog(db: PrismaClient, input: unknown) {
             Date.parse(project.sourceFetchedAt)
         )
           continue;
-        const { images, slug, published, featured, status, latitude, longitude, ...source } =
+        const { images, slug, published, featured, status, latitude, longitude, featureIds, featureOverrides, ...source } =
           project;
         const data = {
           ...source,

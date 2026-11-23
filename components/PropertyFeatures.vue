@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BadgeCheck, Clock3, Construction, Fence, House, Landmark, ThermometerSun, Trees, Waves } from 'lucide-vue-next';
+import { BadgeCheck, Clock3, Construction, Fence, House, Landmark, MapPin, ThermometerSun, Trees, Waves } from 'lucide-vue-next';
 import { propertyFeatures } from '~/shared/property-features';
 
 const props = defineProps<{
@@ -7,7 +7,8 @@ const props = defineProps<{
   constructionStatus?: string | null;
 }>();
 const features = computed(() => propertyFeatures(props.property));
-const locationIcons = { 'Центр города': Landmark, 'У моря': Waves, 'У парка': Trees, 'За городом': House };
+const locationIcons: Record<string, typeof MapPin> = { 'Центр города': Landmark, 'У моря': Waves, 'У парка': Trees, 'За городом': House };
+const groupIcons = { heating: ThermometerSun, territory: Fence, location: MapPin, other: BadgeCheck };
 const status = computed(() => {
   const value = props.constructionStatus?.trim();
   return value ? value[0].toLocaleUpperCase('ru') + value.slice(1) : '';
@@ -22,10 +23,8 @@ const statusIcon = computed(() => {
 </script>
 
 <template>
-  <div v-if="features.heatingType || features.fencedTerritory || features.locationTags.length || status" class="property-features" aria-label="Особенности объекта">
-    <span v-if="features.heatingType"><ThermometerSun :size="16" aria-hidden="true" /><span>Отопление: {{ features.heatingType }}</span></span>
-    <span v-if="features.fencedTerritory"><Fence :size="16" aria-hidden="true" /><span>Огороженная территория</span></span>
-    <span v-for="tag in features.locationTags" :key="tag"><component :is="locationIcons[tag]" :size="16" aria-hidden="true" /><span>{{ tag }}</span></span>
+  <div v-if="features.length || status" class="property-features" aria-label="Особенности объекта">
+    <span v-for="feature in features" :key="feature.id"><component :is="(feature.group === 'location' && locationIcons[feature.name]) || groupIcons[feature.group]" :size="16" aria-hidden="true" /><span>{{ feature.group === 'heating' ? 'Отопление: ' : '' }}{{ feature.name }}</span></span>
     <span v-if="status" class="property-construction-status"><component :is="statusIcon" :size="16" aria-hidden="true" /><span>{{ status }}</span></span>
   </div>
 </template>

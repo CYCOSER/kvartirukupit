@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client';
 import { createError } from 'h3';
 import { db } from './db';
-import { lockPropertyRelations } from './property-relations';
+import { lockPropertyRelations, propertyFeatureSelect } from './property-relations';
 import { rf39ManualBaseline } from '../../shared/rf39-feed-merge';
 
 export const agentPropertySelect = {
@@ -11,6 +11,7 @@ export const agentPropertySelect = {
   availableFloors: true, status: true, readiness: true, finish: true,
   seaDistance: true, utilities: true, developer: true, district: true,
   heatingType: true, fencedTerritory: true, locationTags: true,
+  features: propertyFeatureSelect, featureOverrides: true,
   completionDate: true, constructionStatus: true,
 } satisfies Prisma.PropertySelect;
 

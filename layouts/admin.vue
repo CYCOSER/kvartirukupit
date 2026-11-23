@@ -5,6 +5,8 @@ import {
   BookOpen,
   Rss,
   Tags,
+  KeyRound,
+  BadgeCheck,
   ArrowUpRight,
   LogOut,
   LayoutDashboard,
@@ -26,9 +28,19 @@ const sections = [
 ];
 const toolSections = [
   {
+    to: "/admin-console-9Xk6uiIs/tools/features",
+    label: "Преимущества",
+    icon: BadgeCheck,
+  },
+  {
     to: "/admin-console-9Xk6uiIs/tools/tags",
     label: "Тэги",
     icon: Tags,
+  },
+  {
+    to: "/admin-console-9Xk6uiIs/tools/api",
+    label: "Подключение по API",
+    icon: KeyRound,
   },
 ];
 const sectionTitle = computed(

@@ -1,6 +1,6 @@
 import { propertyQuery, propertyQuerySchema } from "../../utils/property-query";
 import { withPublicTitle } from "../../../shared/property";
-import { publicComplexSelect } from "../../utils/property-relations";
+import { propertyFeatureSelect, publicComplexSelect } from "../../utils/property-relations";
 
 export default defineEventHandler(async (event) => {
   const parsed = propertyQuerySchema.safeParse(getQuery(event));
@@ -17,6 +17,7 @@ export default defineEventHandler(async (event) => {
         status: true, elite: true, latitude: true, longitude: true,
         developer: true, constructionStatus: true, priceArea: true, readiness: true, sourceMode: true,
         housingMarket: true, heatingType: true, fencedTerritory: true, locationTags: true,
+        features: propertyFeatureSelect, featureOverrides: true,
         complex: publicComplexSelect,
         images: { orderBy: { order: "asc" }, take: 1, select: { id: true, file: true, alt: true, order: true, kind: true } },
       },

@@ -1,7 +1,7 @@
 import { defineEventHandler, setHeader } from 'h3';
 import { withPublicTitle } from '../../../shared/property';
 import { db } from '../../utils/db';
-import { publicComplexSelect } from '../../utils/property-relations';
+import { propertyFeatureSelect, publicComplexSelect } from '../../utils/property-relations';
 
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Cache-Control', 'no-store');
@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
       type: 'complex',
       status: 'available',
     },
-    include: { images: { orderBy: { order: 'asc' } }, complex: publicComplexSelect },
+    include: { images: { orderBy: { order: 'asc' } }, complex: publicComplexSelect, features: propertyFeatureSelect },
   });
   return {
     items: selected.flatMap(({ id }) => items.find((p) => p.id === id) || []).map(withPublicTitle),

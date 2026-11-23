@@ -5,16 +5,20 @@ test('public cards show feature and location tags before construction status wit
   const developer = 'Застройщик только для администратора';
   const complex = propertyFixture({
     id: 'features-complex', slug: 'features-complex', title: 'ЖК с отоплением', type: 'complex', housingMarket: null,
-    developer, heatingType: 'Газовое автономное', fencedTerritory: true,
-    locationTags: ['Центр города', 'У моря'], constructionStatus: 'сдан',
+    developer, features: [
+      { id: 'gas', name: 'Газовое автономное', group: 'heating' },
+      { id: 'fence', name: 'Огороженная территория', group: 'territory' },
+      { id: 'center', name: 'Центр города', group: 'location' },
+      { id: 'sea', name: 'У моря', group: 'location' },
+    ], constructionStatus: 'сдан',
   });
   const apartment = propertyFixture({
     id: 'features-apartment', slug: 'features-apartment', title: 'Квартира с отоплением', developer, complex,
-    heatingType: null, fencedTerritory: null, locationTags: [], constructionStatus: 'строится',
+    features: [], featureOverrides: [], constructionStatus: 'строится',
   });
   const unknown = propertyFixture({
     id: 'features-unknown', slug: 'features-unknown', title: 'ЖК без сведений', type: 'complex', housingMarket: null,
-    developer, heatingType: null, fencedTerritory: null, locationTags: [],
+    developer, features: [], featureOverrides: [],
   });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 1440, height: 1000 });

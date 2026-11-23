@@ -1,4 +1,106 @@
 import { test, expect } from '@playwright/test';
+import { propertyFixture } from './fixtures/property';
+import type { PropertyFeature } from '../../shared/property-feature';
+
+const featureDictionary: PropertyFeature[] = [
+  { id: 'heating-gas', name: 'Газовое крышная котельная', group: 'heating' },
+  { id: 'territory-fence', name: 'Огороженная территория', group: 'territory' },
+  { id: 'location-sea', name: 'У моря', group: 'location' },
+  { id: 'location-park', name: 'У парка', group: 'location' },
+  { id: 'other-pool', name: 'Бассейн', group: 'other' },
+];
+
+test('apartment benefits can inherit, override, clear and restore complex groups', async ({ page }, testInfo) => {
+  let dictionary = featureDictionary.map(feature => ({ ...feature }));
+  let dictionaryFails = false;
+  const complex = propertyFixture({ id: 'benefit-complex', slug: 'benefit-complex', title: 'ЖК с преимуществами', type: 'complex', housingMarket: null, features: featureDictionary.filter(feature => ['heating-gas', 'territory-fence', 'location-sea'].includes(feature.id)) });
+  const item = propertyFixture({ id: 'benefit-apartment', slug: 'benefit-apartment', title: 'Квартира с преимуществами', complexId: complex.id, complex });
+  const saves: Record<string, unknown>[] = [];
+  await page.route('**/api/admin/**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/admin/me') return route.fulfill({ json: { id: 'fixture-admin' } });
+    if (url.pathname === '/api/admin/login') return route.fulfill({ json: { ok: true } });
+    if (url.pathname === '/api/admin/import-jobs') return route.fulfill({ json: [] });
+    if (url.pathname === '/api/admin/property-features') return route.fulfill({ status: dictionaryFails ? 500 : 200, json: dictionaryFails ? {} : dictionary });
+    if (url.pathname === '/api/admin/properties') return route.fulfill({ json: url.searchParams.has('type') ? [complex] : [item] });
+    if (url.pathname === `/api/admin/properties/${item.id}`) {
+      if (route.request().method() === 'PUT') {
+        const saved = route.request().postDataJSON();
+        saves.push(saved);
+        Object.assign(item, saved, { features: dictionary.filter(feature => saved.featureIds.includes(feature.id)) });
+      }
+      return route.fulfill({ json: item });
+    }
+    return route.fulfill({ status: 404, json: {} });
+  });
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.goto('/admin-console-9Xk6uiIs/login');
+  await page.waitForFunction(() => !!(document.querySelector('#__nuxt') as any)?.__vue_app__);
+  await page.getByLabel('Email', { exact: true }).fill('fixture@example.com');
+  await page.getByLabel('Пароль', { exact: true }).fill('fixture-password');
+  await page.getByRole('button', { name: 'Войти', exact: true }).click();
+  await page.getByRole('link', { name: item.title, exact: true }).click();
+  const benefits = page.getByRole('region', { name: 'Преимущества', exact: true });
+  const inheritedLocation = page.getByRole('checkbox', { name: 'Использовать от ЖК: Локация', exact: true });
+  const sea = page.getByRole('checkbox', { name: 'У моря', exact: true });
+  const park = page.getByRole('checkbox', { name: 'У парка', exact: true });
+  await expect(page.getByRole('combobox', { name: 'Тип отопления', exact: true })).toBeDisabled();
+  await expect(sea).toBeChecked();
+  await expect(sea).toBeDisabled();
+  await inheritedLocation.uncheck();
+  await expect(sea).toBeChecked();
+  await expect(sea).toBeEnabled();
+  await sea.uncheck();
+  await park.check();
+  await page.getByRole('checkbox', { name: 'Использовать от ЖК: Другие преимущества', exact: true }).uncheck();
+  await page.getByRole('checkbox', { name: 'Бассейн', exact: true }).check();
+  await expect(benefits.locator('.property-features')).toContainText('У парка');
+  await expect(benefits.locator('.property-features')).toContainText('Бассейн');
+  await expect(benefits.locator('.property-features')).not.toContainText('У моря');
+  dictionaryFails = true;
+  await page.getByRole('button', { name: 'Обновить преимущества', exact: true }).click();
+  await expect(benefits.getByRole('alert')).toContainText('Не удалось загрузить');
+  await expect(park).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Бассейн', exact: true })).toBeChecked();
+  dictionaryFails = false;
+  dictionary.find(feature => feature.id === 'other-pool')!.name = 'Бассейн во дворе';
+  await page.getByRole('button', { name: 'Обновить преимущества', exact: true }).click();
+  await expect(benefits.locator('.property-features')).toContainText('Бассейн во дворе');
+  await page.getByRole('button', { name: 'Сохранить объект', exact: true }).click();
+  await expect(page.getByText('Объект сохранён.', { exact: true })).toBeVisible();
+  expect(saves[0]?.featureIds).toEqual(expect.arrayContaining(['location-park', 'other-pool']));
+  expect(saves[0]?.featureOverrides).toEqual(expect.arrayContaining(['location', 'other']));
+  expect(saves[0]?.featureOverrides).not.toContain('heating');
+  await page.getByRole('link', { name: 'ЖК и квартиры', exact: true }).click();
+  await page.getByRole('link', { name: item.title, exact: true }).click();
+  await expect(park).toBeChecked();
+  await expect(inheritedLocation).not.toBeChecked();
+  await park.uncheck();
+  await page.getByRole('button', { name: 'Сохранить объект', exact: true }).click();
+  await expect.poll(() => saves.length).toBe(2);
+  expect(saves[1]?.featureIds).not.toContain('location-park');
+  expect(saves[1]?.featureOverrides).toContain('location');
+  await expect(benefits.locator('.property-features')).not.toContainText('У моря');
+  await inheritedLocation.check();
+  await expect(sea).toBeChecked();
+  await expect(sea).toBeDisabled();
+  await page.getByRole('button', { name: 'Сохранить объект', exact: true }).click();
+  await expect.poll(() => saves.length).toBe(3);
+  expect(saves[2]?.featureOverrides).not.toContain('location');
+  expect(saves[2]?.featureIds).not.toContain('location-sea');
+  dictionary = dictionary.filter(feature => feature.id !== 'other-pool');
+  await page.getByRole('button', { name: 'Обновить преимущества', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Бассейн во дворе', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Сохранить объект', exact: true }).click();
+  await expect.poll(() => saves.length).toBe(4);
+  expect(saves[3]?.featureIds).toEqual([]);
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 1100 });
+    await benefits.scrollIntoViewIfNeeded();
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    await testInfo.attach(`benefits-${width}`, { body: await benefits.screenshot(), contentType: 'image/png' });
+  }
+});
 
 test('property status cards keep keyboard semantics and the Russian photo picker supports multiple files', async ({ page }, testInfo) => {
   const item = {
@@ -8,7 +110,7 @@ test('property status cards keep keyboard semantics and the Russian photo picker
     location: 'Калининград', address: 'Тестовый адрес', price: 6000000, status: 'available',
     area: 45, landArea: null, bedrooms: 1, floors: 5, availableFloors: [2, 5], latitude: null, longitude: null,
     readiness: 'Готов', finish: 'Чистовая', seaDistance: null, description: '', utilities: [],
-    heatingType: null, fencedTerritory: null, locationTags: [], developer: 'Застройщик из CRM',
+    features: [], featureOverrides: [], developer: 'Застройщик из CRM',
     published: false, featured: false, elite: false, demo: false, sourceId: 'nmarket:apartment:fixture',
     images: [
       { id: 'photo-one', file: '/images/baltic-coast.webp', alt: 'Первое фото', order: 0, kind: 'photo' },
@@ -28,11 +130,13 @@ test('property status cards keep keyboard semantics and the Russian photo picker
       await route.fulfill({ json: { id: 'admin-ui-fixture' } });
     } else if (url.pathname === '/api/admin/import-jobs') {
       await route.fulfill({ json: [] });
+    } else if (url.pathname === '/api/admin/property-features') {
+      await route.fulfill({ json: featureDictionary });
     } else if (url.pathname === '/api/admin/properties') {
       await route.fulfill({ json: url.searchParams.has('type') ? [] : [item] });
     } else if (url.pathname === '/api/admin/properties/' + item.id) {
       if (route.request().method() === 'PUT') saved = route.request().postDataJSON();
-      await route.fulfill({ json: { ...item, ...saved } });
+      await route.fulfill({ json: { ...item, ...saved, features: featureDictionary.filter(feature => (saved?.featureIds as string[] || []).includes(feature.id)) } });
     } else if (url.pathname === `/api/admin/properties/${item.id}/images`) {
       if (route.request().method() === 'POST') {
         uploads++;
@@ -63,19 +167,19 @@ test('property status cards keep keyboard semantics and the Russian photo picker
   await expect(priority).toHaveText('4');
   await priority.click();
   await page.getByRole('option', { name: '10 — высший', exact: true }).click();
-  const heating = page.getByRole('textbox', { name: /^Тип отопления/ });
-  const fenced = page.getByRole('combobox', { name: 'Огороженная территория', exact: true });
-  await heating.fill('Газовое крышная котельная');
-  await fenced.click();
-  await page.getByRole('option', { name: 'Да', exact: true }).click();
+  const heating = page.getByRole('combobox', { name: 'Тип отопления', exact: true });
+  const fenced = page.getByRole('checkbox', { name: 'Огороженная территория', exact: true });
+  await heating.click();
+  await page.getByRole('option', { name: 'Газовое крышная котельная', exact: true }).click();
+  await fenced.check();
   const seaTag = page.getByRole('checkbox', { name: 'У моря', exact: true });
   const parkTag = page.getByRole('checkbox', { name: 'У парка', exact: true });
   await seaTag.check();
   await parkTag.check();
   await page.getByRole('combobox', { name: 'Тип объекта', exact: true }).click();
   await page.getByRole('option', { name: 'Жилой комплекс', exact: true }).click();
-  await expect(heating).toHaveValue('Газовое крышная котельная');
-  await expect(fenced).toHaveText('Да');
+  await expect(heating).toHaveText('Газовое крышная котельная');
+  await expect(fenced).toBeChecked();
   await expect(seaTag).toBeChecked();
   await expect(parkTag).toBeChecked();
   await expect(market).toHaveCount(0);
@@ -83,8 +187,7 @@ test('property status cards keep keyboard semantics and the Russian photo picker
   await page.getByRole('combobox', { name: 'Тип объекта', exact: true }).click();
   await page.getByRole('option', { name: 'Квартира', exact: true }).click();
   await expect(market).toHaveText('Не указан');
-  await fenced.click();
-  await page.getByRole('option', { name: 'Нет', exact: true }).click();
+  await fenced.uncheck();
   await expect(page.getByRole('textbox', { name: 'Доступные этажи', exact: true })).toHaveValue('');
   await page.getByRole('textbox', { name: 'Доступные этажи', exact: true }).fill('5, 2, 5');
   await market.click();
@@ -132,8 +235,11 @@ test('property status cards keep keyboard semantics and the Russian photo picker
   await expect(media).not.toContainText('Choose Files');
   await page.getByRole('button', { name: 'Сохранить объект', exact: true }).click();
   await expect(page.getByText('Объект сохранён.', { exact: true })).toBeVisible();
-  expect(saved).toMatchObject({ published: true, featured: true, demo: true, elite: true, type: 'apartment', housingMarket: 'secondary', availableFloors: [2, 5], floors: 5, priority: 10, heatingType: 'Газовое крышная котельная', fencedTerritory: false, locationTags: ['У моря', 'У парка'] });
-  expect(saved?.changedFields).toEqual(expect.arrayContaining(['heatingType', 'fencedTerritory', 'locationTags']));
+  expect(saved).toMatchObject({ published: true, featured: true, demo: true, elite: true, type: 'apartment', housingMarket: 'secondary', availableFloors: [2, 5], floors: 5, priority: 10 });
+  expect(saved?.featureIds).toEqual(expect.arrayContaining(['heating-gas', 'location-sea', 'location-park']));
+  expect(saved?.featureIds).not.toContain('territory-fence');
+  expect(saved?.featureOverrides).toEqual(expect.arrayContaining(['heating', 'territory', 'location']));
+  expect(saved?.changedFields).toEqual(expect.arrayContaining(['featureIds', 'featureOverrides']));
   await expect(page.getByRole('textbox', { name: 'Доступные этажи', exact: true })).toHaveValue('2, 5');
   expect(savedImages).toHaveLength(4);
   expect(new Set(savedImages!.map(image => image.id)).size).toBe(4);

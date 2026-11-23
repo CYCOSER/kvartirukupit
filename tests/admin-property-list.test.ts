@@ -58,7 +58,13 @@ test("existing callers can still fetch complete records and filter complexes", a
   assert.equal((await request("?type=complex")).status, 200);
   const query = find.mock.calls[0]!.arguments[0];
   assert.deepEqual(query.where, { type: "complex" });
-  assert.deepEqual(query.include, { images: { orderBy: { order: "asc" } } });
+  assert.deepEqual(query.include, {
+    images: { orderBy: { order: "asc" } },
+    features: {
+      select: { id: true, name: true, group: true },
+      orderBy: [{ group: "asc" }, { name: "asc" }],
+    },
+  });
   assert.equal(query.select, undefined);
 });
 

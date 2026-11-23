@@ -20,9 +20,8 @@ type RecommendedProject = Pick<
   | "price"
   | "readiness"
   | "constructionStatus"
-  | "heatingType"
-  | "fencedTerritory"
-  | "locationTags"
+  | "features"
+  | "featureOverrides"
 >;
 
 const props = defineProps<{ project: RecommendedProject }>();

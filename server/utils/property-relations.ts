@@ -2,15 +2,22 @@ import type { Prisma } from '@prisma/client';
 import { createError } from 'h3';
 import type { PropertyInput } from '../../shared/property';
 
+export const propertyFeatureSelect = {
+  select: { id: true, name: true, group: true },
+  orderBy: [{ group: 'asc' as const }, { name: 'asc' as const }],
+};
+
 export const publicComplexSelect = {
   where: { published: true },
-  select: { id: true, title: true, slug: true, published: true, heatingType: true, fencedTerritory: true, locationTags: true },
+  select: { id: true, title: true, slug: true, published: true, heatingType: true, fencedTerritory: true, locationTags: true,
+    features: propertyFeatureSelect, featureOverrides: true },
 };
 
 export const relatedApartmentSelect = {
   id: true, title: true, slug: true, type: true, sourceMode: true, published: true,
   price: true, area: true, bedrooms: true, status: true,
   housingMarket: true, heatingType: true, fencedTerritory: true, locationTags: true,
+  features: propertyFeatureSelect, featureOverrides: true,
   images: { orderBy: { order: 'asc' as const }, take: 1 },
 } satisfies Prisma.PropertySelect;
 

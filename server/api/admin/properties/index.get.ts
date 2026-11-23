@@ -1,5 +1,6 @@
 import { createError, defineEventHandler, getQuery } from "h3";
 import { db } from "../../../utils/db";
+import { propertyFeatureSelect } from '../../../utils/property-relations';
 
 export default defineEventHandler((event) => {
   const { type, view } = getQuery(event);
@@ -25,6 +26,6 @@ export default defineEventHandler((event) => {
   }
   return db.property.findMany({
     ...query,
-    include: { images: { orderBy: { order: "asc" } } },
+    include: { images: { orderBy: { order: "asc" } }, features: propertyFeatureSelect },
   });
 });
