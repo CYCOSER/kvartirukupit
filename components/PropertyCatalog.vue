@@ -3,6 +3,7 @@ import { SlidersHorizontal, ArrowDown, ArrowUpRight, LayoutGrid, Map, Search, X 
 import Sheet from "~/components/ui/sheet/Sheet.vue";
 import { type Property, type CatalogMapItem } from "~/shared/property";
 const props = defineProps<{ elite?: boolean }>();
+const config = useRuntimeConfig();
 const route = useRoute(),
   router = useRouter();
 const open = ref(false);
@@ -75,6 +76,32 @@ watch(data, () => {
   }
 });
 const cardItems = computed(() => mapView.value ? [] : (data.value?.items || []) as Property[]);
+useHead(() => ({
+  script: mapView.value
+    ? []
+    : [
+        {
+          key: "catalog-item-list",
+          type: "application/ld+json",
+          innerHTML: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            name: props.elite
+              ? "Готовые квартиры в Калининграде"
+              : "Новостройки Калининграда",
+            itemListElement: cardItems.value.map((property, index) => ({
+              "@type": "ListItem",
+              position: index + 1,
+              url: new URL(
+                `/catalog/${property.slug}`,
+                config.public.siteUrl,
+              ).href,
+              name: property.title,
+            })),
+          }).replace(/</g, "\\u003c"),
+        },
+      ]
+}));
 async function loadMore() {
   if (loadingMore.value || page.value + additionalBatches.value.length >= (data.value?.pages || 0)) return;
   loadingMore.value = true;
