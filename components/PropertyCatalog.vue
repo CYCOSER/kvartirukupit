@@ -3,6 +3,7 @@ import { SlidersHorizontal, ArrowDown, ArrowUpRight, LayoutGrid, Map, Search, X 
 import Sheet from "~/components/ui/sheet/Sheet.vue";
 import { type Property, type CatalogMapItem } from "~/shared/property";
 const props = defineProps<{ elite?: boolean }>();
+const config = useRuntimeConfig();
 const route = useRoute(),
   router = useRouter();
 const open = ref(false);
@@ -75,6 +76,32 @@ watch(data, () => {
   }
 });
 const cardItems = computed(() => mapView.value ? [] : (data.value?.items || []) as Property[]);
+useHead(() => ({
+  script: mapView.value
+    ? []
+    : [
+        {
+          key: "catalog-item-list",
+          type: "application/ld+json",
+          innerHTML: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            name: props.elite
+              ? "Готовые квартиры в Калининграде"
+              : "Новостройки Калининграда",
+            itemListElement: cardItems.value.map((property, index) => ({
+              "@type": "ListItem",
+              position: index + 1,
+              url: new URL(
+                `/catalog/${property.slug}`,
+                config.public.siteUrl,
+              ).href,
+              name: property.title,
+            })),
+          }).replace(/</g, "\\u003c"),
+        },
+      ]
+}));
 async function loadMore() {
   if (loadingMore.value || page.value + additionalBatches.value.length >= (data.value?.pages || 0)) return;
   loadingMore.value = true;
@@ -182,7 +209,7 @@ useCatalogTools(async (values) => {
         <div class="catalog-heading">
           <div>
             <p class="eyebrow">01 / КОЛЛЕКЦИЯ</p>
-            <h2 id="catalog-heading">{{ elite ? "ВЫ ДОСТОЙНЫ ЛУЧШЕГО" : "Найдите свою квартиру" }}</h2>
+            <h1 id="catalog-heading">{{ elite ? "ВЫ ДОСТОЙНЫ ЛУЧШЕГО" : "Найдите свою квартиру" }}</h1>
           </div>
           <div class="catalog-heading-actions">
             <div class="catalog-view-switch" :class="{ 'is-map': mapView }" role="group" aria-label="Вид каталога">
@@ -532,7 +559,7 @@ useCatalogTools(async (values) => {
   gap: 20px;
   padding: 42px 0 28px;
 }
-.catalog-heading h2 {
+.catalog-heading h1 {
   margin-top: 12px;
   font-size: clamp(32px, 3vw, 44px);
   line-height: 1.12;
@@ -946,7 +973,7 @@ useCatalogTools(async (values) => {
   .catalog-heading {
     align-items: start;
   }
-  .catalog-heading h2 {
+  .catalog-heading h1 {
     max-width: 230px;
     font-size: 32px;
   }

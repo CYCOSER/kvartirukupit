@@ -12,4 +12,3 @@ test('normalization preserves single line breaks, paragraph breaks, list text an
   assert.equal(normalizePropertyDescription(description), description);
   assert.equal(normalizePropertyDescription(normalizePropertyDescription(description)), description);
 });
-

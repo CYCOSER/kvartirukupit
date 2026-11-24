@@ -6,6 +6,48 @@ usePageSeo(
   "Как выбрать квартиру в новостройке Калининграда: проверка ЖК и застройщика, ДДУ, эскроу, планировка и район. Журнал Квартирукупить.",
 );
 const { data, error } = await useFetch<Article[]>("/api/articles");
+const config = useRuntimeConfig();
+useHead(() => ({
+  script: data.value?.length
+    ? [
+        {
+          type: "application/ld+json",
+          innerHTML: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Blog",
+            name: "Журнал Квартирукупить",
+            description:
+              "Как выбрать квартиру в новостройке Калининграда: проверка ЖК и застройщика, ДДУ, эскроу, планировка и район.",
+            url: config.public.siteUrl.replace(/\/$/, "") + "/blog",
+            blogPost: data.value.map((article) => ({
+              "@type": "BlogPosting",
+              headline: article.title,
+              description: article.excerpt,
+              url: new URL(
+                `/blog/${article.slug}`,
+                config.public.siteUrl,
+              ).href,
+              ...(article.image
+                ? {
+                    image: new URL(
+                      article.image,
+                      config.public.siteUrl,
+                    ).href,
+                  }
+                : {}),
+              ...(article.publishedAt
+                ? { datePublished: article.publishedAt }
+                : {}),
+              author: {
+                "@type": "Organization",
+                name: config.public.siteName,
+              },
+            })),
+          }).replace(/</g, "\\u003c"),
+        },
+      ]
+    : [],
+}));
 </script>
 <template>
   <div class="blog-page">

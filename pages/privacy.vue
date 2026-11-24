@@ -4,6 +4,42 @@ usePageSeo(
   "Политика конфиденциальности",
   `Какие данные обрабатывает сайт «${config.public.siteName}», зачем они нужны и как отозвать согласие.`,
 );
+useHead(() => ({
+  script: [
+    {
+      type: "application/ld+json",
+      innerHTML: JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        name: "Политика конфиденциальности",
+        description: `Какие данные обрабатывает сайт «${config.public.siteName}», зачем они нужны и как отозвать согласие.`,
+        url:
+          config.public.siteUrl.replace(/\/$/, "") + "/privacy",
+        inLanguage: "ru-RU",
+        isPartOf: {
+          "@type": "WebSite",
+          name: config.public.siteName,
+          url: config.public.siteUrl,
+        },
+        about: {
+          "@type": "Thing",
+          name: "Политика конфиденциальности персональных данных",
+        },
+        dateModified: "2026-11-17",
+        author: {
+          "@type": "Organization",
+          name: config.public.siteName,
+          url: config.public.siteUrl,
+        },
+        publisher: {
+          "@type": "Organization",
+          name: config.public.siteName,
+          url: config.public.siteUrl,
+        },
+      }).replace(/</g, "\\u003c"),
+    },
+  ],
+}));
 </script>
 <template>
   <div class="privacy-page">
