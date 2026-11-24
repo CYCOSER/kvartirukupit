@@ -22,7 +22,7 @@ usePageSeo(
       <p v-reveal class="eyebrow">КАЛИНИНГРАД И ПОБЕРЕЖЬЕ</p>
       <h1 v-reveal="85" class="type-pair">
         <span class="type-upright">Туры</span>
-        <em class="type-script">по новостройкам</em>
+        <em class="type-script">По новостройкам</em>
       </h1>
       <p v-reveal="170">
         Посмотрите будущий дом вживую. Подберём жилые комплексы под ваши

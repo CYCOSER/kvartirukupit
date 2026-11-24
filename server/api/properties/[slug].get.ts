@@ -1,5 +1,6 @@
 import { propertyFeatureSelect, publicComplexSelect, relatedApartmentSelect } from '../../utils/property-relations';
 import { withPublicTitle } from '../../../shared/property';
+import { normalizePropertyDescription } from '../../../shared/property-description';
 export default defineEventHandler(async (event) => {
   const property = await db.property.findFirst({
     where: { slug: getRouterParam(event, 'slug'), published: true },
@@ -34,6 +35,6 @@ export default defineEventHandler(async (event) => {
       images.push(image);
     }
   }
-  return { ...withPublicTitle(property), images, complex: property.complex ? complex : null,
+  return { ...withPublicTitle(property), description: normalizePropertyDescription(property.description), images, complex: property.complex ? complex : null,
     apartments: property.apartments.map(withPublicTitle) };
 });

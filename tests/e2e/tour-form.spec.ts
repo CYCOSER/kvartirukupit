@@ -12,7 +12,7 @@ test('tours page has search metadata and is reachable from both menus', async ({
     await page.setViewportSize({ width, height: 1000 });
     await page.goto('/tours');
     await page.waitForFunction(() => !!(document.querySelector('#__nuxt') as Element & { __vue_app__?: unknown })?.__vue_app__);
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(/Туры\s*по новостройкам/);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(/Туры\s*По новостройкам/);
     await expect(page.locator('.scene-photo')).toHaveAttribute('src', '/images/backgrounds/tours-bus.webp');
     await expect.poll(() => page.locator('.scene-photo').evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
     await expect(page.locator('#tour-request-title')).toHaveText(/Туры по недвижимости в Калининграде\s*и на побережье/);

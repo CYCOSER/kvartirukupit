@@ -17,7 +17,7 @@ const { data, error } = await useFetch<Article[]>("/api/articles");
       <p v-reveal class="eyebrow">ЖУРНАЛ · КВАРТИРУКУПИТЬ</p>
       <h1 v-reveal="85" class="type-pair">
         <span class="type-upright">Своя квартира</span>
-        <em class="type-script">в Калининграде</em>
+        <em class="type-script">В Калининграде</em>
       </h1>
       <p v-reveal="170">
         Как выбрать новостройку, разобраться в документах и найти свой район.
@@ -36,7 +36,7 @@ const { data, error } = await useFetch<Article[]>("/api/articles");
       <div class="section-heading">
         <div>
           <p class="eyebrow">НА СТРАНИЦАХ ЖУРНАЛА</p>
-          <h2>Квартира<br /><em>и жизнь в городе</em></h2>
+          <h2>Квартира<br /><em>И жизнь в городе</em></h2>
         </div>
         <p class="section-aside">Выбор · Документы · Районы · Планировки</p>
       </div>
@@ -95,7 +95,7 @@ const { data, error } = await useFetch<Article[]>("/api/articles");
         />
         <div class="journal-empty-copy">
           <p class="eyebrow">КАТАЛОГ НОВОСТРОЕК</p>
-          <h2>Выберите свою<br /><em>квартиру</em></h2>
+          <h2>Выберите свою<br /><em>Квартиру</em></h2>
           <p>
             Статей пока нет. Посмотрите жилые комплексы Калининграда
             и сравните районы, планировки и условия покупки.

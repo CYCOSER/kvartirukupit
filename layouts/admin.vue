@@ -6,7 +6,6 @@ import {
   Rss,
   Tags,
   KeyRound,
-  BadgeCheck,
   ArrowUpRight,
   LogOut,
   LayoutDashboard,
@@ -28,13 +27,8 @@ const sections = [
 ];
 const toolSections = [
   {
-    to: "/admin-console-9Xk6uiIs/tools/features",
-    label: "Преимущества",
-    icon: BadgeCheck,
-  },
-  {
     to: "/admin-console-9Xk6uiIs/tools/tags",
-    label: "Тэги",
+    label: "Теги и значки",
     icon: Tags,
   },
   {

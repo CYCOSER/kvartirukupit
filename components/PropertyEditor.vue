@@ -2,7 +2,8 @@
 import Button from "~/components/ui/button/Button.vue";
 import ImageEditor from "~/components/admin/ImageEditor.vue";
 import AddressMap from "~/components/admin/AddressMap.client.vue";
-import { Eye, Star, FlaskConical, ImagePlus, Building2, ArrowUpRight } from "lucide-vue-next";
+import { Eye, Star, FlaskConical, ImagePlus, Building2, ArrowUpRight, Search, ChevronDown, X } from "lucide-vue-next";
+import { ComboboxRoot, ComboboxAnchor, ComboboxInput, ComboboxTrigger, ComboboxContent, ComboboxViewport, ComboboxItem, ComboboxEmpty } from "reka-ui";
 import { adminPropertyType, adminPropertyTypes } from "~/shared/admin-property";
 import { changedPropertyFields, propertyEditFields } from "~/shared/property-edit";
 import { propertyFeatureGroups, propertyFeatureGroupLabels, type PropertyFeature, type PropertyFeatureGroup } from "~/shared/property-feature";
@@ -126,13 +127,21 @@ function setInheritance(group: PropertyFeatureGroup, inherit: boolean) {
   setGroupFeatures(group, inherit ? [] : ids);
   if (inherit) form.featureOverrides = form.featureOverrides!.filter(value => value !== group);
 }
-function toggleFeature(feature: PropertyFeature, checked: boolean) {
-  const ids = selectedFeatures.value.filter(value => value.group === feature.group && value.id !== feature.id).map(value => value.id);
+async function toggleFeature(feature: PropertyFeature, checked: boolean) {
+  const ids = feature.group === 'heating' ? [] : displayedFeatures(feature.group).filter(value => value.id !== feature.id).map(value => value.id);
   setGroupFeatures(feature.group, checked ? [...ids, feature.id] : ids);
+  if (checked) featureQuery.value = '';
+  await nextTick();
+  featureInput.value?.$el.focus();
 }
-const selectedHeating = computed({
-  get: () => displayedFeatures('heating')[0]?.id || '',
-  set: (id: string) => setGroupFeatures('heating', id ? [id] : []),
+const featureQuery = ref('');
+const featureInput = ref<InstanceType<typeof ComboboxInput> | null>(null);
+const displayedFeatureIds = computed(() => propertyFeatureGroups.flatMap(group => displayedFeatures(group).map(feature => feature.id)));
+const chosenFeatures = computed(() => featureDictionary.value.filter(feature => displayedFeatureIds.value.includes(feature.id)));
+const matchingFeatures = computed(() => {
+  const query = featureQuery.value.trim().toLocaleLowerCase();
+  return featureDictionary.value.filter(feature => !displayedFeatureIds.value.includes(feature.id)
+    && (feature.name.toLocaleLowerCase().includes(query) || feature.id.toLocaleLowerCase().includes(query)));
 });
 async function loadFeatures() {
   if (featuresPending.value) return;
@@ -142,7 +151,7 @@ async function loadFeatures() {
     featureDictionary.value = await $fetch<PropertyFeature[]>('/api/admin/property-features');
     form.featureIds = (form.featureIds || []).filter(id => featureDictionary.value.some(feature => feature.id === id));
     featuresLoaded.value = true;
-  } catch { featuresError.value = 'Не удалось загрузить справочник преимуществ.'; }
+  } catch { featuresError.value = 'Не удалось загрузить справочник значков.'; }
   finally { featuresPending.value = false; }
 }
 const linkedApartments = ref(props.initial?.apartments || []);
@@ -509,23 +518,42 @@ function move(index: number, offset: number) {
       ><label
         >Отделка<input v-model="form.finish" required maxlength="100" /></label
         ><section v-if="form.type === 'complex' || (form.type === 'apartment' && form.housingMarket !== 'secondary')" class="full property-benefits" aria-labelledby="property-benefits-title">
-          <div class="property-benefits-heading"><div><h2 id="property-benefits-title">Преимущества</h2><p>Отметьте особенности, которые будут видны в карточке объекта.</p></div><div class="property-benefits-actions"><NuxtLink to="/admin-console-9Xk6uiIs/tools/features" target="_blank" rel="noopener">Управлять справочником</NuxtLink><button type="button" :disabled="featuresPending" @click="loadFeatures">Обновить преимущества</button></div></div>
-          <p v-if="featuresPending" role="status">Загружаем преимущества…</p>
+          <div class="property-benefits-heading"><div><h2 id="property-benefits-title">Значки</h2><p>Отметьте особенности, которые будут видны в карточке объекта.</p></div><div class="property-benefits-actions"><NuxtLink to="/admin-console-9Xk6uiIs/tools/tags" target="_blank" rel="noopener">Теги и значки</NuxtLink><button type="button" :disabled="featuresPending" @click="loadFeatures">Обновить значки</button></div></div>
+          <p v-if="featuresPending" role="status">Загружаем значки…</p>
           <p v-if="featuresError" class="error-text" role="alert">{{ featuresError }} <button type="button" class="underline" @click="loadFeatures">Повторить</button></p>
-          <div v-if="featuresLoaded" class="property-benefits-grid">
-            <fieldset v-for="group in propertyFeatureGroups" :key="group" class="property-benefit-group" :data-feature-group="group">
-              <legend>{{ propertyFeatureGroupLabels[group] }}</legend>
-              <label v-if="form.type === 'apartment' && form.complexId" class="property-feature-check property-feature-inherit"><input type="checkbox" :checked="inheritsFeatures(group)" :aria-label="'Использовать от ЖК: ' + propertyFeatureGroupLabels[group]" @change="setInheritance(group, ($event.target as HTMLInputElement).checked)" />Использовать от ЖК</label>
-              <AppSelect v-if="group === 'heating'" v-model="selectedHeating" :disabled="inheritsFeatures(group)" aria-label="Тип отопления">
-                <AppSelectOption value="">Не показывать</AppSelectOption>
-                <AppSelectOption v-for="feature in groupFeatures(group)" :key="feature.id" :value="feature.id">{{ feature.name }}</AppSelectOption>
-              </AppSelect>
-              <template v-else><label v-for="feature in groupFeatures(group)" :key="feature.id" class="property-feature-check"><input type="checkbox" :checked="displayedFeatures(group).some(value => value.id === feature.id)" :disabled="inheritsFeatures(group)" @change="toggleFeature(feature, ($event.target as HTMLInputElement).checked)" />{{ feature.name }}</label></template>
-              <p v-if="!groupFeatures(group).length" class="property-feature-hint">В этой группе пока нет преимуществ.</p>
-              <p v-if="inheritsFeatures(group)" class="property-feature-hint">{{ displayedFeatures(group).map(feature => feature.name).join(', ') || 'У ЖК не указано.' }}</p>
-            </fieldset>
-          </div>
-          <div v-if="featuresLoaded" class="property-benefits-preview"><strong>На сайте</strong><PropertyFeatures :property="card" /><p v-if="!propertyFeatures(card).length" class="property-feature-hint">Преимущества не выбраны.</p></div>
+          <template v-if="featuresLoaded">
+            <ComboboxRoot v-if="featureDictionary.length" :model-value="displayedFeatureIds" multiple ignore-filter open-on-focus open-on-click class="property-feature-picker">
+              <ComboboxAnchor class="property-feature-field">
+                <ul v-if="chosenFeatures.length" class="property-feature-selected" aria-label="Выбранные значки">
+                  <li v-for="feature in chosenFeatures" :key="feature.id" class="property-feature-chip">
+                    <span>{{ feature.name }}<small v-if="inheritsFeatures(feature.group)">от ЖК</small></span>
+                    <button type="button" :aria-label="'Убрать значок: ' + feature.name" @click="toggleFeature(feature, false)"><X :size="14" aria-hidden="true" /></button>
+                  </li>
+                </ul>
+                <div class="property-feature-search">
+                  <Search :size="17" aria-hidden="true" />
+                  <ComboboxInput ref="featureInput" v-model="featureQuery" aria-label="Поиск значков" placeholder="Название или ID значка…" @keydown.enter.prevent />
+                  <ComboboxTrigger aria-label="Показать значки"><ChevronDown :size="17" aria-hidden="true" /></ComboboxTrigger>
+                </div>
+              </ComboboxAnchor>
+              <ComboboxContent position="popper" :side-offset="6" :collision-padding="12" class="property-feature-dropdown">
+                <ComboboxViewport class="property-feature-options">
+                  <ComboboxItem v-for="feature in matchingFeatures" :key="feature.id" :value="feature.id" :aria-label="feature.name" class="property-feature-option" @select.prevent="toggleFeature(feature, true)">
+                    <span>{{ feature.name }}<small>{{ propertyFeatureGroupLabels[feature.group] }}</small></span>
+                    <small class="property-feature-id">{{ feature.id }}</small>
+                  </ComboboxItem>
+                  <ComboboxEmpty class="property-feature-empty">{{ featureQuery.trim() ? 'Значки не найдены.' : 'Все значки выбраны.' }}</ComboboxEmpty>
+                </ComboboxViewport>
+              </ComboboxContent>
+            </ComboboxRoot>
+            <p v-else class="property-feature-hint">В справочнике пока нет значков.</p>
+            <p v-if="groupFeatures('heating').length > 1" class="property-feature-hint">Можно выбрать только один тип отопления.</p>
+            <details v-if="form.type === 'apartment' && form.complexId" class="property-feature-inheritance">
+              <summary>Наследование от ЖК</summary>
+              <div><label v-for="group in propertyFeatureGroups" :key="group" class="property-feature-check property-feature-inherit"><input type="checkbox" :checked="inheritsFeatures(group)" :aria-label="'Использовать от ЖК: ' + propertyFeatureGroupLabels[group]" @change="setInheritance(group, ($event.target as HTMLInputElement).checked)" />{{ propertyFeatureGroupLabels[group] }}</label></div>
+            </details>
+          </template>
+          <div v-if="featuresLoaded" class="property-benefits-preview"><strong>На сайте</strong><PropertyFeatures :property="card" /><p v-if="!propertyFeatures(card).length" class="property-feature-hint">Значки не выбраны.</p></div>
         </section
       ><label v-if="isCoastalLocation(form.location)"
         >До моря, метров (необязательно)<NumberField
@@ -671,14 +699,34 @@ function move(index: number, offset: number) {
 .property-benefits-heading p, .property-feature-hint { color: #63728a; font-size: 0.875rem; font-weight: 400; }
 .property-benefits-actions { display: flex; gap: 14px; flex-wrap: wrap; }
 .property-benefits-actions a, .property-benefits-actions button { color: #245fbd; text-decoration: underline; font-size: 0.875rem; }
-.property-benefits-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
-.property-benefit-group { display: grid; align-content: start; gap: 10px; min-width: 0; }
-.property-benefit-group legend { margin-bottom: 10px; font-weight: 700; }
-.property-benefit-group .property-feature-check { display: flex; align-items: center; gap: 8px; font-weight: 400; }
+.property-benefits :deep(.property-feature-picker) { min-width: 0; }
+.property-benefits :deep(.property-feature-field) { border: 1px solid #dce4f0; border-radius: 8px; background: #fff; }
+.property-benefits :deep(.property-feature-field:focus-within) { outline: 2px solid #91b2e5; outline-offset: 2px; }
+.property-feature-selected { display: flex; flex-wrap: wrap; gap: 6px; max-height: 144px; overflow-y: auto; margin: 0; padding: 10px 10px 0; list-style: none; }
+.property-feature-chip { display: flex; align-items: center; gap: 6px; max-width: 100%; padding: 5px 6px 5px 10px; border: 1px solid #d8e5f7; border-radius: 6px; background: #edf4ff; color: #345475; font-size: 12px; }
+.property-feature-chip > span { min-width: 0; overflow-wrap: anywhere; }
+.property-feature-chip small { margin-left: 6px; color: #71819a; }
+.property-feature-chip button, .property-feature-search button { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; border-radius: 4px; }
+.property-feature-chip button:hover, .property-feature-search button:hover { background: #dceaff; }
+.property-feature-search { display: flex; align-items: center; gap: 8px; padding: 4px 10px; color: #71819a; }
+.property-feature-search > svg { flex-shrink: 0; }
+.property-feature-search :deep(input), .property-feature-search :deep(input:focus-visible) { flex: 1; min-width: 0; width: 100%; margin: 0; padding: 8px 0; border: 0; background: transparent; box-shadow: none; outline: none; }
+.property-benefits :deep(.property-feature-dropdown) { z-index: 60; width: var(--reka-combobox-trigger-width); max-width: calc(100vw - 24px); border: 1px solid #dce4f0; border-radius: 8px; background: #fff; box-shadow: 0 12px 28px #193b641a; overflow: hidden; }
+.property-benefits :deep(.property-feature-options) { max-height: min(240px, var(--reka-combobox-content-available-height, 240px)); overflow-y: auto; padding: 5px; }
+.property-feature-option { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 9px 10px; border-radius: 5px; color: #344966; font-size: 13px; cursor: pointer; outline: none; overflow-wrap: anywhere; }
+.property-feature-option > span { min-width: 0; }
+.property-feature-option small { display: block; color: #71819a; font-size: 11px; }
+.property-feature-option .property-feature-id { max-width: 45%; text-align: right; }
+.property-feature-option[data-highlighted] { background: #edf4ff; }
+.property-feature-empty { padding: 12px 10px; color: #71819a; font-size: 13px; }
+.property-feature-check { display: flex; align-items: center; gap: 10px; font-weight: 400; cursor: pointer; }
 .property-feature-check input { width: 18px; height: 18px; margin: 0; padding: 0; flex-shrink: 0; accent-color: #245fbd; }
 .property-feature-inherit { color: #63728a; font-size: 0.875rem; }
+.property-feature-inheritance { border-top: 1px solid #e5eaf2; padding-top: 12px; font-size: 0.875rem; }
+.property-feature-inheritance summary { cursor: pointer; }
+.property-feature-inheritance > div { display: grid; gap: 10px; margin-top: 12px; }
 .property-benefits-preview { border-top: 1px solid #e5eaf2; padding-top: 14px; }
-@media (max-width: 600px) { .property-benefits-grid { grid-template-columns: 1fr; } .property-benefits { padding: 14px; } }
+@media (max-width: 600px) { .property-benefits { padding: 14px; } }
 .admin-form textarea { resize: none; overflow: hidden; }
 .property-card-preview.property-grid { grid-template-columns: minmax(0, 1fr); width: min(100%, 320px); }
 .property-complex-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 5px; }

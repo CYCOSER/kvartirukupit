@@ -40,8 +40,7 @@ async function accessKey(copy = false) {
 <template>
   <div class="api-settings">
     <div class="admin-page-heading">
-      <div><h1 class="admin-title">Подключение по API</h1>
-        <p class="admin-subtitle">Данные для подключения ИИ-агента или другого клиента API.</p></div>
+      <h1 class="admin-title">Подключение по API</h1>
     </div>
     <p v-if="error" class="error-text" role="alert">Не удалось загрузить настройки. <button type="button" class="btn-secondary" @click="refresh()">Повторить загрузку</button></p>
     <section class="admin-panel api-connection" aria-label="Данные подключения">
@@ -62,11 +61,6 @@ async function accessKey(copy = false) {
       <p v-if="notice" class="toast" role="status">{{ notice }}</p>
       <p v-if="actionError" class="error-text" role="alert">{{ actionError }}</p>
     </section>
-    <section class="admin-panel api-connection" aria-label="Возможности API">
-      <h2>Что доступно по API</h2>
-      <p>Статьи блога, их обложки и описания ЖК и квартир. Ключ не даёт доступа к заявкам, ценам, удалению объектов или импорту.</p>
-      <p class="api-hint">Передавайте ключ только доверенным клиентам. Для его замены или отзыва измените <code>NUXT_AGENT_API_TOKEN</code> на сервере и перезапустите приложение.</p>
-    </section>
   </div>
 </template>
 
@@ -76,7 +70,6 @@ async function accessKey(copy = false) {
 .api-connection label { display: grid; gap: 8px; font-weight: 600; }
 .api-connection input { width: 100%; min-width: 0; font-family: monospace; font-weight: 400; }
 .api-connection a { color: #245fbd; text-decoration: underline; overflow-wrap: anywhere; }
-.api-connection h2 { font-size: 1.125rem; font-weight: 700; }
 .api-connection code { overflow-wrap: anywhere; }
 .api-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 .api-hint { color: #63728a; line-height: 1.6; }

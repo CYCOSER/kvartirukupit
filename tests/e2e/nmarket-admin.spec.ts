@@ -98,6 +98,21 @@ test("Nmarket import filters the received list and imports only selected new obj
     page.getByRole("button", { name: "Обновить из Нмаркета" }),
   ).toBeEnabled();
   expect(listOffsets).toEqual([0]);
+  const initialViewport = page.viewportSize()!;
+  for (const width of [1280, 1600]) {
+    await page.setViewportSize({ width, height: 900 });
+    const fields = await Promise.all([
+      page.getByRole('textbox', { name: 'Поиск объектов Нмаркета' }).boundingBox(),
+      page.getByRole('combobox', { name: 'Категория Нмаркета' }).boundingBox(),
+      page.getByRole('combobox', { name: 'Город', exact: true }).boundingBox(),
+    ]);
+    expect(fields.every(Boolean)).toBe(true);
+    for (const field of fields.slice(1)) {
+      expect(Math.abs(field!.y - fields[0]!.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(field!.height - fields[0]!.height)).toBeLessThanOrEqual(1);
+    }
+  }
+  await page.setViewportSize(initialViewport);
   await expect(page.getByRole("checkbox")).toHaveCount(3);
   await expect(
     page.getByRole("link", { name: "Уже добавлен — открыть" }),

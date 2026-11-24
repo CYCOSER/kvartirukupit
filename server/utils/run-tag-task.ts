@@ -1,10 +1,14 @@
 import type { Prisma } from "@prisma/client";
 import { createError } from "h3";
+import { db } from './db';
+import { tagInclude } from './tag-definitions';
+import { assignTagTargets, emptyTagAssignmentSummary } from './tag-assignments';
+import { lockPropertyRelations } from './property-relations';
 import {
   matchesTagTaskParameters,
   type TagTaskParameter,
   type TagTaskType,
-} from "~/shared/tag-task";
+} from "../../shared/tag-task";
 
 type StoredTagTask = {
   type: string;
@@ -41,64 +45,33 @@ function parseParameters(value: Prisma.JsonValue): TagTaskParameter[] {
 
 export async function runTagTask(task: StoredTagTask) {
   if (!isTagTaskType(task.type))
-    throw createError({ statusCode: 500, statusMessage: "Invalid task type" });
-
+    throw createError({ statusCode: 500, statusMessage: 'Invalid task type' });
+  const tag = await db.tag.findUnique({ where: { id: task.tagId }, include: tagInclude });
+  if (!tag) throw createError({ statusCode: 404, statusMessage: 'Tag not found' });
+  if (tag.propertyFeature && task.type === 'article')
+    throw createError({ statusCode: 400, data: { message: 'Значки характеристик нельзя назначать статьям.' } });
   const params = parseParameters(task.params);
-  if (task.type === "article") {
-    const articles = await db.article.findMany({
-      select: { id: true, title: true, content: true },
-    });
-    const matches = articles.filter((article) =>
-      matchesTagTaskParameters(article, params),
-    );
-    return {
-      matchedCount: matches.length,
-      assignedCount: await createTagRelations(
-        matches.map((article) => ({
-          tagId: task.tagId,
-          articleId: article.id,
-        })),
-      ),
-    };
+  const targets = task.type === 'article'
+    ? await db.article.findMany({ select: { id: true, title: true, content: true } })
+    : await db.property.findMany({ where: { type: task.type }, select: {
+      id: true, title: true, location: true, description: true, developer: true, sourceId: true, price: true, finish: true,
+    } });
+  const ids = targets.filter(target => matchesTagTaskParameters(target, params)).map(target => target.id);
+  const summary = emptyTagAssignmentSummary();
+  const batchSize = tag.propertyFeature ? 50 : 500;
+  for (let offset = 0; offset < ids.length; offset += batchSize) {
+    const batch = ids.slice(offset, offset + batchSize);
+    const result = await db.$transaction(async tx => {
+      await lockPropertyRelations(tx);
+      const currentTag = await tx.tag.findUnique({ where: { id: task.tagId }, include: tagInclude });
+      if (!currentTag) throw createError({ statusCode: 404, statusMessage: 'Tag not found' });
+      return assignTagTargets(tx, currentTag, task.type === 'article' ? [] : batch, task.type === 'article' ? batch : [], 'rule');
+    }, { timeout: 30_000 });
+    summary.propertyRelationsCreated += result.propertyRelationsCreated;
+    summary.articleRelationsCreated += result.articleRelationsCreated;
+    summary.badgesAssigned += result.badgesAssigned;
+    summary.skippedCount += result.skippedCount;
+    for (const reason of ['secondary', 'heatingConflict', 'clearedGroup', 'limit'] as const) summary.skipped[reason] += result.skipped[reason];
   }
-
-  const properties = await db.property.findMany({
-    where: { type: task.type },
-    select: {
-      id: true,
-      title: true,
-      location: true,
-      description: true,
-      developer: true,
-      sourceId: true,
-      price: true,
-      finish: true,
-    },
-  });
-  const matches = properties.filter((property) =>
-    matchesTagTaskParameters(property, params),
-  );
-  return {
-    matchedCount: matches.length,
-    assignedCount: await createTagRelations(
-      matches.map((property) => ({
-        tagId: task.tagId,
-        propertyId: property.id,
-      })),
-    ),
-  };
-}
-
-async function createTagRelations(
-  relations: Prisma.TagRelationCreateManyInput[],
-): Promise<number> {
-  let assignedCount = 0;
-  for (let offset = 0; offset < relations.length; offset += 500) {
-    const result = await db.tagRelation.createMany({
-      data: relations.slice(offset, offset + 500),
-      skipDuplicates: true,
-    });
-    assignedCount += result.count;
-  }
-  return assignedCount;
+  return { matchedCount: ids.length, assignedCount: summary.propertyRelationsCreated + summary.articleRelationsCreated, ...summary };
 }

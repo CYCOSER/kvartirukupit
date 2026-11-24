@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowUpRight, MapPin, Menu, MessageCircle, Phone } from "lucide-vue-next";
+import { BookOpen, Building2, Compass, House, Landmark, MapPin, Menu, MessageCircle, Phone } from "lucide-vue-next";
 import Sheet from "~/components/ui/sheet/Sheet.vue";
 import { useAnalyticsConsent } from "~/composables/useAnalyticsConsent";
 const config = useRuntimeConfig();
@@ -27,6 +27,19 @@ useHead({
 const { openSettings: openCookieSettings } = useAnalyticsConsent();
 const menu = ref(false);
 const route = useRoute();
+const menuLinks = [
+  { to: '/catalog', label: 'Новостройки', description: 'Квартиры в новых домах', icon: Building2, primary: true },
+  { to: '/elite', label: 'Готовые квартиры', description: 'Для жизни здесь и сейчас', icon: House, primary: true },
+  { to: '/tours', label: 'Туры по новостройкам', shortLabel: 'Туры', description: 'По новостройкам', icon: Compass },
+  { to: '/ipoteka', label: 'Ипотека', description: 'Спланировать покупку', icon: Landmark },
+  { to: '/blog', label: 'Блог', description: 'О городе и выборе дома', icon: BookOpen },
+  { to: '/#contact', label: 'Контакты', description: 'Будем на связи', icon: MessageCircle },
+];
+function isMenuLinkActive(to: string) {
+  return to === '/#contact'
+    ? route.path === '/' && route.hash === '#contact'
+    : route.path === to || route.path.startsWith(to + '/');
+}
 const headerHidden = ref(false);
 let previousScroll = 0;
 function updateHeader() {
@@ -112,31 +125,15 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
               aria-label="Меню сайта"
               @click="menu = false"
             >
-              <NuxtLink to="/catalog"
-                ><span
-                  ><small aria-hidden="true">01</small>Новостройки</span
-                ><ArrowUpRight :size="19" aria-hidden="true"
-              /></NuxtLink>
-              <NuxtLink to="/elite"
-                ><span><small aria-hidden="true">02</small>Готовые квартиры</span
-                ><ArrowUpRight :size="19" aria-hidden="true"
-              /></NuxtLink>
-              <NuxtLink to="/tours"
-                ><span><small aria-hidden="true">03</small>Туры по новостройкам</span
-                ><ArrowUpRight :size="19" aria-hidden="true"
-              /></NuxtLink>
-              <NuxtLink to="/ipoteka"
-                ><span><small aria-hidden="true">04</small>Ипотека</span
-                ><ArrowUpRight :size="19" aria-hidden="true"
-              /></NuxtLink>
-              <NuxtLink to="/blog"
-                ><span><small aria-hidden="true">05</small>Блог</span
-                ><ArrowUpRight :size="19" aria-hidden="true"
-              /></NuxtLink>
-              <NuxtLink to="/#contact"
-                ><span><small aria-hidden="true">06</small>Контакты</span
-                ><ArrowUpRight :size="19" aria-hidden="true"
-              /></NuxtLink>
+              <NuxtLink
+                v-for="link in menuLinks"
+                :key="link.to"
+                :to="link.to"
+                :aria-label="link.label"
+                :aria-describedby="link.description ? 'menu-description-' + link.to.slice(1) : undefined"
+                :class="{ 'menu-property-link': link.primary, 'is-current': isMenuLinkActive(link.to) }"
+                :aria-current="isMenuLinkActive(link.to) ? 'page' : 'false'"
+              ><span class="menu-link-icon" aria-hidden="true"><component :is="link.icon" :size="link.primary ? 25 : 22" :stroke-width="1.4" /></span><span class="menu-link-copy"><span>{{ link.shortLabel || link.label }}</span><small :id="'menu-description-' + link.to.slice(1)">{{ link.description }}</small></span></NuxtLink>
             </nav>
             <div class="menu-contact">
               <p class="menu-label">
@@ -146,10 +143,7 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
                 to="/#contact"
                 class="menu-contact-link"
                 @click="menu = false"
-                ><span>Личный подбор квартиры</span><ArrowUpRight
-                  :size="21"
-                  aria-hidden="true"
-              /></NuxtLink>
+                ><MessageCircle :size="19" aria-hidden="true" /><span>Личный подбор квартиры</span></NuxtLink>
               <a
                 v-if="config.public.phone"
                 :href="'tel:' + config.public.phone.replace(/[^+\d]/g, '')"
@@ -173,8 +167,8 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
             <NuxtLink to="/" class="brand"
               ><BrandMark class="brand-mark" /><BrandName
             /></NuxtLink>
-            <p>
-              Ваше пространство<br /><span class="footer-script">Ваш Калининград</span>
+            <p class="type-pair">
+              <span class="type-upright">Ваше пространство</span><em class="type-script footer-script">Ваш Калининград</em>
             </p>
           </div>
           <div class="footer-navigation">
@@ -371,16 +365,19 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
   grid-column: auto;
 }
 .glass-home-layout .footer-brand-group > p {
+  --script-indent: 0;
+  --script-color: #18355a;
+  --script-overlap: 0.1em;
   margin-top: 26px;
   color: #18355a;
   font-size: clamp(1.7rem, 2.5vw, 2.5rem);
   line-height: 1.18;
   letter-spacing: -0.05em;
 }
-.glass-home-layout .footer-script {
-  font-family: var(--font-script);
-  font-size: 1.25em;
-  letter-spacing: 0;
+.glass-home-layout .footer-brand-group .type-upright {
+  font-family: var(--font-body);
+  letter-spacing: -0.05em;
+  text-transform: none;
 }
 .glass-home-layout .site-footer .brand {
   color: #3e5574;
@@ -601,40 +598,64 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
   gap: 10px;
 }
 .menu-content {
-  --menu-inset: 28px;
   display: flex;
   flex: 1;
   flex-direction: column;
   gap: 28px;
-  text-transform: uppercase;
 }
 .menu-navigation {
-  margin-inline: calc(-1 * var(--menu-inset));
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 .menu-navigation a {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 19px var(--menu-inset);
-  border-top: 1px solid #b9c7d9;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 16px;
+  min-width: 0;
+  padding: 18px 16px;
+  border: 1px solid #b8cbdf80;
+  border-radius: 14px;
+  background: #ffffff40;
   font-family: var(--font-brand);
-  font-size: clamp(0.95rem, 4.3vw, 1.25rem);
-  letter-spacing: 0.015em;
+  font-size: clamp(0.8125rem, 3.6vw, 1rem);
+  letter-spacing: 0;
   line-height: 1.3;
+  text-transform: uppercase;
 }
-.menu-navigation a > span,
-.menu-contact-link > span {
-  /* Anticva's capital letters sit above the center of their line box. */
-  transform: translateY(0.12em);
+.menu-navigation .menu-property-link {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  padding: 20px 18px;
+  gap: 16px;
+  font-size: clamp(1rem, 4.3vw, 1.25rem);
+  background: linear-gradient(110deg, #ffffffd9, #ffffff59);
 }
-.menu-navigation a:last-child {
-  border-bottom: 1px solid #b9c7d9;
+.menu-link-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #406b9a;
+}
+.menu-property-link .menu-link-icon {
+  width: 44px;
+  height: 44px;
+  border: 1px solid #c5d7e8;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #edf5ff, #dce8f5);
+}
+.menu-link-copy {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
 }
 .menu-navigation small {
-  margin-right: 14px;
-  color: #486387;
-  font: 10px var(--font-body);
+  color: #617b9a;
+  font: 0.75rem/1.5 var(--font-body);
+  text-transform: none;
 }
 .menu-navigation svg {
   flex-shrink: 0;
@@ -644,28 +665,32 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   color: #445d7d;
-  font-size: 9px;
+  font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.09em;
+  text-transform: uppercase;
 }
 .menu-contact {
   margin-top: auto;
-  padding-top: 24px;
-  border-top: 1px solid #b9c7d9;
+  padding: 20px;
+  border: 1px solid #b8cbdf80;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #ffffffb3, #edf4fccc);
 }
 .menu-contact-link {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  gap: 20px;
-  margin-inline: calc(-1 * var(--menu-inset));
-  padding: 18px var(--menu-inset);
-  background: #19365c;
-  color: #e6edf6;
-  font-family: var(--font-brand);
-  font-size: 1rem;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #23476e;
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 600;
   line-height: 1.5;
 }
 .menu-contact-link svg {
@@ -680,9 +705,10 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
 }
 .menu-navigation a:hover,
 .menu-navigation a:focus-visible,
-.menu-navigation a.router-link-active {
-  color: #3b516d;
-  background: #d4e0ef;
+.menu-navigation a.is-current {
+  border-color: #b6cbe3;
+  background: #ffffffd9;
+  color: #245f9b;
 }
 .menu-contact-link:hover,
 .menu-contact-link:focus-visible {
@@ -692,9 +718,10 @@ onBeforeUnmount(() => window.removeEventListener("scroll", updateHeader));
 .menu-contact-link:focus-visible {
   outline-offset: -3px;
 }
-@media (max-width: 380px) {
-  .menu-content {
-    --menu-inset: 20px;
+@media (prefers-reduced-motion: no-preference) {
+  .menu-navigation a,
+  .menu-contact-link {
+    transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
   }
 }
 </style>

@@ -1,20 +1,9 @@
-import { tagSchema } from "~/shared/tag";
+import { createError, defineEventHandler, readBody } from 'h3';
+import { tagSchema } from '../../../../shared/tag';
+import { createTagDefinition } from '../../../utils/tag-definitions';
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async event => {
   const parsed = tagSchema.safeParse(await readBody(event));
-  if (!parsed.success)
-    throw createError({ statusCode: 400, statusMessage: "Invalid tag" });
-
-  try {
-    return await db.tag.create({ data: parsed.data });
-  } catch (error: unknown) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "P2002"
-    )
-      throw createError({ statusCode: 409, statusMessage: "Tag exists" });
-    throw error;
-  }
+  if (!parsed.success) throw createError({ statusCode: 400, data: { message: 'Укажите название тега и корректные параметры значка.' } });
+  return createTagDefinition(parsed.data);
 });

@@ -111,7 +111,7 @@ const questions = [
       <p v-reveal class="eyebrow">ПОКУПКА КВАРТИРЫ · КАЛИНИНГРАД</p>
       <h1 v-reveal="85" class="type-pair">
         <span class="type-upright">Ипотека на новостройки</span
-        ><em class="type-script">в Калининграде</em>
+        ><em class="type-script">В Калининграде</em>
       </h1>
       <p v-reveal="170">
         Своя квартира начинается с понятного бюджета. Рассчитайте платёж,
@@ -135,7 +135,7 @@ const questions = [
           <p class="eyebrow">01 / ВАРИАНТЫ ФИНАНСИРОВАНИЯ</p>
           <h2 id="programs-title" class="type-pair">
             <span class="type-upright">Под ваши планы</span
-            ><em class="type-script">и бюджет</em>
+            ><em class="type-script">И бюджет</em>
           </h2>
         </div>
         <p class="section-aside">
@@ -160,7 +160,7 @@ const questions = [
           <p class="eyebrow">02 / ИПОТЕКА С НАМИ</p>
           <h2 id="purchase-title" class="type-pair">
             <span class="type-upright">Ипотека проще</span
-            ><em class="type-script">вместе с нами</em>
+            ><em class="type-script">Вместе с нами</em>
           </h2>
         </div>
         <div class="purchase-banks" aria-labelledby="banks-title">
@@ -245,7 +245,7 @@ const questions = [
               <p class="eyebrow">ОТВЕЧАЕМ НА ГЛАВНОЕ</p>
               <h2 id="questions-title" class="type-pair">
                 <span class="type-upright">Вопросы</span>
-                <em class="type-script">об ипотеке</em>
+                <em class="type-script">Об ипотеке</em>
               </h2>
             </div>
           </div>
@@ -279,7 +279,7 @@ const questions = [
           <p v-reveal class="eyebrow">ЛИЧНЫЙ ПОДБОР</p>
           <h2 v-reveal="85" id="contact-title" class="type-pair">
             <span class="type-upright">Найдём квартиру</span
-            ><em class="type-script">ваш бюджет</em>
+            ><em class="type-script">Ваш бюджет</em>
           </h2>
           <p v-reveal="170" class="contact-story-intro">
             Расскажите, какую квартиру ищете и планируете ли ипотеку. Обсудим

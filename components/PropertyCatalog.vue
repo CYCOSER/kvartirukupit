@@ -157,7 +157,7 @@ useCatalogTools(async (values) => {
           <p v-reveal class="eyebrow">КАЛИНИНГРАД · ПРОСТРАНСТВО ДЛЯ ЖИЗНИ</p>
           <h1 v-reveal="85" class="type-pair">
             <span class="type-upright">{{ elite ? "Квартиры" : "Новостройки" }}</span>
-            <em class="type-script">{{ elite ? "с ремонтом" : "Калининграда" }}</em>
+            <em class="type-script">{{ elite ? "С ремонтом" : "Калининграда" }}</em>
           </h1>
         </div>
         <div class="catalog-intro-note">

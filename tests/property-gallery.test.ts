@@ -14,7 +14,7 @@ test('detail gallery reuses published complex photos after apartment images with
     image('duplicate-facade', facade.file, 'photo', 4),
   ];
   const complex = { id: 'complex', title: 'ЖК Тест', slug: 'test-complex', published: true };
-  let property: any = { type: 'apartment', slug: 'test-apartment', title: 'Квартира', sourceMode: null,
+  let property: any = { type: 'apartment', slug: 'test-apartment', title: 'Квартира', sourceMode: null, description: 'Первый\n\n\nВторой',
     images: [plan, ownPhoto], complex: { ...complex, images: complexImages }, apartments: [] };
   const globals = globalThis as any;
   const replacements = {
@@ -40,6 +40,8 @@ test('detail gallery reuses published complex photos after apartment images with
   try {
     const { default: handler } = await import('../server/api/properties/[slug].get');
     const result = await handler({} as any);
+    assert.equal(result.description, 'Первый\n\nВторой');
+    assert.equal(property.description, 'Первый\n\n\nВторой');
     assert.deepEqual(result.images, [plan, ownPhoto, facade]);
     assert.strictEqual(result.images[2], facade);
     assert.deepEqual(result.complex, complex);

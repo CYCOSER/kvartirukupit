@@ -2,6 +2,7 @@ import { parsePropertyUpdate, mergePropertyUpdate, propertyEditFields } from '~/
 import { rf39ManualBaseline } from '~/shared/rf39-feed-merge';
 import { lockPropertyRelations, validatePropertyRelation, propertyFeatureSelect } from '../../../utils/property-relations';
 import { validatePropertyFeatureSelection } from '../../../utils/property-features';
+import { syncPropertyFeatureTags } from '../../../utils/tag-assignments';
 export default defineEventHandler(async (event) => {
   let submitted: ReturnType<typeof parsePropertyUpdate>;
   try { submitted = parsePropertyUpdate(await readBody(event)); }
@@ -33,11 +34,14 @@ export default defineEventHandler(async (event) => {
     await validatePropertyFeatureSelection(tx, data, existing);
     const edited = propertyEditFields.filter(field => JSON.stringify(current[field]) !== JSON.stringify(data[field]));
     const { featureIds, ...fields } = data;
-    return tx.property.update({
+    const property = await tx.property.update({
       where: { id },
       data: { ...fields, ...(featureIds !== undefined ? { features: { set: featureIds.map(id => ({ id })) } } : {}), ...(existing.sourceId?.startsWith('rf39:') && edited.length
         ? { rf39Baseline: JSON.parse(JSON.stringify(rf39ManualBaseline(existing.rf39Baseline, edited))) } : {}) },
       include: { images: { orderBy: { order: 'asc' } }, features: propertyFeatureSelect },
     });
+    if (submitted.changedFields === undefined || submitted.changedFields.includes('featureIds'))
+      await syncPropertyFeatureTags(tx, property.id, property.features.map(feature => feature.id));
+    return property;
   });
 });

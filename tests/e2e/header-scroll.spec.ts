@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { propertyFixture } from './fixtures/property';
 
 test("navigation returns on upward scrolling and remains usable on mobile", async ({
   page,
@@ -81,8 +82,10 @@ test("navigation returns on upward scrolling and remains usable on mobile", asyn
 test("photo header keeps one background through scrolling", async ({
   page,
 }) => {
-  await page.goto("/catalog/zhk-traditsiya");
-  await expect(page.locator(".detail-gallery")).toBeVisible();
+  const property = propertyFixture({ slug: 'header-scroll-fixture', title: 'Квартира для проверки шапки' });
+  await page.route(`**/api/properties/${property.slug}`, route => route.fulfill({ json: property }));
+  await page.route('**/api/properties?*', route => route.fulfill({ json: { items: [property], total: 1, pages: 1, locations: ['Калининград'] } }));
+  await page.goto('/catalog');
   await page.waitForFunction(
     () =>
       !!(
@@ -91,6 +94,10 @@ test("photo header keeps one background through scrolling", async ({
         }
       )?.__vue_app__,
   );
+  await page.getByTestId('catalog-title-search-input').fill('Шапка');
+  await page.getByTestId('catalog-title-search-submit').click();
+  await page.locator(`.catalog-grid a[href="/catalog/${property.slug}"]`).click();
+  await expect(page.locator('.detail-gallery')).toBeVisible();
   const header = page.locator(".site-header");
   const background = await header.evaluate(
     (el) => getComputedStyle(el).backgroundColor,

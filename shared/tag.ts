@@ -1,8 +1,21 @@
 import { z } from "zod";
+import { propertyFeatureSchema, type PropertyFeature } from './property-feature';
 
 export const tagSchema = z.object({
-  name: z.string().trim().min(1).max(100),
+  name: z.string().trim().min(1).max(120),
+  propertyFeature: propertyFeatureSchema.strict().nullable().optional(),
+}).strict();
+export const tagUpdateSchema = tagSchema.extend({
+  propertyFeature: propertyFeatureSchema.pick({ name: true }).strict().nullable().optional(),
 });
+export type Tag = { id: string; name: string; propertyFeature: PropertyFeature | null };
+export type TagAssignmentSummary = {
+  propertyRelationsCreated: number;
+  articleRelationsCreated: number;
+  badgesAssigned: number;
+  skippedCount: number;
+  skipped: { secondary: number; heatingConflict: number; clearedGroup: number; limit: number };
+};
 
 export const manualTagRelationsSchema = z
   .object({

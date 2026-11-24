@@ -1,4 +1,9 @@
-import { manualTagRelationsSchema } from "~/shared/tag";
+import { createError, defineEventHandler, readBody } from 'h3';
+import { db } from '../../../utils/db';
+import { manualTagRelationsSchema } from '../../../../shared/tag';
+import { assignTagTargets } from '../../../utils/tag-assignments';
+import { tagInclude } from '../../../utils/tag-definitions';
+import { lockPropertyRelations } from '../../../utils/property-relations';
 
 export default defineEventHandler(async (event) => {
   const parsed = manualTagRelationsSchema.safeParse(await readBody(event));
@@ -12,9 +17,10 @@ export default defineEventHandler(async (event) => {
   const articleIds = [...new Set(parsed.data.article_ids)];
 
   return db.$transaction(async (tx) => {
+    await lockPropertyRelations(tx);
     const tag = await tx.tag.findUnique({
       where: { id: parsed.data.tag_id },
-      select: { id: true },
+      include: tagInclude,
     });
     if (!tag)
       throw createError({ statusCode: 404, statusMessage: "Tag not found" });
@@ -36,30 +42,6 @@ export default defineEventHandler(async (event) => {
         statusMessage: "One or more selected targets do not exist",
       });
 
-    const [properties, articles] = await Promise.all([
-      propertyIds.length
-        ? tx.tagRelation.createMany({
-            data: propertyIds.map((propertyId) => ({
-              tagId: tag.id,
-              propertyId,
-            })),
-            skipDuplicates: true,
-          })
-        : { count: 0 },
-      articleIds.length
-        ? tx.tagRelation.createMany({
-            data: articleIds.map((articleId) => ({
-              tagId: tag.id,
-              articleId,
-            })),
-            skipDuplicates: true,
-          })
-        : { count: 0 },
-    ]);
-
-    return {
-      propertyRelationsCreated: properties.count,
-      articleRelationsCreated: articles.count,
-    };
-  });
+    return assignTagTargets(tx, tag, propertyIds, articleIds, 'manual');
+  }, { timeout: 60_000 });
 });

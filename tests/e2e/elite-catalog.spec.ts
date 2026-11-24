@@ -21,7 +21,7 @@ test("desktop navigation opens the separate elite catalog and returns to new bui
   expect(new URL(response.url()).searchParams.get("elite")).toBe("true");
   expect(new URL(response.url()).searchParams.get("type")).toBe("apartment");
   await expect(page).toHaveURL(/\/elite$/);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Квартиры\s*с ремонтом/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Квартиры\s*С ремонтом/);
   await expect(page.locator(".glass-photo-layout")).toBeVisible();
   await expect(page.locator(".catalog-type-links button")).toHaveText(["Все квартиры"]);
   await expect(page.locator(".property-card")).toHaveCount((await response.json()).items.length);
@@ -43,7 +43,7 @@ test("mobile navigation puts new builds before renovated apartments", async ({ p
   await expect(navigation.getByRole("link").nth(1)).toHaveAttribute("href", "/elite");
   await expect(navigation.getByRole("link", { name: "Новостройки", exact: true })).toHaveAttribute("href", "/catalog");
   await expect(navigation.locator('a[href="/#location"]')).toHaveCount(0);
-  await navigation.getByRole("link", { name: "Квартиры с ремонтом", exact: true }).click();
+  await navigation.getByRole("link", { name: "Готовые квартиры", exact: true }).click();
   await expect(page).toHaveURL(/\/elite$/);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();

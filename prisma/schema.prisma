@@ -84,6 +84,7 @@ model PropertyFeature {
   name       String
   group      PropertyFeatureGroup
   properties Property[]
+  tag        Tag?
 
   @@unique([group, name])
 }
@@ -294,6 +295,8 @@ model ArticleStat {
 model Tag {
   id        String        @id @default(cuid())
   name      String        @unique
+  propertyFeatureId String? @unique @map("property_feature_id")
+  propertyFeature PropertyFeature? @relation(fields: [propertyFeatureId], references: [id], onDelete: SetNull)
   relations TagRelation[]
   tasks     TagTask[]
 

@@ -1,6 +1,8 @@
+import { tagInclude } from '../../../utils/tag-definitions';
+
 export default defineEventHandler(() =>
   db.tagTask.findMany({
-    include: { tag: { select: { id: true, name: true } } },
+    include: { tag: { include: tagInclude } },
     orderBy: { createdAt: "desc" },
   }),
 );

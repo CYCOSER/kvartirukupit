@@ -7,7 +7,8 @@ import {
   DialogTitle,
 } from "reka-ui";
 import { ChevronLeft, ChevronRight, Tags, X } from "lucide-vue-next";
-import { manualTagRelationsSchema, tagSchema } from "~/shared/tag";
+import { manualTagRelationsSchema, tagSchema, tagUpdateSchema, type Tag, type TagAssignmentSummary } from "~/shared/tag";
+import { propertyFeatureGroups, propertyFeatureGroupLabels, type PropertyFeatureGroup } from "~/shared/property-feature";
 import {
   tagTaskFields,
   tagTaskSchema,
@@ -19,7 +20,7 @@ import {
 
 definePageMeta({ middleware: "admin", layout: "admin" });
 
-type Tag = { id: string; name: string };
+type BadgeAssignmentResult = Pick<TagAssignmentSummary, 'badgesAssigned' | 'skipped'>;
 type TagTask = {
   id: string;
   type: TagTaskType;
@@ -84,6 +85,8 @@ const tasksPageCount = computed(() =>
 );
 const editingId = ref("");
 const name = ref("");
+const featureGroup = ref<PropertyFeatureGroup | ''>('');
+const featureName = ref('');
 const creating = ref(false);
 const pending = ref(false);
 const notice = ref("");
@@ -101,6 +104,8 @@ const tagPickerPurpose = ref<"task" | "manual">("task");
 const selectedTag = computed(() =>
   tags.value?.find((tag) => tag.id === selectedTagId.value),
 );
+const availableTaskTypes = computed(() => selectedTag.value?.propertyFeature ? tagTaskTypes.filter(type => type !== 'article') : tagTaskTypes);
+const tagTypeLabel = (tag: Tag) => tag.propertyFeature ? `Значок · ${propertyFeatureGroupLabels[tag.propertyFeature.group]}` : 'Обычный тег';
 const manualTagId = ref("");
 const manualTag = computed(() =>
   tags.value?.find((tag) => tag.id === manualTagId.value),
@@ -130,6 +135,12 @@ const selectedTargetCount = computed(
   () => Object.keys(selectedTargets.value).length,
 );
 let targetPickerRequest = 0;
+watch(name, (value, previous) => {
+  if (creating.value && (!featureName.value || featureName.value === previous)) featureName.value = value;
+});
+watch(selectedTag, tag => {
+  if (tag?.propertyFeature && taskType.value === 'article') taskType.value = 'complex';
+});
 
 watch(taskType, (type) => {
   taskParams.value = [
@@ -192,7 +203,14 @@ function openTagPicker(purpose: "task" | "manual") {
 }
 
 function chooseTag(tag: Tag) {
-  if (tagPickerPurpose.value === "manual") manualTagId.value = tag.id;
+  if (tagPickerPurpose.value === "manual") {
+    manualTagId.value = tag.id;
+    manualNotice.value = '';
+    if (tag.propertyFeature && Object.values(selectedTargets.value).some(target => target.kind === 'article')) {
+      selectedTargets.value = Object.fromEntries(Object.entries(selectedTargets.value).filter(([, target]) => target.kind === 'property'));
+      manualNotice.value = 'Значки назначаются только объектам. Статьи исключены из выбора.';
+    }
+  }
   else selectedTagId.value = tag.id;
   tagPickerOpen.value = false;
 }
@@ -272,6 +290,16 @@ function targetSelectionSummary() {
   return labels.join("; ") + (remaining ? `; + ещё ${remaining}` : "");
 }
 
+function badgeAssignmentSummary(result: BadgeAssignmentResult) {
+  const skipped = result.skipped;
+  const reasons = [
+    skipped?.secondary ? `вторичное жильё — ${skipped.secondary}` : '',
+    skipped?.heatingConflict ? `другое отопление — ${skipped.heatingConflict}` : '',
+    skipped?.clearedGroup ? `группа очищена вручную — ${skipped.clearedGroup}` : '',
+    skipped?.limit ? `достигнут лимит 200 значков — ${skipped.limit}` : '',
+  ].filter(Boolean);
+  return ` Значки обновлены у объектов: ${result.badgesAssigned || 0}.${reasons.length ? ` Пропущено: ${reasons.join('; ')}.` : ''}`;
+}
 async function saveManualAssignments() {
   const propertyIds = Object.values(selectedTargets.value)
     .filter((target) => target.kind === "property")
@@ -285,25 +313,25 @@ async function saveManualAssignments() {
     article_ids: articleIds,
   });
   if (!parsed.success) {
-    manualNotice.value = "Выберите тэг и хотя бы один объект или статью.";
+    manualNotice.value = "Выберите тег и хотя бы один объект или статью.";
     return;
   }
 
   manualPending.value = true;
   manualNotice.value = "";
   try {
-    const result = await $fetch<{
+    const result = await $fetch<BadgeAssignmentResult & {
       propertyRelationsCreated: number;
       articleRelationsCreated: number;
     }>("/api/admin/tags/relations", {
       method: "POST",
       body: parsed.data,
     });
-    manualNotice.value = `Назначено связей: ${result.propertyRelationsCreated + result.articleRelationsCreated}.`;
+    manualNotice.value = `Назначено связей: ${result.propertyRelationsCreated + result.articleRelationsCreated}.${manualTag.value?.propertyFeature ? badgeAssignmentSummary(result) : ''}`;
     manualTagId.value = "";
     selectedTargets.value = {};
   } catch {
-    manualNotice.value = "Не удалось назначить тэг.";
+    manualNotice.value = "Не удалось назначить тег.";
   } finally {
     manualPending.value = false;
   }
@@ -330,6 +358,8 @@ function taskParameterLabel(task: TagTask, parameter: TagTaskParameter) {
 function startCreate() {
   editingId.value = "";
   name.value = "";
+  featureGroup.value = '';
+  featureName.value = '';
   creating.value = true;
   notice.value = "";
 }
@@ -338,6 +368,8 @@ function startEdit(tag: Tag) {
   creating.value = false;
   editingId.value = tag.id;
   name.value = tag.name;
+  featureGroup.value = tag.propertyFeature?.group || '';
+  featureName.value = tag.propertyFeature?.name || '';
   notice.value = "";
 }
 
@@ -345,12 +377,17 @@ function cancelEdit() {
   creating.value = false;
   editingId.value = "";
   name.value = "";
+  featureGroup.value = '';
+  featureName.value = '';
 }
 
 async function save() {
-  const parsed = tagSchema.safeParse({ name: name.value });
+  const parsed = (editingId.value ? tagUpdateSchema : tagSchema).safeParse({
+    name: name.value,
+    ...(featureGroup.value ? { propertyFeature: { name: featureName.value, ...(!editingId.value ? { group: featureGroup.value } : {}) } } : {}),
+  });
   if (!parsed.success) {
-    notice.value = "Введите название тега (до 100 символов).";
+    notice.value = "Заполните название тега и текст значка (до 120 символов).";
     return;
   }
 
@@ -381,7 +418,7 @@ async function save() {
 }
 
 async function remove(tag: Tag) {
-  if (!confirm(`Удалить тег «${tag.name}»?`)) return;
+  if (!confirm(`Удалить тег «${tag.name}»?${tag.propertyFeature ? ' Значок будет удалён из всех объектов.' : ''}`)) return;
 
   pending.value = true;
   try {
@@ -406,7 +443,7 @@ async function saveTask() {
   });
   if (!parsed.success) {
     taskNotice.value =
-      "Выберите тэг и заполните значение для каждого параметра.";
+      "Выберите тег и заполните значение для каждого параметра.";
     return;
   }
 
@@ -433,11 +470,11 @@ async function runTask(task: TagTask) {
   taskPendingId.value = task.id;
   taskNotice.value = "";
   try {
-    const result = await $fetch<{
+    const result = await $fetch<BadgeAssignmentResult & {
       matchedCount: number;
       assignedCount: number;
     }>(`/api/admin/tags-tasks/${task.id}/run`, { method: "POST" });
-    taskNotice.value = `Задание выполнено: найдено ${result.matchedCount}, назначено тэгов ${result.assignedCount}.`;
+    taskNotice.value = `Задание выполнено: найдено ${result.matchedCount}, назначено тегов ${result.assignedCount}.${task.tag.propertyFeature ? badgeAssignmentSummary(result) : ''}`;
   } catch {
     taskNotice.value = "Не удалось выполнить задание.";
   } finally {
@@ -464,19 +501,21 @@ async function removeTask(task: TagTask) {
 
 <template>
   <div>
-    <h1 class="admin-title">Тэги</h1>
+    <h1 class="admin-title">Теги и значки</h1>
     <div class="admin-tags-layout">
       <section class="admin-tags-panel" aria-labelledby="tags-directory-title">
-        <h2 id="tags-directory-title">Справочник тэгов</h2>
+        <h2 id="tags-directory-title">Справочник тегов и значков</h2>
+        <p class="admin-tag-task-hint">Значки видны в карточках ЖК и квартир. Обычные теги можно назначать также статьям.</p>
         <p v-if="notice" class="toast" role="status">{{ notice }}</p>
-        <p v-if="tagsError" class="error-text">Не удалось загрузить тэги.</p>
+        <p v-if="tagsError" class="error-text">Не удалось загрузить теги.</p>
         <div v-else class="admin-table-wrap">
           <table class="admin-table admin-tags-table">
             <thead>
               <tr>
-                <th>id</th>
-                <th>name</th>
-                <th>actions</th>
+                <th>ID</th>
+                <th>Название</th>
+                <th>Тип</th>
+                <th>Действия</th>
               </tr>
             </thead>
             <tbody>
@@ -487,13 +526,16 @@ async function removeTask(task: TagTask) {
                     v-if="editingId === tag.id"
                     v-model="name"
                     class="admin-tag-name-input"
-                    maxlength="100"
+                    maxlength="120"
                     aria-label="Название тега"
                     @keydown.enter.prevent="save"
                     @keydown.esc="cancelEdit"
                   />
                   <template v-else>{{ tag.name }}</template>
+                  <label v-if="editingId === tag.id && tag.propertyFeature" class="tag-public-label">Текст значка на сайте<input v-model="featureName" required maxlength="120" :disabled="pending" /></label>
+                  <small v-else-if="tag.propertyFeature && tag.propertyFeature.name !== tag.name" class="tag-public-label">На сайте: {{ tag.propertyFeature.name }}</small>
                 </td>
+                <td class="tag-kind">{{ tagTypeLabel(tag) }}</td>
                 <td>
                   <div class="admin-tag-actions">
                     <template v-if="editingId === tag.id">
@@ -532,7 +574,7 @@ async function removeTask(task: TagTask) {
                 </td>
               </tr>
               <tr v-if="!tags?.length">
-                <td colspan="3">Тэгов пока нет.</td>
+                <td colspan="4">Тегов пока нет.</td>
               </tr>
             </tbody>
           </table>
@@ -540,13 +582,13 @@ async function removeTask(task: TagTask) {
         <nav
           v-if="tagsPageCount > 1"
           class="admin-tag-pagination"
-          aria-label="Страницы справочника тэгов"
+          aria-label="Страницы справочника тегов"
         >
           <button
             type="button"
             class="btn-secondary"
             :disabled="tagsPage <= 1"
-            aria-label="Предыдущая страница тэгов"
+            aria-label="Предыдущая страница тегов"
             @click="tagsPage--"
           >
             <ChevronLeft :size="16" aria-hidden="true" />
@@ -556,7 +598,7 @@ async function removeTask(task: TagTask) {
             type="button"
             class="btn-secondary"
             :disabled="tagsPage >= tagsPageCount"
-            aria-label="Следующая страница тэгов"
+            aria-label="Следующая страница тегов"
             @click="tagsPage++"
           >
             <ChevronRight :size="16" aria-hidden="true" />
@@ -564,16 +606,21 @@ async function removeTask(task: TagTask) {
         </nav>
 
         <form v-if="creating" class="admin-tag-create" @submit.prevent="save">
+          <label>Тип<AppSelect v-model="featureGroup" aria-label="Тип тега" :disabled="pending">
+            <AppSelectOption value="">Обычный тег</AppSelectOption>
+            <AppSelectOption v-for="group in propertyFeatureGroups" :key="group" :value="group">Значок · {{ propertyFeatureGroupLabels[group] }}</AppSelectOption>
+          </AppSelect></label>
           <label>
-            Название тэга
+            Название тега
             <input
               v-model="name"
               required
-              maxlength="100"
+              maxlength="120"
               autofocus
               placeholder="Например, у моря"
             />
           </label>
+          <label v-if="featureGroup">Текст значка на сайте<input v-model="featureName" required maxlength="120" :disabled="pending" /></label>
           <div class="admin-tag-actions">
             <button class="btn-secondary" type="submit" :disabled="pending">
               Сохранить
@@ -605,25 +652,25 @@ async function removeTask(task: TagTask) {
           class="admin-tag-manual-form"
           @submit.prevent="saveManualAssignments"
         >
-          <h2>Ручное назначение тэгов</h2>
+          <h2>Ручное назначение</h2>
           <p v-if="manualNotice" class="toast" role="status">
             {{ manualNotice }}
           </p>
           <label class="admin-tag-task-label">
-            Тэг
+            Тег
             <span class="admin-tag-picker-field">
               <input
                 :value="manualTag?.name || ''"
                 type="text"
                 readonly
                 required
-                placeholder="Выберите тэг"
-                aria-label="Тэг для ручного назначения"
+                placeholder="Выберите тег"
+                aria-label="Тег для ручного назначения"
               />
               <button
                 type="button"
                 class="admin-tag-picker-button"
-                aria-label="Открыть список тэгов для ручного назначения"
+                aria-label="Открыть список тегов для ручного назначения"
                 :disabled="manualPending"
                 @click="openTagPicker('manual')"
               >
@@ -632,19 +679,19 @@ async function removeTask(task: TagTask) {
             </span>
           </label>
           <label class="admin-tag-task-label">
-            Объекты и статьи
+            {{ manualTag?.propertyFeature ? 'Объекты' : 'Объекты и статьи' }}
             <span class="admin-tag-picker-field">
               <input
                 :value="targetSelectionSummary()"
                 type="text"
                 readonly
                 placeholder="Ничего не выбрано"
-                aria-label="Выбранные объекты и статьи"
+                :aria-label="manualTag?.propertyFeature ? 'Выбранные объекты' : 'Выбранные объекты и статьи'"
               />
               <button
                 type="button"
                 class="admin-tag-picker-button"
-                aria-label="Выбрать объекты и статьи"
+                :aria-label="manualTag?.propertyFeature ? 'Выбрать объекты' : 'Выбрать объекты и статьи'"
                 :disabled="manualPending"
                 @click="openTargetPicker"
               >
@@ -655,6 +702,7 @@ async function removeTask(task: TagTask) {
               Выбрано: {{ selectedTargetCount }}
             </small>
           </label>
+          <p v-if="manualTag?.propertyFeature" class="admin-tag-task-hint">{{ tagTypeLabel(manualTag) }}. Значки назначаются ЖК и новостройкам; вторичные квартиры будут пропущены.</p>
           <button
             class="btn-primary admin-tag-task-submit"
             type="submit"
@@ -664,7 +712,7 @@ async function removeTask(task: TagTask) {
           </button>
         </form>
 
-        <h2 id="tag-tasks-title">Задания назначения тэгов</h2>
+        <h2 id="tag-tasks-title">Задания назначения тегов</h2>
         <p v-if="taskNotice" class="toast" role="status">{{ taskNotice }}</p>
         <p v-if="tasksError" class="error-text">
           Не удалось загрузить задания.
@@ -676,7 +724,7 @@ async function removeTask(task: TagTask) {
             class="admin-tag-task"
           >
             <div class="admin-tag-task-heading">
-              <strong>{{ task.tag.name }}</strong>
+              <strong>{{ task.tag.name }}</strong><small v-if="task.tag.propertyFeature">{{ tagTypeLabel(task.tag) }}</small>
               <span>{{ tagTaskTypeLabels[task.type] }}</span>
             </div>
             <ul>
@@ -710,7 +758,7 @@ async function removeTask(task: TagTask) {
         <nav
           v-if="tasksPageCount > 1"
           class="admin-tag-pagination"
-          aria-label="Страницы заданий назначения тэгов"
+          aria-label="Страницы заданий назначения тегов"
         >
           <button
             type="button"
@@ -739,20 +787,20 @@ async function removeTask(task: TagTask) {
             Условия «содержит» для нескольких параметров применяются вместе (И).
           </p>
           <label class="admin-tag-task-label">
-            Тэг
+            Тег
             <span class="admin-tag-picker-field">
               <input
                 :value="selectedTag?.name || ''"
                 type="text"
                 readonly
                 required
-                placeholder="Выберите тэг"
-                aria-label="Выбранный тэг"
+                placeholder="Выберите тег"
+                aria-label="Выбранный тег"
               />
               <button
                 type="button"
                 class="admin-tag-picker-button"
-                aria-label="Открыть список тэгов"
+                aria-label="Открыть список тегов"
                 :disabled="taskPending"
                 @click="openTagPicker('task')"
               >
@@ -764,7 +812,7 @@ async function removeTask(task: TagTask) {
             Тип
             <AppSelect v-model="taskType" aria-label="Тип задания">
               <AppSelectOption
-                v-for="type in tagTaskTypes"
+                v-for="type in availableTaskTypes"
                 :key="type"
                 :value="type"
               >
@@ -839,20 +887,20 @@ async function removeTask(task: TagTask) {
                 <DialogTitle>
                   {{
                     tagPickerPurpose === "manual"
-                      ? "Выберите тэг для ручного назначения"
-                      : "Выберите тэг"
+                      ? "Выберите тег для ручного назначения"
+                      : "Выберите тег"
                   }}
                 </DialogTitle>
                 <button
                   type="button"
-                  aria-label="Закрыть список тэгов"
+                  aria-label="Закрыть список тегов"
                   @click="tagPickerOpen = false"
                 >
                   <X :size="20" aria-hidden="true" />
                 </button>
               </div>
               <p v-if="!tags?.length" class="admin-tag-task-empty">
-                Сначала создайте тэг в справочнике.
+                Сначала создайте тег в справочнике.
               </p>
               <div v-else class="admin-tag-picker-list">
                 <button
@@ -861,7 +909,7 @@ async function removeTask(task: TagTask) {
                   type="button"
                   @click="chooseTag(tag)"
                 >
-                  {{ tag.name }}
+                  <span>{{ tag.name }}</span><small>{{ tagTypeLabel(tag) }}</small>
                 </button>
               </div>
             </DialogContent>
@@ -873,7 +921,7 @@ async function removeTask(task: TagTask) {
             <DialogOverlay class="admin-tag-picker-overlay" />
             <DialogContent class="admin-target-picker-dialog">
               <div class="admin-tag-picker-heading">
-                <DialogTitle>Выберите объекты и статьи</DialogTitle>
+              <DialogTitle>{{ manualTag?.propertyFeature ? 'Выберите объекты' : 'Выберите объекты и статьи' }}</DialogTitle>
                 <button
                   type="button"
                   aria-label="Закрыть список объектов и статей"
@@ -899,6 +947,7 @@ async function removeTask(task: TagTask) {
                   Объекты
                 </button>
                 <button
+                  v-if="!manualTag?.propertyFeature"
                   type="button"
                   :aria-pressed="targetPickerType === 'article'"
                   :class="{ 'is-active': targetPickerType === 'article' }"
@@ -1035,3 +1084,15 @@ async function removeTask(task: TagTask) {
     </div>
   </div>
 </template>
+<style scoped>
+.admin-tags-table { min-width: 680px; }
+.admin-tags-table th, .admin-tags-table .btn-secondary { white-space: nowrap; }
+.admin-tags-table .admin-tag-id { min-width: 110px; }
+.admin-tags-table td:nth-child(2) { min-width: 220px; }
+.admin-tags-table td:last-child { min-width: 160px; }
+.tag-kind { min-width: 140px; font-size: 0.8125rem; }
+.tag-public-label { display: grid; gap: 6px; margin-top: 8px; color: #63728a; font-size: 0.8125rem; }
+.tag-public-label input { width: 100%; min-width: 0; border: 1px solid #dfe6f1; border-radius: 8px; padding: 9px 10px; color: #354d70; }
+.admin-tag-picker-list button { display: grid; gap: 4px; }
+.admin-tag-picker-list small { color: #63728a; font-size: 0.75rem; }
+</style>

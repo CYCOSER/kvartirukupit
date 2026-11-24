@@ -1,6 +1,7 @@
 import { propertySchema } from '~/shared/property';
 import { lockPropertyRelations, validatePropertyRelation, propertyFeatureSelect } from '../../../utils/property-relations';
 import { validatePropertyFeatureSelection } from '../../../utils/property-features';
+import { syncPropertyFeatureTags } from '../../../utils/tag-assignments';
 export default defineEventHandler(async (event) => {
   const parsed = propertySchema.safeParse(await readBody(event));
   if (!parsed.success)
@@ -15,9 +16,11 @@ export default defineEventHandler(async (event) => {
     await validatePropertyRelation(tx, parsed.data);
     await validatePropertyFeatureSelection(tx, parsed.data);
     const { featureIds, ...data } = parsed.data;
-    return tx.property.create({
+    const property = await tx.property.create({
       data: { ...data, features: { connect: (featureIds ?? []).map(id => ({ id })) } },
       include: { images: true, features: propertyFeatureSelect },
     });
+    await syncPropertyFeatureTags(tx, property.id, property.features.map(feature => feature.id));
+    return property;
   });
 });

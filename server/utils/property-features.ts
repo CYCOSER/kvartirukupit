@@ -11,7 +11,7 @@ export async function validatePropertyFeatureSelection(
   const ids = data.featureIds ?? previous?.features.map(feature => feature.id) ?? [];
   const features = await tx.propertyFeature.findMany({ where: { id: { in: ids } } });
   if (features.length !== ids.length)
-    throw createError({ statusCode: 400, data: { message: 'Некоторые преимущества удалены. Обновите страницу и повторите выбор.' } });
+    throw createError({ statusCode: 400, data: { message: 'Некоторые значки удалены. Обновите страницу и повторите выбор.' } });
   const message = validateFeatureSelection(features, data.featureOverrides ?? previous?.featureOverrides ?? []);
   if (message) throw createError({ statusCode: 400, data: { message } });
 }

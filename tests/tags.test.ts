@@ -7,12 +7,13 @@ import {
 } from "../shared/tag";
 import { matchesTagTaskParameters, tagTaskSchema } from "../shared/tag-task";
 
-test("tag names are trimmed and limited to 100 characters", () => {
+test("tag names are trimmed and limited to 120 characters", () => {
   assert.deepEqual(tagSchema.parse({ name: "  У моря  " }), {
     name: "У моря",
   });
   assert.equal(tagSchema.safeParse({ name: " " }).success, false);
-  assert.equal(tagSchema.safeParse({ name: "т".repeat(101) }).success, false);
+  assert.equal(tagSchema.safeParse({ name: "т".repeat(120) }).success, true);
+  assert.equal(tagSchema.safeParse({ name: "т".repeat(121) }).success, false);
 });
 
 test("keywords include tags without dropping or duplicating editorial keywords", () => {

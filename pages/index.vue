@@ -317,7 +317,7 @@ onBeforeUnmount(() => {
           <p class="eyebrow">ВАШ ЛИЧНЫЙ ПОДБОР</p>
           <h2 class="type-pair">
             <span class="type-upright">Начнём</span>
-            <em class="type-script">с разговора</em>
+            <em class="type-script">С разговора</em>
           </h2>
           <p class="contact-story-intro">
             Расскажите, какую квартиру вы ищете в Калининграде. Обсудим район,

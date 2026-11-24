@@ -797,6 +797,7 @@ async function importSelected() {
   margin-bottom: 7px;
 }
 .import-filter-grid input {
+  margin-top: 0;
   width: 100%;
   max-width: none;
   background: #fafbfd;
@@ -808,6 +809,8 @@ async function importSelected() {
   min-width: 0;
 }
 .import-filter-grid :deep(.select-field) {
+  margin-top: 0;
+  height: 44px;
   min-width: 0;
   width: 100%;
   font-size: 13px;
