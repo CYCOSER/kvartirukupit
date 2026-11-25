@@ -35,12 +35,10 @@ export function useAnalyticsConsent() {
         saved === "accepted" || saved === "necessary" ? saved : "unknown";
       policyVersion.value = savedVersion || "";
       settingsOpen.value = consent.value === "unknown";
-      needsConsent.value = consent.value === "unknown";
     } catch (error) {
       console.error("Не удалось прочитать настройки cookie.", error);
       consent.value = "unknown";
       settingsOpen.value = true;
-      needsConsent.value = true;
     }
   }
 
@@ -106,6 +104,7 @@ export function useAnalyticsConsent() {
     if (!policyVersion.value) {
       markConsentGiven(current);
     }
+    needsConsent.value = false;
   }
 
   function openSettings() {

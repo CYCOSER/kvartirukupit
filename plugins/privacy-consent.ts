@@ -17,7 +17,7 @@ export default defineNuxtPlugin({
 
     watch(data, value => {
       serverVersion.value = value ?? null;
-      if (isPublicRoute.value) checkConsent();
+      if (import.meta.client && isPublicRoute.value) checkConsent();
     });
 
     if (import.meta.client) {
