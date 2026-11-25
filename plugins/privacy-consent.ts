@@ -6,8 +6,12 @@ export default defineNuxtPlugin({
     const { serverVersion, initializeConsent, checkConsent } = useAnalyticsConsent();
     const route = useRoute();
 
-    // Consent flow applies only to public pages, never the admin console.
-    const isPublicRoute = computed(() => !route.path.startsWith('/admin-console-'));
+    // Consent flow applies to public pages, but never the admin console or the
+    // policy page itself (it must stay readable without accepting first).
+    const isPublicRoute = computed(
+      () =>
+        !route.path.startsWith('/admin-console-') && route.path !== '/privacy',
+    );
 
     const { data } = useFetch('/api/privacy-policy', {
       key: 'privacy-policy-version',
