@@ -330,3 +330,14 @@ model TagRelation {
   @@index([articleId])
   @@map("tags_relations")
 }
+
+model PrivacyPolicyVersion {
+  id           String      @id @default("current")
+  version      String
+  effectiveAt  DateTime    @default(now())
+  updatedBy    String?
+  updatedByName String?
+  summary      String?
+
+  @@map("Privacy_policy_version")
+}

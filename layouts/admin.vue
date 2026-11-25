@@ -9,6 +9,7 @@ import {
   ArrowUpRight,
   LogOut,
   LayoutDashboard,
+  Shield,
 } from "lucide-vue-next";
 import "~/assets/css/admin.css";
 
@@ -35,6 +36,11 @@ const toolSections = [
     to: "/admin-console-9Xk6uiIs/tools/api",
     label: "Подключение по API",
     icon: KeyRound,
+  },
+  {
+    to: "/admin-console-9Xk6uiIs/privacy-policy",
+    label: "Конфиденциальность",
+    icon: Shield,
   },
 ];
 const sectionTitle = computed(

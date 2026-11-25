@@ -7,5 +7,6 @@ import { ConfigProvider } from "reka-ui";
     <NuxtLayout><NuxtPage /></NuxtLayout>
     <AdminImportJobs />
     <CookieConsent />
+    <PrivacyConsentDialog />
   </ConfigProvider>
 </template>

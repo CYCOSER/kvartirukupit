@@ -14,7 +14,7 @@ type YandexWindow = Window & { ym?: YandexMetrika };
 const {
   consent,
   settingsOpen,
-  initializeConsent,
+  needsConsent,
   setConsent,
 } = useAnalyticsConsent();
 let metrikaLoaded = false;
@@ -59,15 +59,27 @@ function choose(value: Exclude<AnalyticsConsent, "unknown">) {
   setConsent(value);
 }
 
-onMounted(initializeConsent);
+onMounted(() => {
+  // Consent state is initialized by the privacy-consent plugin before mount.
+  if (consent.value === "accepted") loadMetrika();
+});
+
 watch(consent, (value) => {
   if (value === "accepted") loadMetrika();
+});
+
+// Watch for needsConsent changes to hide cookie banner when privacy dialog shows
+watch(needsConsent, (val) => {
+  if (val) {
+    // Hide the cookie banner when the privacy consent dialog is shown
+    settingsOpen.value = false;
+  }
 });
 </script>
 
 <template>
   <aside
-    v-if="settingsOpen"
+    v-if="settingsOpen && !needsConsent"
     class="cookie-consent"
     aria-label="Настройки cookie и аналитики"
   >
