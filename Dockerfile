@@ -4,7 +4,12 @@ WORKDIR /app
 COPY package*.json .npmrc ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY . .
-RUN npx prisma generate && npx nuxt prepare && npm run build
+# Prisma downloads its query engine at generate time. On networks with restricted
+# outbound access set PRISMA_ENGINES_MIRROR to a reachable mirror, e.g.
+# https://registry.npmmirror.com/-/binary/prisma
+ARG PRISMA_ENGINES_MIRROR
+ENV PRISMA_ENGINES_MIRROR=${PRISMA_ENGINES_MIRROR}
+RUN ./node_modules/.bin/prisma generate && ./node_modules/.bin/nuxt prepare && npm run build
 
 FROM node:22-alpine
 RUN apk add --no-cache openssl
