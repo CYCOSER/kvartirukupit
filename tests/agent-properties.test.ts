@@ -78,6 +78,9 @@ test('agent property detail selects only public content fields', async (t) => {
   const mock = mockProperty(t);
   assert.equal((await request('/properties/one')).status, 200);
   assert.deepEqual(mock.findUnique.mock.calls[0]!.arguments[0], { where: { id: 'one' }, select: agentPropertySelect });
+  assert.deepEqual(agentPropertySelect.tagRelations, {
+    select: { tag: { select: { id: true, name: true } } }, orderBy: { tagId: 'asc' },
+  });
   for (const key of ['leads', 'sourceId', 'rf39Baseline', 'sourceUrl', 'sourceNote']) assert.equal(key in agentPropertySelect, false);
 });
 

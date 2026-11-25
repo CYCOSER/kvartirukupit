@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Квартирукупить — API для ИИ-агента",
-    "version": "1.0.0",
-    "description": "Редактирование статей блога, обложек и описаний существующих объектов. Все операции требуют Bearer-токен. HTTPS обязателен при удалённом подключении. JSON-тело до 256 КиБ, Content-Length обязателен. Не изменяет цены, заявки или CRM."
+    "version": "1.1.0",
+    "description": "Редактирование статей блога, обложек, описаний и значков существующих объектов; управление тегами и их назначением. Все операции требуют Bearer-токен. HTTPS обязателен при удалённом подключении. JSON-тело до 256 КиБ, Content-Length обязателен. Не изменяет цены, заявки или CRM."
   },
   "servers": [
     {
@@ -331,6 +331,85 @@
           "default": {
             "$ref": "#/components/responses/Error"
           }
+        }
+      }
+    },
+    "/property-features": {
+      "get": {
+        "operationId": "listPropertyFeatures",
+        "summary": "Справочник значков",
+        "description": "Массив без пагинации, отсортированный по группе и названию.",
+        "responses": {
+          "200": { "description": "Справочник", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/PropertyFeature" } } } } },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/properties/{id}/features": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } }],
+      "patch": {
+        "operationId": "setPropertyFeatures",
+        "summary": "Изменить значки объекта",
+        "description": "Непереданные поля сохраняются; переданные массивы заменяются целиком, [] очищает поле. Сохраняйте прежние ID при добавлении. Для каждого значка его группа должна входить в featureOverrides. Не более одного значка отопления. Группа с override без значков явно очищена; без override допускается наследование от ЖК. Связанные теги синхронизируются атомарно, обычные теги сохраняются. На вторичном рынке значки не отображаются.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PropertyFeaturesPatch" } } } },
+        "responses": {
+          "200": { "description": "Актуальный объект", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Property" } } } },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/tags": {
+      "get": {
+        "operationId": "listTags",
+        "summary": "Справочник тегов и связанных значков",
+        "description": "Массив без пагинации, отсортированный по имени.",
+        "responses": {
+          "200": { "description": "Теги", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Tag" } } } } },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "post": {
+        "operationId": "createTag",
+        "summary": "Создать тег, при необходимости со значком",
+        "description": "propertyFeature создаёт связанный значок; null или отсутствие поля создаёт обычный тег. Конфликт уникального имени возвращает 409.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TagCreate" } } } },
+        "responses": {
+          "200": { "description": "Созданный тег", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Tag" } } } },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/tags/{id}": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1 } }],
+      "put": {
+        "operationId": "updateTag",
+        "summary": "Переименовать тег и связанный значок",
+        "description": "name обязателен. Тип тега и группу значка менять нельзя. Отсутствие propertyFeature сохраняет значок; null допустим только для обычного тега. Конфликт уникального имени возвращает 409.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TagUpdate" } } } },
+        "responses": {
+          "200": { "description": "Обновлённый тег", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Tag" } } } },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteTag",
+        "summary": "Удалить тег и связанный значок везде",
+        "description": "Удаляет определение, все назначения и связанный значок у всех объектов. Не использовать для снятия тега с одной карточки.",
+        "responses": {
+          "200": { "description": "Удалено", "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean", "enum": [true] } }, "required": ["ok"] } } } },
+          "default": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/tags/relations": {
+      "post": {
+        "operationId": "assignTagRelations",
+        "summary": "Добавить тег к объектам и статьям",
+        "description": "Добавляет назначения без удаления остальных и без дубликатов. Оба массива обязательны, хотя бы один непустой. Тег со значком назначается только объектам, article_ids должен быть пуст. Проверяйте skipped: вторичный рынок, конфликт отопления, явно очищенная группа и лимит значков пропускаются. Неизвестные поля игнорируются. Снятие отдельных тегов не поддерживается.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TagRelationsCreate" } } } },
+        "responses": {
+          "200": { "description": "Итог назначения", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TagAssignmentSummary" } } } },
+          "default": { "$ref": "#/components/responses/Error" }
         }
       }
     },
@@ -790,6 +869,65 @@
           "updatedAt"
         ]
       },
+      "PropertyFeatureGroup": { "type": "string", "enum": ["heating", "territory", "location", "other"] },
+      "PropertyFeature": {
+        "type": "object",
+        "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "group": { "$ref": "#/components/schemas/PropertyFeatureGroup" } },
+        "required": ["id", "name", "group"]
+      },
+      "PropertyFeaturesPatch": {
+        "type": "object", "additionalProperties": false, "minProperties": 1,
+        "properties": {
+          "featureIds": { "type": "array", "maxItems": 200, "items": { "type": "string", "minLength": 1, "maxLength": 100 }, "description": "Полный новый набор ID; дубликаты удаляются." },
+          "featureOverrides": { "type": "array", "maxItems": 4, "items": { "$ref": "#/components/schemas/PropertyFeatureGroup" } }
+        }
+      },
+      "Tag": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "name": { "type": "string" },
+          "propertyFeatureId": { "type": "string", "nullable": true },
+          "propertyFeature": { "type": "object", "nullable": true, "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "group": { "$ref": "#/components/schemas/PropertyFeatureGroup" } }, "required": ["id", "name", "group"] }
+        },
+        "required": ["id", "name", "propertyFeatureId", "propertyFeature"]
+      },
+      "TagCreate": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "propertyFeature": { "type": "object", "nullable": true, "additionalProperties": false, "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 120 }, "group": { "$ref": "#/components/schemas/PropertyFeatureGroup" } }, "required": ["name", "group"] }
+        },
+        "required": ["name"]
+      },
+      "TagUpdate": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "propertyFeature": { "type": "object", "nullable": true, "additionalProperties": false, "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 120 } }, "required": ["name"] }
+        },
+        "required": ["name"]
+      },
+      "TagRelationsCreate": {
+        "type": "object",
+        "properties": {
+          "tag_id": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "property_ids": { "type": "array", "maxItems": 500, "items": { "type": "string", "minLength": 1, "maxLength": 100 } },
+          "article_ids": { "type": "array", "maxItems": 500, "items": { "type": "string", "minLength": 1, "maxLength": 100 } }
+        },
+        "required": ["tag_id", "property_ids", "article_ids"],
+        "anyOf": [{ "properties": { "property_ids": { "minItems": 1 } } }, { "properties": { "article_ids": { "minItems": 1 } } }]
+      },
+      "TagAssignmentSummary": {
+        "type": "object",
+        "properties": {
+          "propertyRelationsCreated": { "type": "integer", "minimum": 0 },
+          "articleRelationsCreated": { "type": "integer", "minimum": 0 },
+          "badgesAssigned": { "type": "integer", "minimum": 0 },
+          "skippedCount": { "type": "integer", "minimum": 0 },
+          "skipped": { "type": "object", "properties": { "secondary": { "type": "integer", "minimum": 0 }, "heatingConflict": { "type": "integer", "minimum": 0 }, "clearedGroup": { "type": "integer", "minimum": 0 }, "limit": { "type": "integer", "minimum": 0 } }, "required": ["secondary", "heatingConflict", "clearedGroup", "limit"] }
+        },
+        "required": ["propertyRelationsCreated", "articleRelationsCreated", "badgesAssigned", "skippedCount", "skipped"]
+      },
       "Property": {
         "type": "object",
         "properties": {
@@ -882,6 +1020,12 @@
             "type": "string",
             "nullable": true
           },
+          "heatingType": { "type": "string", "nullable": true },
+          "fencedTerritory": { "type": "boolean", "nullable": true },
+          "locationTags": { "type": "array", "items": { "type": "string" } },
+          "features": { "type": "array", "items": { "$ref": "#/components/schemas/PropertyFeature" } },
+          "featureOverrides": { "type": "array", "items": { "$ref": "#/components/schemas/PropertyFeatureGroup" } },
+          "tagRelations": { "type": "array", "items": { "type": "object", "properties": { "tag": { "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" } }, "required": ["id", "name"] } }, "required": ["tag"] } },
           "completionDate": {
             "type": "string",
             "nullable": true
@@ -915,6 +1059,12 @@
           "utilities",
           "developer",
           "district",
+          "heatingType",
+          "fencedTerritory",
+          "locationTags",
+          "features",
+          "featureOverrides",
+          "tagRelations",
           "completionDate",
           "constructionStatus"
         ]

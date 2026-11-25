@@ -12,6 +12,7 @@ export const agentPropertySelect = {
   seaDistance: true, utilities: true, developer: true, district: true,
   heatingType: true, fencedTerritory: true, locationTags: true,
   features: propertyFeatureSelect, featureOverrides: true,
+  tagRelations: { select: { tag: { select: { id: true, name: true } } }, orderBy: { tagId: 'asc' } },
   completionDate: true, constructionStatus: true,
 } satisfies Prisma.PropertySelect;
 
