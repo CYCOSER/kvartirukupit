@@ -16,10 +16,7 @@ services:
       retries: 10
 
   web:
-    build:
-      context: .
-      args:
-        PRISMA_ENGINES_MIRROR: ${PRISMA_ENGINES_MIRROR:-}
+    build: .
     image: newh:local
     restart: unless-stopped
     init: true
