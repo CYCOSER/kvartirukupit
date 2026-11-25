@@ -26,6 +26,7 @@ services:
     volumes:
       - uploads:/app/uploads
       - rf39_snapshots:/app/rf39
+      - privacy_data:/app/.data
       - ./.data/nmarket:/app/nmarket
     ports:
       - "${PORT:-3100}:3000"
@@ -88,6 +89,7 @@ volumes:
   postgres_data:
   uploads:
   rf39_snapshots:
+  privacy_data:
 
 networks:
   upscale:

@@ -18,7 +18,7 @@ COPY --from=builder --chown=node:node /app/package.json ./package.json
 COPY --chown=node:node scripts ./scripts
 COPY --from=builder --chown=node:node /app/server/utils ./server/utils
 COPY --chown=node:node data/curated ./data/curated
-RUN mkdir -p /app/uploads /app/rf39 && chown node:node /app/uploads /app/rf39
+RUN mkdir -p /app/uploads /app/rf39 /app/.data && chown node:node /app/uploads /app/rf39 /app/.data
 USER node
 EXPOSE 3000
 CMD ["sh", "scripts/entrypoint.sh"]
