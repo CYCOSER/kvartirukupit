@@ -1,0 +1,10 @@
+nodejs_conf = nodejs_init
+
+[nodejs_init]
+ssl_conf = ssl_sect
+
+[ssl_sect]
+system_default = system_default_sect
+
+[system_default_sect]
+Groups = X25519

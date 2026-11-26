@@ -1,5 +1,10 @@
 FROM node:22-alpine AS builder
 RUN apk add --no-cache openssl
+
+# Workaround for TLS 1.3 transfer stalls with X25519MLKEM768
+COPY openssl-x25519.cnf /etc/ssl/openssl-x25519.cnf
+ENV NODE_OPTIONS="--openssl-config=/etc/ssl/openssl-x25519.cnf"
+
 WORKDIR /app
 COPY package*.json .npmrc ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
